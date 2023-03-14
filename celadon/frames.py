@@ -1,0 +1,146 @@
+# pylint: disable=too-few-public-methods
+
+from __future__ import annotations
+
+from typing import Type
+
+__all__ = [
+    "Frame",
+    "CharTuple",
+    "ASCII_X",
+    "Frameless",
+    "Padded",
+    "Light",
+]
+
+CharTuple = tuple[str, str, str, str]
+
+
+class Frame:
+    descriptor: tuple[str, str, str] | None = None
+    """A list of strings that describes the frame's borders & corners."""
+
+    borders: CharTuple | None = None
+    """Left, top, right and bottom border characters."""
+
+    corners: CharTuple | None = None
+    """Left-top, right-top, right-bottom and left-bottom border characters."""
+
+    scrollbars: tuple[tuple[str, str, str], tuple[str, str, str]]
+    """The characters to use for scrollbars (horizontal, vertical).
+
+    It is stored in the order of (start_corner, thumb, rail, end_corner).
+    """
+
+    width: int
+    """Width of the left and right borders combined."""
+
+    height: int
+    """Height of the top and bottom borders combined."""
+
+    def __init__(self) -> None:
+        if self.descriptor is not None:
+            self.borders, self.corners = self._parse_descriptor()
+
+        assert self.borders is not None and self.corners is not None
+
+        self.width = len(self.borders[1] + self.borders[3])
+        self.height = len(self.borders[0] + self.borders[2])
+
+    def _parse_descriptor(self) -> tuple[CharTuple, CharTuple]:
+        """Parses the descriptor into tuples of chartuples."""
+
+        top, middle, bottom = self.descriptor  # pylint: disable=unpacking-non-sequence
+
+        left_top, top, *_, right_top = top
+        left, *_, right = middle
+        left_bottom, bottom, *_, right_bottom = bottom
+
+        return (
+            (left, top, right, bottom),
+            (left_top, right_top, right_bottom, left_bottom),
+        )
+
+
+def get_frame(name: str) -> Frame:
+    """Gets a frame by its name.
+
+    Args:
+        name: A case-insensitive frame name.
+
+    Returns:
+        The frame class matching the given name.
+
+    Raises:
+        ValueError: No frame found with the given name.
+    """
+
+    frame = globals().get(name)
+
+    if issubclass(frame, Frame):
+        return frame
+
+    raise ValueError(f"No frame defined with name {name!r}.")
+
+
+def add_frame_preview(cls: Type[Frame]):
+    if cls.descriptor is None:
+        return cls
+
+    cls.__doc__ += f"""
+
+Preview:
+
+    {cls.descriptor[0]}
+    {cls.descriptor[1]}
+    {cls.descriptor[2]}
+"""
+    return cls
+
+
+@add_frame_preview
+class ASCII_X(Frame):  # pylint: disable=invalid-name
+    """A frame of ASCII characters, with X-s in the corners."""
+
+    descriptor = [
+        "X---X",
+        "|   |",
+        "X---X",
+    ]
+
+    scrollbars = ["-#", "|#"]
+
+
+class Light(Frame):
+    """A frame with a light outline."""
+
+    descriptor = [
+        "┌───┐",
+        "│   │",
+        "└───┘",
+    ]
+
+    scrollbars = [" ▅", " █"]
+
+
+@add_frame_preview
+class Padded(Frame):
+    """A frame of spaces."""
+
+    descriptor = [
+        "   ",
+        "   ",
+        "   ",
+    ]
+
+    scrollbars = [" ▅", " █"]
+
+
+@add_frame_preview
+class Frameless(Frame):
+    """A frame of nothing."""
+
+    borders = ("", "", "", "")
+    corners = ("", "", "", "")
+
+    scrollbars = [" ▅", " █"]
