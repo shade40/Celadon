@@ -6,22 +6,22 @@ from celadon import Widget, Alignment, Overflow, frames
 EMPTY_STYLEMAP = {
     "idle": {
         "fill": "",
-        "border": "",
+        "frame": "",
         "content": "",
     },
     "hover": {
         "fill": "",
-        "border": "",
+        "frame": "",
         "content": "",
     },
     "selected": {
         "fill": "",
-        "border": "",
+        "frame": "",
         "content": "",
     },
     "active": {
         "fill": "",
-        "border": "",
+        "frame": "",
         "content": "",
     },
 }
@@ -295,9 +295,14 @@ def test_widget_styling():
             add_transitions={
                 "/": {
                     "SUBSTATE_ENTER_CHECKED": "/checked",
+                    "SUBSTATE_ENTER_WEIRD": "/weird",
                 },
                 "/checked": {
                     "SUBSTATE_EXIT_CHECKED": "/",
+                },
+                "/weird": {
+                    "SUBSTATE_EXIT_WEIRD": "/",
+                    "SUBSTATE_ENTER_CHECKED": "/checked",
                 },
             }
         )
@@ -305,6 +310,7 @@ def test_widget_styling():
         style_map = TextWidget.style_map | {
             "/checked": {
                 "content": "red",
+                "frame": "bold red",
             }
         }
 
@@ -321,14 +327,54 @@ def test_widget_styling():
         ]
     )
 
-    w.state_machine.apply_action("SUBSTATE_ENTER_CHECKED")
+    w.state_machine.apply_action("SUBSTATE_ENTER_WEIRD")
 
     assert w.build() == _as_spans(
         [
             ("X", "------------------", "X"),
-            ("|", Span("Alma              ", foreground="38;2;255;0;0"), "|"),
+            ("|", "Alma              ", "|"),
             ("|", "                  ", "|"),
             ("|", "                  ", "|"),
             ("X", "------------------", "X"),
+        ]
+    )
+
+    w.state_machine.apply_action("SUBSTATE_ENTER_CHECKED")
+
+    styles = {key: value("item") for key, value in w.styles.items()}
+
+    assert styles == {
+        "fill": "[]item",
+        "content": "[red]item",
+        "frame": "[bold red]item",
+    }
+
+    assert w.build() == _as_spans(
+        [
+            (
+                Span("X", bold=True, foreground="38;2;255;0;0"),
+                Span("------------------", bold=True, foreground="38;2;255;0;0"),
+                Span("X", bold=True, foreground="38;2;255;0;0"),
+            ),
+            (
+                Span("|", bold=True, foreground="38;2;255;0;0"),
+                Span("Alma              ", foreground="38;2;255;0;0"),
+                Span("|", bold=True, foreground="38;2;255;0;0"),
+            ),
+            (
+                Span("|", bold=True, foreground="38;2;255;0;0"),
+                Span("                  "),
+                Span("|", bold=True, foreground="38;2;255;0;0"),
+            ),
+            (
+                Span("|", bold=True, foreground="38;2;255;0;0"),
+                Span("                  "),
+                Span("|", bold=True, foreground="38;2;255;0;0"),
+            ),
+            (
+                Span("X", bold=True, foreground="38;2;255;0;0"),
+                Span("------------------", bold=True, foreground="38;2;255;0;0"),
+                Span("X", bold=True, foreground="38;2;255;0;0"),
+            ),
         ]
     )

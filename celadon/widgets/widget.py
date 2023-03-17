@@ -143,19 +143,20 @@ class Widget:  # pylint: disable=too-many-instance-attributes
     def styles(self) -> dict[str, Callable[[str], str]]:
         """Returns a dictionary of style keys to markup callables."""
 
+        styles = self.style_map[self.state.split("/")[0]]
+
         if "/" in self.state:
             key = "/" + self.state.split("/")[-1]
 
             if key in self.style_map:
-                return {
-                    key: lambda item: f"[{style}]{item}"
-                    for key, style in self.style_map[key].items()
-                }
+                styles |= self.style_map[key].items()
 
-        return {
-            key: lambda item: f"[{style}]{item}"
-            for key, style in self.style_map[self.state].items()
+        lambda_styles: dict[str, Callable[[str], str]] = {
+            key: lambda item, style=style: f"[{style}]{item}"  # type: ignore
+            for key, style in styles.items()
         }
+
+        return lambda_styles
 
     @property
     def frame(self) -> Frame:
@@ -266,17 +267,24 @@ class Widget:  # pylint: disable=too-many-instance-attributes
     def _apply_frame(self, lines: list[tuple[Span, ...]], width: int) -> None:
         """Adds frame characters around the given lines."""
 
+        def _style(item) -> tuple[Span, ...]:
+            return tuple(markup_spans(self.styles["frame"](item)))
+
         left_top, right_top, right_bottom, left_bottom = self.frame.corners
         left, top, right, bottom = self.frame.borders
 
         for i, line in enumerate(lines):
-            lines[i] = (Span(left), *line, Span(right))
+            lines[i] = (*_style(left), *line, *_style(right))
 
         if left_top + top + right_top != "":
-            lines.insert(0, (Span(left_top), Span(top * width), Span(right_top)))
+            lines.insert(
+                0, (*_style(left_top), *_style(top * width), *_style(right_top))
+            )
 
         if left_bottom + bottom + right_bottom != "":
-            lines.append((Span(left_bottom), Span(bottom * width), Span(right_bottom)))
+            lines.append(
+                (*_style(left_bottom), *_style(bottom * width), *_style(right_bottom))
+            )
 
     def _horizontal_align(self, line: tuple[Span, ...], width: int) -> tuple[Span, ...]:
         """Aligns a tuple of spans horizontally, using `self.alignment[0]`."""
