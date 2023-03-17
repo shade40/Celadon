@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Callable, Generator, Type
 
-from zenith.markup import markup, markup_spans
+from zenith.markup import markup_spans
 from gunmetal import Event, Span
 
 from ..enums import Alignment, Overflow
@@ -86,22 +86,22 @@ class Widget:  # pylint: disable=too-many-instance-attributes
     style_map = {
         "idle": {
             "fill": "panel+1",
-            "border": "accent",
+            "frame": "accent",
             "content": "text",
         },
         "hover": {
             "fill": "panel+2",
-            "border": "accent",
+            "frame": "accent",
             "content": "text",
         },
         "selected": {
             "fill": "accent",
-            "border": "panel+2",
+            "frame": "panel+2",
             "content": "text",
         },
         "active": {
             "fill": "accent+1",
-            "border": "panel",
+            "frame": "panel",
             "content": "text",
         },
     }
@@ -144,9 +144,18 @@ class Widget:  # pylint: disable=too-many-instance-attributes
     def styles(self) -> dict[str, Callable[[str], str]]:
         """Returns a dictionary of style keys to markup callables."""
 
+        if "/" in self.state:
+            key = "/" + self.state.split("/")[-1]
+
+            if key in self.style_map:
+                return {
+                    key: lambda item: f"[{style}]{item}"
+                    for key, style in self.style_map[key].items()
+                }
+
         return {
-            key: lambda item: markup("[{value}]{item}")
-            for key, value in self.style_map[self.state]
+            key: lambda item: f"[{style}]{item}"
+            for key, style in self.style_map[self.state].items()
         }
 
     @property
@@ -335,7 +344,11 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         width = max(self.width - self.frame.width, 0)
         height = max(self.height - self.frame.height, 0)
 
-        lines: list[tuple[Span]] = [list(markup_spans(l)) for l in self.get_content()]
+        content_style = self.styles["content"]
+
+        lines: list[tuple[Span]] = [
+            list(markup_spans(content_style(l))) for l in self.get_content()
+        ]
 
         self._virtual_height = len(lines)
 

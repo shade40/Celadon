@@ -21,8 +21,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-#dependencies = ["gunmetal", "zenith"]
-dependencies = []
+dependencies = ["gunmetal", "zenith"]
 dynamic = ["version"]
 
 [project.urls]

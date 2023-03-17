@@ -10,11 +10,11 @@ def get_state_machine():
             "active",
         ),
         transitions={
-            ">": {
-                "SUBSTATE_ENTER_BLUR": ">blur",
+            "/": {
+                "SUBSTATE_ENTER_BLUR": "/blur",
             },
-            ">blur": {
-                "SUBSTATE_EXIT_BLUR": ">",
+            "/blur": {
+                "SUBSTATE_EXIT_BLUR": "/",
             },
             "idle": {
                 "HOVERED": "hover",
@@ -135,13 +135,13 @@ def test_state_machine_substates():
     state = get_state_machine()
 
     state.apply_action("SUBSTATE_ENTER_BLUR")
-    assert state() == "idle>blur"
+    assert state() == "idle/blur"
 
     state.apply_action("HOVERED")
-    assert state() == "hover>blur"
+    assert state() == "hover/blur"
 
     state.apply_action("CLICKED")
-    assert state() == "active>blur"
+    assert state() == "active/blur"
 
     state.apply_action("SUBSTATE_EXIT_BLUR")
     assert state() == "active"
@@ -155,4 +155,4 @@ def test_state_machine_eq():
     assert state().startswith("idle")
 
     state.apply_action("SUBSTATE_ENTER_BLUR")
-    assert state().endswith(">blur")
+    assert state().endswith("/blur")

@@ -24,12 +24,12 @@ class StateMachine:
         self._transitions = transitions
 
         self._state = states[0]
-        self._substate = ">"
+        self._substate = "/"
 
     def __call__(self) -> str:
         """Returns the current state, including substate."""
 
-        return self._state + (self._substate if self._substate != ">" else "")
+        return self._state + (self._substate if self._substate != "/" else "")
 
     def __repr__(self) -> str:
         return f"<{self.__class__.__name__} state: {self()!r}>"

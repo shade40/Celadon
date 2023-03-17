@@ -1,10 +1,35 @@
 import pytest
 
-from undertone import Span
+from gunmetal import Span
 from celadon import Widget, Alignment, Overflow, frames
+
+EMPTY_STYLEMAP = {
+    "idle": {
+        "fill": "",
+        "border": "",
+        "content": "",
+    },
+    "hover": {
+        "fill": "",
+        "border": "",
+        "content": "",
+    },
+    "selected": {
+        "fill": "",
+        "border": "",
+        "content": "",
+    },
+    "active": {
+        "fill": "",
+        "border": "",
+        "content": "",
+    },
+}
 
 
 class TextWidget(Widget):
+    style_map = EMPTY_STYLEMAP
+
     def __init__(self, text: str) -> None:
         self.text = text
 
@@ -15,6 +40,8 @@ class TextWidget(Widget):
 
 
 class ScrollingWidget(Widget):
+    style_map = EMPTY_STYLEMAP
+
     def __init__(self) -> None:
         super().__init__(width=20, height=20, frame="Light")
 
@@ -260,3 +287,48 @@ def test_widget_no_default_content():
 
     with pytest.raises(NotImplementedError):
         w.get_content()
+
+
+def test_widget_styling():
+    class SubStateWidget(TextWidget):
+        state_machine = TextWidget.state_machine.copy(
+            add_transitions={
+                "/": {
+                    "SUBSTATE_ENTER_CHECKED": "/checked",
+                },
+                "/checked": {
+                    "SUBSTATE_EXIT_CHECKED": "/",
+                },
+            }
+        )
+
+        style_map = TextWidget.style_map | {
+            "/checked": {
+                "content": "red",
+            }
+        }
+
+    w = SubStateWidget("Alma")
+    w.alignment = ("start", "start")
+
+    assert w.build() == _as_spans(
+        [
+            ("X", "------------------", "X"),
+            ("|", "Alma              ", "|"),
+            ("|", "                  ", "|"),
+            ("|", "                  ", "|"),
+            ("X", "------------------", "X"),
+        ]
+    )
+
+    w.state_machine.apply_action("SUBSTATE_ENTER_CHECKED")
+
+    assert w.build() == _as_spans(
+        [
+            ("X", "------------------", "X"),
+            ("|", Span("Alma              ", foreground="38;2;255;0;0"), "|"),
+            ("|", "                  ", "|"),
+            ("|", "                  ", "|"),
+            ("X", "------------------", "X"),
+        ]
+    )

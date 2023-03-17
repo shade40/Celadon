@@ -75,6 +75,6 @@ if __name__ == "__main__":
             term.draw()
             # getch()
 
-            time.sleep(0.05)
+            time.sleep(0.016)
 
         # print(bigboy._virtual_width, bigboy._virtual_height)
