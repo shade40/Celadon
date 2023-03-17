@@ -1,12 +1,43 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from functools import reduce
+from typing import Any
 
 from gunmetal import Event
 
 __all__ = [
     "StateMachine",
 ]
+
+
+def deep_merge(
+    dict1: dict[Any, Any], dict2: dict[Any, Any], path: list[str] | None = None
+):
+    """Deep merges dict1 into dict2.
+
+    Source: https://stackoverflow.com/a/7205107
+    """
+
+    if path is None:
+        path = []
+
+    for key in dict2:
+        val2 = dict2[key]
+
+        if key in dict1:
+            val1 = dict1[key]
+
+            if isinstance(val1, dict) and isinstance(val2, dict):
+                deep_merge(val1, val2, path + [str(key)])
+
+            else:
+                dict1[key] = val2
+
+        else:
+            dict1[key] = val2
+
+    return dict1
 
 
 class StateMachine:
@@ -71,7 +102,7 @@ class StateMachine:
             new_transitions = transitions
 
         elif add_transitions is not None:
-            new_transitions = self._transitions | add_transitions
+            new_transitions = deep_merge(deepcopy(self._transitions), add_transitions)
 
         else:
             new_transitions = deepcopy(self._transitions)

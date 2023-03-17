@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import Callable, Generator, Type
 
-from zenith.markup import markup_spans
 from gunmetal import Event, Span
+from zenith.markup import markup_spans
 
 from ..enums import Alignment, Overflow
 from ..frames import Frame, get_frame
@@ -72,6 +72,16 @@ class Widget:  # pylint: disable=too-many-instance-attributes
             "active": {
                 "RELEASED": "idle",
             },
+            "/": {
+                "SUBSTATE_ENTER_SCROLLING_X": "/scrolling_x",
+                "SUBSTATE_ENTER_SCROLLING_Y": "/scrolling_y",
+            },
+            "/scrolling_x": {
+                "SUBSTATE_EXIT_SCROLLING_X": "/",
+            },
+            "/scrolling_y": {
+                "SUBSTATE_EXIT_SCROLLING_Y": "/",
+            },
         },
     )
     """The state machine keeps track of the current state of the widget.
@@ -85,24 +95,38 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
     style_map = {
         "idle": {
-            "fill": "panel+1",
-            "frame": "accent",
+            "fill": "@panel1-3",
+            "frame": "panel1+1",
             "content": "text",
+            "scrollbar_x": "text",
+            "scrollbar_y": "text",
         },
         "hover": {
-            "fill": "panel+2",
-            "frame": "accent",
+            "fill": "@panel1-2",
+            "frame": "panel1+1",
             "content": "text",
+            "scrollbar_x": "text",
+            "scrollbar_y": "text",
         },
         "selected": {
-            "fill": "accent",
-            "frame": "panel+2",
+            "fill": "@accent",
+            "frame": "panel1+1",
             "content": "text",
+            "scrollbar_x": "text",
+            "scrollbar_y": "text",
         },
         "active": {
-            "fill": "accent+1",
-            "frame": "panel",
+            "fill": "@accent+1",
+            "frame": "panel1+1",
             "content": "text",
+            "scrollbar_x": "text",
+            "scrollbar_y": "text",
+        },
+        "/scrolling_x": {
+            "scrollbar_x": "accent",
+        },
+        "/scrolling_y": {
+            "scrollbar_y": "accent",
         },
     }
     """The style map is the lookup table for the widget's styles at certain states."""
@@ -143,7 +167,13 @@ class Widget:  # pylint: disable=too-many-instance-attributes
     def styles(self) -> dict[str, Callable[[str], str]]:
         """Returns a dictionary of style keys to markup callables."""
 
-        styles = self.style_map[self.state.split("/")[0]]
+        def _get_style_function(style: str, fill: str) -> Callable[[str], str]:
+            def _style(item: str) -> str:
+                return f"[{fill}{style}]{item}"
+
+            return _style
+
+        styles = self.style_map[self.state.split("/")[0]].copy()
 
         if "/" in self.state:
             key = "/" + self.state.split("/")[-1]
@@ -151,12 +181,19 @@ class Widget:  # pylint: disable=too-many-instance-attributes
             if key in self.style_map:
                 styles |= self.style_map[key].items()
 
-        lambda_styles: dict[str, Callable[[str], str]] = {
-            key: lambda item, style=style: f"[{style}]{item}"  # type: ignore
-            for key, style in styles.items()
-        }
+        output = {}
+        fill = styles["fill"]
 
-        return lambda_styles
+        if fill != "":
+            fill += " "
+
+        for key, style in styles.items():
+            if key == "fill":
+                continue
+
+            output[key] = _get_style_function(style, fill)
+
+        return output
 
     @property
     def frame(self) -> Frame:
@@ -238,7 +275,9 @@ class Widget:  # pylint: disable=too-many-instance-attributes
                 )
             )
 
-            lines[-1] = (Span(buff + " " * scrollbar_y),)
+            lines[-1] = tuple(
+                markup_spans(self.styles["scrollbar_x"](buff + " " * scrollbar_y))
+            )
 
         if scrollbar_y:
             virtual = max(1, self._virtual_height)
@@ -261,7 +300,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes
                 lines[i] = (  # type: ignore
                     *line[:-1],
                     span.mutate(text=span.text[:-1]),
-                    Span(chars[i]),
+                    *(markup_spans(self.styles["scrollbar_y"](chars[i]))),
                 )
 
     def _apply_frame(self, lines: list[tuple[Span, ...]], width: int) -> None:
@@ -291,6 +330,10 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
         length = sum(len(span.text) for span in line)
         diff = width - length
+
+        if line == (Span(""),):
+            return tuple(markup_spans(self.styles["content"](diff * " ")))
+
         alignment = self.alignment[0]
 
         if alignment is Alignment.START:
@@ -318,10 +361,10 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
         available = height - len(lines)
         alignment = self.alignment[1]
-        filler = Span("")
+        filler = tuple(markup_spans(self.styles["content"](" ")))
 
         if alignment is Alignment.START:
-            lines.extend([(filler,)] * available)
+            lines.extend([filler] * available)
             return
 
         if alignment is Alignment.CENTER:
@@ -329,13 +372,13 @@ class Widget:  # pylint: disable=too-many-instance-attributes
             bottom = top + extra
 
             for _ in range(top):
-                lines.insert(0, (filler,))
+                lines.insert(0, filler)
 
-            lines.extend([(filler,)] * bottom)
+            lines.extend([filler] * bottom)
             return
 
         for _ in range(available):
-            lines.insert(0, (filler,))
+            lines.insert(0, filler)
 
     def handle_keyboard(self, key: str) -> bool:
         ...

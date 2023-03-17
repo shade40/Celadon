@@ -1,20 +1,22 @@
+from gunmetal import Span
+
 from celadon import Widget
 
 
 class Checkbox(Widget):
     state_machine = Widget.state_machine.copy(
         add_transitions={
-            ">": {
-                "SUBSTATE_ENTER_CHECKED": ">checked",
+            "/": {
+                "SUBSTATE_ENTER_CHECKED": "/checked",
             },
-            ">checked": {
-                "SUBSTATE_EXIT_CHECKED": ">",
+            "/checked": {
+                "SUBSTATE_EXIT_CHECKED": "/",
             },
         }
     )
 
     style_map = Widget.style_map | {
-        ">checked": {
+        "/checked": {
             "accent": "red",
         }
     }
@@ -27,18 +29,35 @@ class Checkbox(Widget):
         self.char = char
 
     def get_content(self) -> list[str]:
-        if self.state.endswith(">checked"):
+        if self.state.endswith("/checked"):
             return ["(" + self.char + ")"]
 
         return ["( )"]
 
 
 class BigBoy(Widget):
-    def get_content(self) -> list[str]:
+    state_machine = Widget.state_machine.copy(
+        add_transitions={
+            "/": {
+                "SUBSTATE_ENTER_COLORED": "/colored",
+            },
+            "/colored": {
+                "SUBSTATE_EXIT_COLORED": "/",
+            },
+        }
+    )
+
+    style_map = Widget.style_map | {
+        "/colored": {
+            "content": "141 bold",
+        }
+    }
+
+    def get_content(self) -> list[tuple[Span]]:
         lines = []
 
         for i in range(20):
-            lines.append(f"[bold 141]{i}. This is too many characters[/]")
+            lines.append(f"{i}. This is too many characters[/]")
 
         return lines
 
@@ -56,25 +75,64 @@ if __name__ == "__main__":
     for line in checkbox.build():
         print(*line, sep="")
 
-    from gunmetal import Terminal, getch
-    import time
     import random
+    import time
+
+    from gunmetal import Terminal, getch
 
     with (term := Terminal()).alt_buffer():
         bigboy = BigBoy(width=20, height=10, frame="Light")
         bigboy.overflow = ("scroll", "scroll")
 
+        scroll_x = 0
+        scroll_y = 0
+
         while True:
-            term.clear("X")
-            bigboy.scroll = (random.randint(0, 25), 0)
-            # bigboy.scroll = (0, 0)
+            term.clear(" ")
+
+            bigboy.scroll = (scroll_x, scroll_y)
+
+            term.write(bigboy.state + bigboy.styles["content"]("item"), cursor=(0, 30))
 
             for i, line in enumerate(bigboy.build()):
                 term.write(line, cursor=(0, i))
 
             term.draw()
-            # getch()
+            if (key := getch()) == chr(3):
+                break
 
-            time.sleep(0.016)
+            elif key == "c":
+                bigboy.state_machine.apply_action("SUBSTATE_EXIT_SCROLLING_X")
+                bigboy.state_machine.apply_action("SUBSTATE_EXIT_SCROLLING_Y")
+
+                if bigboy.state.endswith("/colored"):
+                    bigboy.state_machine.apply_action("SUBSTATE_EXIT_COLORED")
+                else:
+                    bigboy.state_machine.apply_action("SUBSTATE_ENTER_COLORED")
+
+                continue
+
+            if key == "down":
+                scroll_y += 1
+                bigboy.state_machine.apply_action("SUBSTATE_EXIT_COLORED")
+                bigboy.state_machine.apply_action("SUBSTATE_ENTER_SCROLLING_Y")
+
+            elif key == "up":
+                scroll_y -= 1
+                bigboy.state_machine.apply_action("SUBSTATE_EXIT_COLORED")
+                bigboy.state_machine.apply_action("SUBSTATE_ENTER_SCROLLING_Y")
+
+            elif key == "right":
+                scroll_x += 1
+                bigboy.state_machine.apply_action("SUBSTATE_EXIT_COLORED")
+                bigboy.state_machine.apply_action("SUBSTATE_ENTER_SCROLLING_X")
+
+            elif key == "left":
+                scroll_x -= 1
+                bigboy.state_machine.apply_action("SUBSTATE_EXIT_COLORED")
+                bigboy.state_machine.apply_action("SUBSTATE_ENTER_SCROLLING_X")
+
+            scroll_x = min(bigboy._virtual_width, max(0, scroll_x))
+            scroll_y = min(bigboy._virtual_height, max(0, scroll_y))
 
         # print(bigboy._virtual_width, bigboy._virtual_height)

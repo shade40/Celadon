@@ -1,28 +1,36 @@
 import pytest
-
 from gunmetal import Span
-from celadon import Widget, Alignment, Overflow, frames
+
+from celadon import Alignment, Overflow, Widget, frames
 
 EMPTY_STYLEMAP = {
     "idle": {
         "fill": "",
         "frame": "",
         "content": "",
+        "scrollbar_x": "",
+        "scrollbar_y": "",
     },
     "hover": {
         "fill": "",
         "frame": "",
         "content": "",
+        "scrollbar_x": "",
+        "scrollbar_y": "",
     },
     "selected": {
         "fill": "",
         "frame": "",
         "content": "",
+        "scrollbar_x": "",
+        "scrollbar_y": "",
     },
     "active": {
         "fill": "",
         "frame": "",
         "content": "",
+        "scrollbar_x": "",
+        "scrollbar_y": "",
     },
 }
 
@@ -344,9 +352,10 @@ def test_widget_styling():
     styles = {key: value("item") for key, value in w.styles.items()}
 
     assert styles == {
-        "fill": "[]item",
         "content": "[red]item",
         "frame": "[bold red]item",
+        "scrollbar_x": "[]item",
+        "scrollbar_y": "[]item",
     }
 
     assert w.build() == _as_spans(
@@ -363,12 +372,12 @@ def test_widget_styling():
             ),
             (
                 Span("|", bold=True, foreground="38;2;255;0;0"),
-                Span("                  "),
+                Span("                  ", foreground="38;2;255;0;0"),
                 Span("|", bold=True, foreground="38;2;255;0;0"),
             ),
             (
                 Span("|", bold=True, foreground="38;2;255;0;0"),
-                Span("                  "),
+                Span("                  ", foreground="38;2;255;0;0"),
                 Span("|", bold=True, foreground="38;2;255;0;0"),
             ),
             (

@@ -1,6 +1,6 @@
 from dataclasses import dataclass
-from zenith import Color, Palette
 
+from zenith import Color, Palette
 
 palette = Palette(Color.from_hex("#AFE1AF").darken(2))
 

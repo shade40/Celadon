@@ -89,9 +89,13 @@ def test_state_machine_copy():
     assert state._transitions == og._transitions | {
         "/": {
             "CLICKED": "/checked",
+            "SUBSTATE_ENTER_BLUR": "/blur",
         },
         "/checked": {
             "CLICKED": "/",
+        },
+        "/blur": {
+            "SUBSTATE_EXIT_BLUR": "/",
         },
     }
 
