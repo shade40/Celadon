@@ -97,9 +97,9 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         "idle": {
             "fill": "@panel1-3",
             "frame": "panel1+1",
-            "content": "text",
-            "scrollbar_x": "text",
-            "scrollbar_y": "text",
+            "content": "text-1",
+            "scrollbar_x": "panel1-1",
+            "scrollbar_y": "panel1-1",
         },
         "hover": {
             "fill": "@panel1-2",
@@ -123,10 +123,10 @@ class Widget:  # pylint: disable=too-many-instance-attributes
             "scrollbar_y": "text",
         },
         "/scrolling_x": {
-            "scrollbar_x": "accent",
+            "scrollbar_x": "primary",
         },
         "/scrolling_y": {
-            "scrollbar_y": "accent",
+            "scrollbar_y": "primary",
         },
     }
     """The style map is the lookup table for the widget's styles at certain states."""
@@ -331,7 +331,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         length = sum(len(span.text) for span in line)
         diff = width - length
 
-        if line == (Span(""),):
+        if line in [tuple(), (Span(""),)]:
             return tuple(markup_spans(self.styles["content"](diff * " ")))
 
         alignment = self.alignment[0]
