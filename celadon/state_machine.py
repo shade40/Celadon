@@ -17,7 +17,9 @@ class StateMachine:
         state: The new (changed-to) state.
     """
 
-    def __init__(self, states: str, *, transitions: dict[str, dict[str, str]]) -> None:
+    def __init__(
+        self, states: tuple[str, ...], *, transitions: dict[str, dict[str, str]]
+    ) -> None:
         self.on_change = Event("State Changed")
 
         self._states = states
@@ -99,7 +101,7 @@ class StateMachine:
             self._substate = substate
             return True
 
-        transitions = self._transitions.get(self._state)
+        transitions = self._transitions.get(self._state, {})
 
         state = transitions.get(action)
 

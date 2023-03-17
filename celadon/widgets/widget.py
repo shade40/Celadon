@@ -114,9 +114,6 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         state: The new state.
     """
 
-    frame: Frame
-    """The frame drawn around the widget."""
-
     scroll: tuple[int, int] = (0, 0)
     """The widget's (horizontal, vertical) scrolling offset."""
 
@@ -127,9 +124,11 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
         self.width = width
         self.height = height
-        self.frame = frame
-        self.alignment = ("center", "center")
-        self.overflow = ("hide", "hide")
+
+        # These conversions are handled in their properties
+        self.frame = frame  # type: ignore
+        self.alignment = ("center", "center")  # type: ignore
+        self.overflow = ("hide", "hide")  # type: ignore
 
         self._virtual_width = 0
         self._virtual_height = 0
@@ -169,6 +168,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         if isinstance(new, str):
             new = get_frame(new)
 
+        assert not isinstance(new, str)
         self._frame = new()
 
     @property
@@ -189,6 +189,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         if not all(isinstance(item, Alignment) for item in new):
             new = Alignment(new[0]), Alignment(new[1])
 
+        assert isinstance(new[0], Alignment) and isinstance(new[1], Alignment)
         self._alignment = new
 
     @property
@@ -209,11 +210,12 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         if not all(isinstance(item, Overflow) for item in new):
             new = Overflow(new[0]), Overflow(new[1])
 
+        assert isinstance(new[0], Overflow) and isinstance(new[1], Overflow)
         self._overflow = new
 
     def _add_scrollbars(  # pylint: disable=too-many-arguments
         self,
-        lines: list[tuple[Span]],
+        lines: list[tuple[Span, ...]],
         width: int,
         height: int,
         scrollbar_x: bool,
@@ -255,13 +257,13 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
                 span = line[-1]
 
-                lines[i] = (
+                lines[i] = (  # type: ignore
                     *line[:-1],
                     span.mutate(text=span.text[:-1]),
                     Span(chars[i]),
                 )
 
-    def _apply_frame(self, lines: list[tuple[Span]], width: int) -> None:
+    def _apply_frame(self, lines: list[tuple[Span, ...]], width: int) -> None:
         """Adds frame characters around the given lines."""
 
         left_top, right_top, right_bottom, left_bottom = self.frame.corners
@@ -276,7 +278,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         if left_bottom + bottom + right_bottom != "":
             lines.append((Span(left_bottom), Span(bottom * width), Span(right_bottom)))
 
-    def _horizontal_align(self, line: tuple[Span], width: int) -> tuple[Span]:
+    def _horizontal_align(self, line: tuple[Span, ...], width: int) -> tuple[Span, ...]:
         """Aligns a tuple of spans horizontally, using `self.alignment[0]`."""
 
         length = sum(len(span.text) for span in line)
@@ -300,7 +302,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
         return (span.mutate(text=diff * " " + span.text), *line[1:])
 
-    def _vertical_align(self, lines: list[tuple[Span]], height: int) -> None:
+    def _vertical_align(self, lines: list[tuple[Span, ...]], height: int) -> None:
         """Aligns a list of tuples of spans vertically, using `self.alignment[1]`.
 
         Note that this mutates `lines`.
@@ -338,7 +340,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
         raise NotImplementedError
 
-    def build(self) -> list[str]:
+    def build(self) -> list[tuple[Span, ...]]:
         """Builds the strings that represent the widget."""
 
         width = max(self.width - self.frame.width, 0)
@@ -346,8 +348,8 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
         content_style = self.styles["content"]
 
-        lines: list[tuple[Span]] = [
-            list(markup_spans(content_style(l))) for l in self.get_content()
+        lines: list[tuple[Span, ...]] = [
+            tuple(markup_spans(content_style(l))) for l in self.get_content()
         ]
 
         self._virtual_height = len(lines)
@@ -374,9 +376,9 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
                 if occupied > width:
                     start = self.scroll[0]
-                    end = start + (width - occupied)
+                    end: int | None = start + (width - occupied)
 
-                    if end >= 0:
+                    if end is not None and end >= 0:
                         end = None
 
                     span = span[start:end]

@@ -20,13 +20,13 @@ class Frame:
     descriptor: tuple[str, str, str] | None = None
     """A list of strings that describes the frame's borders & corners."""
 
-    borders: CharTuple | None = None
+    borders: CharTuple = ("", "", "", "")
     """Left, top, right and bottom border characters."""
 
-    corners: CharTuple | None = None
+    corners: CharTuple = ("", "", "", "")
     """Left-top, right-top, right-bottom and left-bottom border characters."""
 
-    scrollbars: tuple[tuple[str, str, str], tuple[str, str, str]]
+    scrollbars: tuple[tuple[str, str], tuple[str, str]]
     """The characters to use for scrollbars (horizontal, vertical).
 
     It is stored in the order of (start_corner, thumb, rail, end_corner).
@@ -50,11 +50,12 @@ class Frame:
     def _parse_descriptor(self) -> tuple[CharTuple, CharTuple]:
         """Parses the descriptor into tuples of chartuples."""
 
-        top, middle, bottom = self.descriptor  # pylint: disable=unpacking-non-sequence
+        assert self.descriptor is not None
+        top, middle, bottom = self.descriptor
 
-        left_top, top, *_, right_top = top
-        left, *_, right = middle
-        left_bottom, bottom, *_, right_bottom = bottom
+        left_top, top, *_, right_top = list(top)
+        left, *_, right = list(middle)
+        left_bottom, bottom, *_, right_bottom = list(bottom)
 
         return (
             (left, top, right, bottom),
@@ -62,7 +63,7 @@ class Frame:
         )
 
 
-def get_frame(name: str) -> Frame:
+def get_frame(name: str) -> Type[Frame]:
     """Gets a frame by its name.
 
     Args:
@@ -77,7 +78,7 @@ def get_frame(name: str) -> Frame:
 
     frame = globals().get(name)
 
-    if issubclass(frame, Frame):
+    if frame is not None and issubclass(frame, Frame):
         return frame
 
     raise ValueError(f"No frame defined with name {name!r}.")
@@ -86,6 +87,9 @@ def get_frame(name: str) -> Frame:
 def add_frame_preview(cls: Type[Frame]):
     if cls.descriptor is None:
         return cls
+
+    if cls.__doc__ is None:
+        cls.__doc__ = ""
 
     cls.__doc__ += f"""
 
@@ -102,38 +106,38 @@ Preview:
 class ASCII_X(Frame):  # pylint: disable=invalid-name
     """A frame of ASCII characters, with X-s in the corners."""
 
-    descriptor = [
+    descriptor = (
         "X---X",
         "|   |",
         "X---X",
-    ]
+    )
 
-    scrollbars = ["-#", "|#"]
+    scrollbars = (("-", "#"), ("|", "#"))
 
 
 class Light(Frame):
     """A frame with a light outline."""
 
-    descriptor = [
+    descriptor = (
         "┌───┐",
         "│   │",
         "└───┘",
-    ]
+    )
 
-    scrollbars = [" ▅", " █"]
+    scrollbars = ((" ", "▅"), (" ", "█"))
 
 
 @add_frame_preview
 class Padded(Frame):
     """A frame of spaces."""
 
-    descriptor = [
+    descriptor = (
         "   ",
         "   ",
         "   ",
-    ]
+    )
 
-    scrollbars = [" ▅", " █"]
+    scrollbars = ((" ", "▅"), (" ", "█"))
 
 
 @add_frame_preview
@@ -143,4 +147,4 @@ class Frameless(Frame):
     borders = ("", "", "", "")
     corners = ("", "", "", "")
 
-    scrollbars = [" ▅", " █"]
+    scrollbars = ((" ", "▅"), (" ", "█"))
