@@ -271,15 +271,13 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         """Adds scrollbars to the given lines."""
 
         if scrollbar_x:
-            virtual = max(1, self._virtual_width)
-
             buff = "".join(
                 list(
                     _build_scrollbar(
                         *self.frame.scrollbars[0],
                         size=width - scrollbar_y,
-                        current=self.scroll[0] / virtual,
-                        ratio=width / virtual,
+                        current=self.scroll[0] / (self._virtual_width - width),
+                        ratio=width / self._virtual_width,
                     )
                 )
             )
@@ -289,14 +287,12 @@ class Widget:  # pylint: disable=too-many-instance-attributes
             )
 
         if scrollbar_y:
-            virtual = max(1, self._virtual_height)
-
             chars = list(
                 _build_scrollbar(
                     *self.frame.scrollbars[1],
                     size=height - scrollbar_x,
-                    current=self.scroll[1] / virtual,
-                    ratio=height / virtual,
+                    current=self.scroll[1] / (self._virtual_height - height),
+                    ratio=height / self._virtual_height,
                 )
             )
 
@@ -389,6 +385,66 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         for _ in range(available):
             lines.insert(0, filler)
 
+    def _slice_line(
+        self, line: tuple[Span, ...], start: int, end: int
+    ) -> tuple[tuple[Span, ...], int]:
+        """Slices a line into the given width.
+
+        Returns:
+            A tuple of (sliced_line, virtual_width).
+        """
+
+        width = end - start
+        virt = sum(len(span) for span in line)
+
+        line_list = []
+
+        before_start = 0
+        occupied = 0
+
+        for span in line:
+            length = len(span)
+
+            before_start += length
+            if before_start < start:
+                continue
+
+            new = span[max(start - (before_start - length), 0) :]
+            length = len(new)
+
+            line_list.append(new)
+
+            occupied += length
+
+            if occupied > width:
+                break
+
+        width_diff = max(occupied - width, 0)
+
+        if width_diff > 0 and len(line_list) > 0:
+            for i, span in enumerate(reversed(line_list)):
+                length = len(span)
+
+                new = span[:-width_diff]
+                width_diff -= length - len(new)
+
+                line_list[-i - 1] = new
+
+                if width_diff <= 0:
+                    break
+
+        if not line_list:
+            line_list.extend(self._parse_markup(self.styles["content"](" ")))
+
+        occupied = sum(len(span) for span in line_list)
+
+        if occupied < width:
+            end = line_list[-1]
+
+            line_list[-1] = end.mutate(text=end.text + (width - occupied) * " ")
+
+        return tuple(line_list), virt
+
     def handle_keyboard(self, key: str) -> bool:
         ...
 
@@ -405,6 +461,11 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
         width = max(self.width - self.frame.width, 0)
         height = max(self.height - self.frame.height, 0)
+
+        self.scroll = (
+            max(min(self.scroll[0], self._virtual_width - width + 1), 0),
+            max(min(self.scroll[1], self._virtual_height - height + 1), 0),
+        )
 
         content_style = self.styles["content"]
 
@@ -426,40 +487,13 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         for i, line in enumerate(lines):
             lines[i] = self._horizontal_align(line, width)
 
-        # Trim spans horizontally to fit within width
-        for i, line in enumerate(lines):
-            occupied = 0
-            new_line = []
+        lines_and_widths = [
+            self._slice_line(line, self.scroll[0], self.scroll[0] + width)
+            for line in lines
+        ]
 
-            for span in line:
-                occupied += len(span.text)
-
-                if occupied > width:
-                    start = self.scroll[0]
-                    end: int | None = start + (width - occupied)
-
-                    if end is not None and end >= 0:
-                        end = None
-
-                    span = span[start:end]
-
-                new_line.append(span)
-
-            self._virtual_width = max(self._virtual_width, occupied)
-
-            occupied = sum(len(span) for span in new_line)
-
-            # Pad-out the last span if the line is not long enough
-            if occupied < width:
-                span = new_line[-1]
-                new_line[-1] = span.mutate(text=span.text + " " * (width - occupied))
-
-            lines[i] = tuple(new_line)
-
-        self.scroll = (
-            min(self.scroll[0], self._virtual_width - 1),
-            min(self.scroll[1], self._virtual_height - 1),
-        )
+        self._virtual_width = max(lines_and_widths, key=lambda item: item[1])[1]
+        lines = [line for line, _ in lines_and_widths]
 
         # Composite together frame + content + scrollbar
         self._add_scrollbars(

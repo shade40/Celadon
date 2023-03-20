@@ -14,6 +14,8 @@ interdum a ipsum a scelerisque. Proin neque sem, vehicula eu magna a, semper con
 velit. Fusce laoreet arcu ac tincidunt finibus. Curabitur pretium arcu ut placerat
 rutrum. Etiam dictum convallis risus sit amet luctus. Vestibulum non malesuada tortor.
 
+[0]0[1]1[2]2[3]3[4]4[5]5[6]6[7]7[8]8[9]9[10]10[11]11[12]12[13]13[14]14[15]15
+
 Sed eget fermentum enim. Donec non molestie lacus, id lobortis nulla. Suspendisse
 lobortis ullamcorper tortor eget cursus. Nunc facilisis, dui vel tempor tempus, dui
 mi finibus velit, ac sodales tortor tortor id justo. Vestibulum tincidunt, lorem
@@ -46,12 +48,12 @@ mollis pharetra nisl. Cras condimentum mauris tincidunt est auctor aliquam."""
 
 
 DIRECTIONS = {
-    "scroll-up": (0, -5),
-    "scroll-down": (0, 5),
-    "scroll-right": (-5, 0),
-    "scroll-left": (5, 0),
-    "shift-scroll-up": (-5, 0),
-    "shift-scroll-down": (5, 0),
+    "scroll-up": (0, -1),
+    "scroll-down": (0, 1),
+    "scroll-right": (-1, 0),
+    "scroll-left": (1, 0),
+    "shift-scroll-up": (-1, 0),
+    "shift-scroll-down": (1, 0),
 }
 
 
@@ -74,7 +76,7 @@ def draw(widget: Widget, terminal: Terminal) -> None:
 def main() -> None:
     term = Terminal()
 
-    txt = TextArea(term.width, term.height, frame="Padded")
+    txt = TextArea(40, term.height, frame="Padded")
 
     txt.overflow = ("scroll", "scroll")
     txt.alignment = ("start", "start")
@@ -85,8 +87,20 @@ def main() -> None:
         while True:
             key = getch()
 
-            if key == chr(3):
+            if key in (chr(3), "q"):
                 break
+
+            if key in ["left", "h"]:
+                txt.scroll = (txt.scroll[0] - 1, txt.scroll[1])
+
+            elif key in ["right", "l"]:
+                txt.scroll = (txt.scroll[0] + 1, txt.scroll[1])
+
+            elif key in ["up", "k"]:
+                txt.scroll = (txt.scroll[0], txt.scroll[1] - 1)
+
+            elif key in ["down", "j"]:
+                txt.scroll = (txt.scroll[0], txt.scroll[1] + 1)
 
             action = ""
             if key.startswith("mouse:"):
@@ -104,16 +118,7 @@ def main() -> None:
 
                 change_x, change_y = DIRECTIONS[action]
 
-                txt.scroll = (
-                    min(
-                        txt._virtual_width - txt.width // 2,
-                        max(txt.scroll[0] + change_x, 0),
-                    ),
-                    min(
-                        txt._virtual_height - txt.height // 2,
-                        max(txt.scroll[1] + change_y, 0),
-                    ),
-                )
+                txt.scroll = (txt.scroll[0] + change_x, txt.scroll[1] + change_y)
 
             draw(txt, term)
 
