@@ -79,7 +79,7 @@ def _as_spans(text: list[tuple[str]]) -> list[tuple[Span]]:
 
 
 def _print_widget(lines: list[tuple[Span]]) -> str:
-    return "\n" + "\n".join("".join(map(repr, map(str, line))) for line in lines)
+    return "\n" + "\n".join(", ".join(map(repr, map(str, line))) for line in lines)
 
 
 def test_widget_alignments():
@@ -295,6 +295,32 @@ def test_widget_no_default_content():
 
     with pytest.raises(NotImplementedError):
         w.get_content()
+
+
+def test_widget_inline_markup():
+    class MarkupWidget(Widget):
+        style_map = EMPTY_STYLEMAP
+
+        def get_content(self) -> list[str]:
+            return ["This is normal [bold 141]but this ain't [/]and this is"]
+
+    w = MarkupWidget(20, 5, frame="ASCII_X")
+
+    assert (output := w.build()) == _as_spans(
+        [
+            ("X", "------------------", "X"),
+            ("|", "                  ", "|"),
+            (
+                "|",
+                "This is normal ",
+                Span("but", bold=True, foreground="38;5;141"),
+                Span(""),
+                "|",
+            ),
+            ("|", "                  ", "|"),
+            ("X", "------------------", "X"),
+        ]
+    ), _print_widget(output)
 
 
 def test_widget_styling():

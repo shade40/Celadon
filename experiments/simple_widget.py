@@ -3,8 +3,8 @@ from gunmetal import Terminal, getch, set_echo
 from celadon import Widget
 
 LOREM = """\
-Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec fringilla vel arcu sed
-rutrum. Etiam vel posuere odio. Suspendisse rutrum ante eget egestas rutrum.
+[blue]Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec fringilla vel arcu sed
+rutrum. [bold red]Etiam vel posuere odio. Suspendisse rutrum ante eget egestas rutrum.
 Pellentesque tristique lacinia aliquam. Aenean consectetur mauris sed lacus pulvinar
 volutpat non nec ex. Integer sodales laoreet odio volutpat vehicula. Nullam eget
 ultricies dolor. Etiam magna ex, rhoncus vitae augue sed, mollis volutpat tortor. Sed
@@ -48,6 +48,8 @@ mollis pharetra nisl. Cras condimentum mauris tincidunt est auctor aliquam."""
 DIRECTIONS = {
     "scroll-up": (0, -5),
     "scroll-down": (0, 5),
+    "scroll-right": (-5, 0),
+    "scroll-left": (5, 0),
     "shift-scroll-up": (-5, 0),
     "shift-scroll-down": (5, 0),
 }

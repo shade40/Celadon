@@ -90,7 +90,8 @@ if __name__ == "__main__":
         while True:
             term.clear(" ")
 
-            bigboy.scroll = (scroll_x, scroll_y)
+            # bigboy.scroll = (scroll_x, scroll_y)
+            bigboy.scroll = (random.randint(0, 20), random.randint(0, 10))
 
             term.write(bigboy.state + bigboy.styles["content"]("item"), cursor=(0, 30))
 
@@ -98,6 +99,8 @@ if __name__ == "__main__":
                 term.write(line, cursor=(0, i))
 
             term.draw()
+            time.sleep(0.016)
+            continue
             if (key := getch()) == chr(3):
                 break
 

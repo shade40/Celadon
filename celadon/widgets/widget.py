@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Callable, Generator, Type
 
 from gunmetal import Event, Span
-from zenith.markup import markup_spans
+from zenith.markup import markup_spans, FULL_RESET
 
 from ..enums import Alignment, Overflow
 from ..frames import Frame, get_frame
@@ -251,6 +251,15 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         assert isinstance(new[0], Overflow) and isinstance(new[1], Overflow)
         self._overflow = new
 
+    @staticmethod
+    def _parse_markup(markup: str) -> tuple[Span, ...]:
+        """Parses some markup into a span of tuples.
+
+        This also handles (ignores) zenith's FULL_RESET spans.
+        """
+
+        return tuple(span for span in markup_spans(markup) if span is not FULL_RESET)
+
     def _add_scrollbars(  # pylint: disable=too-many-arguments
         self,
         lines: list[tuple[Span, ...]],
@@ -307,7 +316,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         """Adds frame characters around the given lines."""
 
         def _style(item) -> tuple[Span, ...]:
-            return tuple(markup_spans(self.styles["frame"](item)))
+            return self._parse_markup(self.styles["frame"](item))
 
         left_top, right_top, right_bottom, left_bottom = self.frame.corners
         left, top, right, bottom = self.frame.borders
@@ -332,7 +341,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         diff = width - length
 
         if line in [tuple(), (Span(""),)]:
-            return tuple(markup_spans(self.styles["content"](diff * " ")))
+            return self._parse_markup(self.styles["content"](diff * " "))
 
         alignment = self.alignment[0]
 
@@ -361,7 +370,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
         available = height - len(lines)
         alignment = self.alignment[1]
-        filler = tuple(markup_spans(self.styles["content"](" ")))
+        filler = self._parse_markup(self.styles["content"](" "))
 
         if alignment is Alignment.START:
             lines.extend([filler] * available)
@@ -400,7 +409,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         content_style = self.styles["content"]
 
         lines: list[tuple[Span, ...]] = [
-            tuple(markup_spans(content_style(l))) for l in self.get_content()
+            self._parse_markup(content_style(line)) for line in self.get_content()
         ]
 
         self._virtual_height = len(lines)
@@ -434,12 +443,16 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
                     span = span[start:end]
 
-                    if len(span) < width:
-                        span = span.mutate(text=span.text + " " * (width - len(span)))
-
                 new_line.append(span)
 
             self._virtual_width = max(self._virtual_width, occupied)
+
+            occupied = sum(len(span) for span in new_line)
+
+            # Pad-out the last span if the line is not long enough
+            if occupied < width:
+                span = new_line[-1]
+                new_line[-1] = span.mutate(text=span.text + " " * (width - occupied))
 
             lines[i] = tuple(new_line)
 
