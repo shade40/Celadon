@@ -276,7 +276,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes
                     _build_scrollbar(
                         *self.frame.scrollbars[0],
                         size=width - scrollbar_y,
-                        current=self.scroll[0] / (self._virtual_width - width),
+                        current=self.scroll[0] / max(self._virtual_width - width, 1),
                         ratio=width / self._virtual_width,
                     )
                 )
@@ -291,7 +291,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes
                 _build_scrollbar(
                     *self.frame.scrollbars[1],
                     size=height - scrollbar_x,
-                    current=self.scroll[1] / (self._virtual_height - height),
+                    current=self.scroll[1] / max(self._virtual_height - height, 1),
                     ratio=height / self._virtual_height,
                 )
             )
@@ -459,12 +459,15 @@ class Widget:  # pylint: disable=too-many-instance-attributes
     def build(self) -> list[tuple[Span, ...]]:
         """Builds the strings that represent the widget."""
 
+        def _clamp_scroll(scroll: int, dim: int, virt: int) -> int:
+            return max(min(scroll, virt - dim + 3 * (virt >= dim)), 0)
+
         width = max(self.width - self.frame.width, 0)
         height = max(self.height - self.frame.height, 0)
 
         self.scroll = (
-            max(min(self.scroll[0], self._virtual_width - width + 1), 0),
-            max(min(self.scroll[1], self._virtual_height - height + 1), 0),
+            _clamp_scroll(self.scroll[0], self.width, self._virtual_width),
+            _clamp_scroll(self.scroll[1], self.height, self._virtual_height),
         )
 
         content_style = self.styles["content"]

@@ -48,12 +48,12 @@ mollis pharetra nisl. Cras condimentum mauris tincidunt est auctor aliquam."""
 
 
 DIRECTIONS = {
-    "scroll-up": (0, -1),
-    "scroll-down": (0, 1),
-    "scroll-right": (-1, 0),
-    "scroll-left": (1, 0),
-    "shift-scroll-up": (-1, 0),
-    "shift-scroll-down": (1, 0),
+    "scroll-up": (0, -3),
+    "scroll-down": (0, 3),
+    "scroll-right": (-3, 0),
+    "scroll-left": (3, 0),
+    "shift-scroll-up": (-3, 0),
+    "shift-scroll-down": (3, 0),
 }
 
 
@@ -76,7 +76,7 @@ def draw(widget: Widget, terminal: Terminal) -> None:
 def main() -> None:
     term = Terminal()
 
-    txt = TextArea(40, term.height, frame="Padded")
+    txt = TextArea(term.width, term.height, frame="Padded")
 
     txt.overflow = ("scroll", "scroll")
     txt.alignment = ("start", "start")
