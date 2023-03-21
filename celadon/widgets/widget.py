@@ -387,18 +387,12 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
     def _slice_line(
         self, line: tuple[Span, ...], start: int, end: int
-    ) -> tuple[tuple[Span, ...], int]:
-        """Slices a line into the given width.
-
-        Returns:
-            A tuple of (sliced_line, virtual_width).
-        """
+    ) -> tuple[Span, ...]:
+        """Slices a line into the given width."""
 
         width = end - start
-        virt = sum(len(span) for span in line)
 
         line_list = []
-
         before_start = 0
         occupied = 0
 
@@ -443,7 +437,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
             line_list[-1] = end.mutate(text=end.text + (width - occupied) * " ")
 
-        return tuple(line_list), virt
+        return tuple(line_list)
 
     def handle_keyboard(self, key: str) -> bool:
         ...
@@ -459,16 +453,22 @@ class Widget:  # pylint: disable=too-many-instance-attributes
     def build(self) -> list[tuple[Span, ...]]:
         """Builds the strings that represent the widget."""
 
-        def _clamp_scroll(scroll: int, dim: int, virt: int) -> int:
-            return max(min(scroll, virt - dim + 3 * (virt >= dim)), 0)
-
         width = max(self.width - self.frame.width, 0)
         height = max(self.height - self.frame.height, 0)
 
-        self.scroll = (
-            _clamp_scroll(self.scroll[0], self.width, self._virtual_width),
-            _clamp_scroll(self.scroll[1], self.height, self._virtual_height),
-        )
+        def _should_scroll(real: int, virt: int) -> bool:
+            return real / max(virt, 1) <= 1.0
+
+        def _clamp_scrolls() -> int:
+            x_bar = _should_scroll(width, self._virtual_width)
+            y_bar = _should_scroll(height, self._virtual_height)
+
+            return (
+                max(min(self.scroll[0], self._virtual_width - width + x_bar), 0),
+                max(min(self.scroll[1], self._virtual_height - height + y_bar), 0),
+            )
+
+        self.scroll = _clamp_scrolls()
 
         content_style = self.styles["content"]
 
@@ -476,6 +476,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes
             self._parse_markup(content_style(line)) for line in self.get_content()
         ]
 
+        self._virtual_width = max(sum(len(span) for span in line) for line in lines)
         self._virtual_height = len(lines)
 
         if self._virtual_height > height:
