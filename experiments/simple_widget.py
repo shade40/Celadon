@@ -4,7 +4,7 @@ from celadon import Widget
 
 LOREM = """\
 [blue]Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec fringilla vel arcu sed
-rutrum. [bold red]Etiam vel posuere odio. Suspendisse rutrum ante eget egestas rutrum.
+rutrum. [bold red]Etiam vel posuere odio. [/]Suspendisse rutrum ante eget egestas rutrum.
 Pellentesque tristique lacinia aliquam. Aenean consectetur mauris sed lacus pulvinar
 volutpat non nec ex. Integer sodales laoreet odio volutpat vehicula. Nullam eget
 ultricies dolor. Etiam magna ex, rhoncus vitae augue sed, mollis volutpat tortor. Sed

@@ -251,12 +251,16 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         assert isinstance(new[0], Overflow) and isinstance(new[1], Overflow)
         self._overflow = new
 
-    @staticmethod
-    def _parse_markup(markup: str) -> tuple[Span, ...]:
+    def _parse_markup(self, markup: str) -> tuple[Span, ...]:
         """Parses some markup into a span of tuples.
 
         This also handles (ignores) zenith's FULL_RESET spans.
         """
+
+        content_style = self.styles["content"]("")[1:-1]
+
+        # Replace full unsetters with full unsetter + content style
+        markup = markup.replace("/", "/ " + content_style)
 
         return tuple(span for span in markup_spans(markup) if span is not FULL_RESET)
 
@@ -476,9 +480,10 @@ class Widget:  # pylint: disable=too-many-instance-attributes
             self._parse_markup(content_style(line)) for line in self.get_content()
         ]
 
-        self._virtual_width = max(sum(len(span) for span in line) for line in lines)
         self._virtual_height = len(lines)
+        self._virtual_width = max(sum(len(span) for span in line) for line in lines)
 
+        # Clip into vertical size
         if self._virtual_height > height:
             lines = lines[self.scroll[1] : self.scroll[1] + height]
 
@@ -491,11 +496,13 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         for i, line in enumerate(lines):
             lines[i] = self._horizontal_align(line, width)
 
+        # Clip into horizontal size
         lines = [
             self._slice_line(line, self.scroll[0], self.scroll[0] + width)
             for line in lines
         ]
 
+        # Determine whether scrollbars should be shown
         scrollbar_x = self.overflow[0] is Overflow.SCROLL or (
             self.overflow[0] is Overflow.AUTO
             and _should_scroll(width, self._virtual_width)
