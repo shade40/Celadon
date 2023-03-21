@@ -44,7 +44,7 @@ class TextWidget(Widget):
         super().__init__(width=20, height=5, frame="ASCII_X")
 
     def get_content(self) -> list[str]:
-        return [self.text]
+        return self.text.splitlines()
 
 
 class ScrollingWidget(Widget):
@@ -416,3 +416,54 @@ def test_widget_styling():
             ),
         ]
     )
+
+
+def test_widget_auto_scrollbar():
+    w = TextWidget("Small")
+    w.overflow = ("auto", "auto")
+
+    assert (output := w.build()) == _as_spans(
+        [
+            ("X", "------------------", "X"),
+            ("|", "                  ", "|"),
+            ("|", "       Small      ", "|"),
+            ("|", "                  ", "|"),
+            ("X", "------------------", "X"),
+        ]
+    ), _print_widget(output)
+
+    w.text = "this is going to be too long"
+
+    assert (output := w.build()) == _as_spans(
+        [
+            ("X", "------------------", "X"),
+            ("|", "                  ", "|"),
+            ("|", "this is going to b", "|"),
+            ("|", "############------", "|"),
+            ("X", "------------------", "X"),
+        ]
+    ), _print_widget(output)
+
+    w.text = "too tall\n" * 10
+
+    assert (output := w.build()) == _as_spans(
+        [
+            ("X", "------------------", "X"),
+            ("|", "     too tall    ", "#", "|"),
+            ("|", "     too tall    ", "|", "|"),
+            ("|", "     too tall    ", "|", "|"),
+            ("X", "------------------", "X"),
+        ]
+    ), _print_widget(output)
+
+    w.text = "this is going to be too long\n" * 10
+
+    assert (output := w.build()) == _as_spans(
+        [
+            ("X", "------------------", "X"),
+            ("|", "this is going to ", "#", "|"),
+            ("|", "this is going to ", "|", "|"),
+            ("|", "###########------ ", "|"),
+            ("X", "------------------", "X"),
+        ]
+    ), _print_widget(output)

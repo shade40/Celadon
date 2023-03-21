@@ -78,7 +78,7 @@ def main() -> None:
 
     txt = TextArea(term.width, term.height, frame="Padded")
 
-    txt.overflow = ("scroll", "scroll")
+    txt.overflow = ("auto", "auto")
     txt.alignment = ("start", "start")
 
     with term.no_echo(), term.report_mouse(), term.alt_buffer() as buff:

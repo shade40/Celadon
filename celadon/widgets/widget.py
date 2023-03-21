@@ -491,21 +491,28 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         for i, line in enumerate(lines):
             lines[i] = self._horizontal_align(line, width)
 
-        lines_and_widths = [
+        lines = [
             self._slice_line(line, self.scroll[0], self.scroll[0] + width)
             for line in lines
         ]
 
-        self._virtual_width = max(lines_and_widths, key=lambda item: item[1])[1]
-        lines = [line for line, _ in lines_and_widths]
+        scrollbar_x = self.overflow[0] is Overflow.SCROLL or (
+            self.overflow[0] is Overflow.AUTO
+            and _should_scroll(width, self._virtual_width)
+        )
+
+        scrollbar_y = self.overflow[1] is Overflow.SCROLL or (
+            self.overflow[1] is Overflow.AUTO
+            and _should_scroll(height, self._virtual_height)
+        )
 
         # Composite together frame + content + scrollbar
         self._add_scrollbars(
             lines,
             width,
             height,
-            self.overflow[0] is Overflow.SCROLL,
-            self.overflow[1] is Overflow.SCROLL,
+            scrollbar_x,
+            scrollbar_y,
         )
 
         self._apply_frame(lines, width)

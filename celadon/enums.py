@@ -19,7 +19,10 @@ class Alignment(Enum):
 
 class Overflow(Enum):
     HIDE = "hide"
-    """Hide for overflowing content."""
+    """Hide scrollbar for overflowing content."""
 
     SCROLL = "scroll"
     """Display scrollbar for overflowing content."""
+
+    AUTO = "auto"
+    """Display scrollbar only when there is overflowing content."""
