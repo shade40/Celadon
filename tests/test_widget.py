@@ -308,7 +308,7 @@ def test_widget_inline_markup():
                 "This is normal [bold 141]but this ain't [yellow]and this is does it ever break??????????????????????"
             ]
 
-    w = MarkupWidget(20, 5, frame="ASCII_X")
+    w = MarkupWidget(width=20, height=5, frame="ASCII_X")
 
     assert (output := w.build()) == _as_spans(
         [

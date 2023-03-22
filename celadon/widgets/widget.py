@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Callable, Generator, Type
+from typing import Any, Callable, Generator, Type
 
 from gunmetal import Event, Span
 from zenith.markup import markup_spans, FULL_RESET
@@ -142,7 +142,12 @@ class Widget:  # pylint: disable=too-many-instance-attributes
     """The widget's (horizontal, vertical) scrolling offset."""
 
     def __init__(
-        self, width: int = 1, height: int = 1, frame: Frame | str = "Frameless"
+        self,
+        *args,
+        width: int = 1,
+        height: int = 1,
+        frame: Frame | str = "Frameless",
+        **kwargs,
     ) -> None:
         self.on_state_change = self.state_machine.on_change
 
@@ -156,6 +161,8 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
         self._virtual_width = 0
         self._virtual_height = 0
+
+        self._set_annotated_fields(args, kwargs)
 
     @property
     def state(self) -> str:
@@ -250,6 +257,23 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
         assert isinstance(new[0], Overflow) and isinstance(new[1], Overflow)
         self._overflow = new
+
+    def _set_annotated_fields(
+        self, args: tuple[str, ...], kwargs: dict[str, Any]
+    ) -> None:
+        fields = self.__annotations__
+
+        for key, value in zip(fields.keys(), args):
+            if key in kwargs:
+                raise ValueError(
+                    f"Annotated field {key!r} got multiple values: "
+                    + f"({value!r}, {kwargs[key]!r}."
+                )
+
+            fields[key] = value
+
+        fields.update(**kwargs)
+        self.__dict__.update(**fields)
 
     def _parse_markup(self, markup: str) -> tuple[Span, ...]:
         """Parses some markup into a span of tuples.
