@@ -4,12 +4,11 @@
 
 A state-driven UI library for the terminal.
 
-```console
+```
 pip install celadon
 ```
 
-- [Documentation](https://celadon.shade40.io)
-- [PyPi Project](https://celadon.shade40.io)
+![rule](https://singlecolorimage.com/get/afe1af/1600x5)
 
 ### Purpose
 
