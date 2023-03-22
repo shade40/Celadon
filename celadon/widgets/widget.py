@@ -266,6 +266,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         self, args: tuple[str, ...], kwargs: dict[str, Any]
     ) -> None:
         fields = self.__annotations__
+        fields.update(**{key: getattr(self, key, None) for key in fields})
 
         for key, value in zip(fields.keys(), args):
             if key in kwargs:
