@@ -41,6 +41,10 @@ def _build_scrollbar(
     thumb_start = thumb_center - half_thumb
     thumb_end = thumb_center + half_thumb + offset
 
+    if thumb_end >= size - 1:
+        thumb_end = size
+        thumb_start = thumb_end - thumb_length - offset
+
     for i in range(size):
         if thumb_start <= i <= thumb_end:
             yield thumb
