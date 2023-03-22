@@ -88,7 +88,7 @@ def test_widget_alignments():
     w = TextWidget("start-start")
     w.alignment = ("start", "start")
 
-    assert w.build() == _as_spans(
+    assert (output := w.build()) == _as_spans(
         [
             ("X", "------------------", "X"),
             ("|", "start-start       ", "|"),
@@ -96,20 +96,20 @@ def test_widget_alignments():
             ("|", "                  ", "|"),
             ("X", "------------------", "X"),
         ]
-    )
+    ), _print_widget(output)
 
     w = TextWidget("center-end")
     w.alignment = (Alignment.CENTER, Alignment.END)
 
-    assert w.build() == _as_spans(
+    assert (output := w.build()) == _as_spans(
         [
             ("X", "------------------", "X"),
             ("|", "                  ", "|"),
             ("|", "                  ", "|"),
-            ("|", "    center-end    ", "|"),
+            ("|", "    ", "center-end", "    ", "|"),
             ("X", "------------------", "X"),
         ]
-    )
+    ), _print_widget(output)
 
     w = TextWidget("end-center")
     w.alignment = ("end", "center")
@@ -426,7 +426,7 @@ def test_widget_auto_scrollbar():
         [
             ("X", "------------------", "X"),
             ("|", "                  ", "|"),
-            ("|", "       Small      ", "|"),
+            ("|", "       ", "Small", "      ", "|"),
             ("|", "                  ", "|"),
             ("X", "------------------", "X"),
         ]
@@ -449,9 +449,9 @@ def test_widget_auto_scrollbar():
     assert (output := w.build()) == _as_spans(
         [
             ("X", "------------------", "X"),
-            ("|", "     too tall    ", "#", "|"),
-            ("|", "     too tall    ", "|", "|"),
-            ("|", "     too tall    ", "|", "|"),
+            ("|", "     ", "too tall", "    ", "#", "|"),
+            ("|", "     ", "too tall", "    ", "|", "|"),
+            ("|", "     ", "too tall", "    ", "|", "|"),
             ("X", "------------------", "X"),
         ]
     ), _print_widget(output)

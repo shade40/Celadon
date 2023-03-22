@@ -369,8 +369,10 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         length = sum(len(span.text) for span in line)
         diff = width - length
 
+        style = self.styles["content"]
+
         if line in [tuple(), (Span(""),)]:
-            return self._parse_markup(self.styles["content"](diff * " "))
+            return self._parse_markup(style(diff * " "))
 
         alignment = self.alignment[0]
 
@@ -378,13 +380,19 @@ class Widget:  # pylint: disable=too-many-instance-attributes
             return (*line[:-1], line[-1].mutate(text=line[-1].text + diff * " "))
 
         if alignment is Alignment.CENTER:
-            span = line[0]
             end, extra = divmod(diff, 2)
             start = end + extra
 
+            # Return padding as a single span instead of (start, content, end)
+            # when content is " " (filler lines)
+            if "".join(span.text for span in line) == " ":
+                return self._parse_markup(style((start + end) * " "))
+
             return (
-                span.mutate(text=start * " " + span.text + end * " "),
+                *self._parse_markup(style(start * " ")),
+                line[0],
                 *line[1:],
+                *self._parse_markup(style(end * " ")),
             )
 
         span = line[0]
