@@ -6,7 +6,7 @@ from typing import Any, Callable, Generator, Type
 from gunmetal import Event, Span
 from zenith.markup import markup_spans, FULL_RESET
 
-from ..enums import Alignment, Overflow
+from ..enums import Alignment, Overflow, MouseAction
 from ..frames import Frame, get_frame
 from ..style_map import StyleMap
 from ..state_machine import StateMachine
@@ -67,7 +67,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes
                 "CLICKED": "active",
             },
             "hover": {
-                "UNHOVERED": "idle",
+                "RELEASED": "idle",
                 "SELECTED": "selected",
                 "CLICKED": "active",
             },
@@ -172,6 +172,8 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         self._virtual_height = 0
 
         self._set_annotated_fields(args, kwargs)
+
+        self.setup()
 
     @property
     def state(self) -> str:
@@ -485,11 +487,78 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
         return tuple(line_list)
 
+    def _apply_mouse_state(self, action: MouseAction) -> None:
+        """Applies a state change action based on mouse input."""
+
+        value = action.value
+
+        if "click" in value:
+            self.state_machine.apply_action("CLICKED")
+            return
+
+        if "hover" in value:
+            self.state_machine.apply_action("HOVERED")
+            return
+
+        if "release" in value:
+            self.state_machine.apply_action("RELEASED")
+            return
+
+    def setup(self) -> None:
+        """Called at the end of __init__ to do custom set up."""
+
+    def contains(self, position: tuple[int, int]) -> bool:
+        """Determines whether this widget contains the given position."""
+
+        rect = self.position, (
+            self.position[0] + self.width,
+            self.position[1] + self.height,
+        )
+
+        (left, top), (right, bottom) = rect
+
+        return left < position[0] <= right and top < position[1] <= bottom
+
     def handle_keyboard(self, key: str) -> bool:
         ...
 
     def handle_mouse(self, action: MouseAction, position: tuple[int, int]) -> bool:
-        ...
+        self._apply_mouse_state(action)
+
+        def _get_names(action: MouseAction) -> tuple[str, ...]:
+            if action.value in ["hover", "release"]:
+                return (action.value,)
+
+            parts = action.value.split("_")
+
+            # left click & right click or drag
+            if parts[0] in ["left", "right"]:
+                return (action.value, parts[1])
+
+            if parts[0] == "shift":
+                return (action.value, f"shift_{parts[1]}", parts[1])
+
+            if parts[0] == "ctrl":
+                return (action.value, f"ctrl_{parts[1]}", parts[1])
+
+            # scrolling
+            return (action.value, parts[0])
+
+        possible_names = _get_names(action)
+
+        for name in possible_names:
+            if hasattr(self, f"on_{name}"):
+                handle = getattr(self, f"on_{name}")
+
+                if name.count("_") > 0:
+                    handle(position)
+                    return True
+
+                handle(action, position)
+                return True
+
+        # Always return True for hover, even if no specific handler is found
+        return action is MouseAction.HOVER
 
     def get_content(self) -> list[str]:
         """Gets the dynamic content for this widget."""
