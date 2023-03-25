@@ -511,17 +511,6 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
         self.scroll = _clamp_scrolls()
 
-        # Determine whether scrollbars should be shown
-        scrollbar_x = self.overflow[0] is Overflow.SCROLL or (
-            self.overflow[0] is Overflow.AUTO
-            and _should_scroll(width, self._virtual_width)
-        )
-
-        scrollbar_y = self.overflow[1] is Overflow.SCROLL or (
-            self.overflow[1] is Overflow.AUTO
-            and _should_scroll(height, self._virtual_height)
-        )
-
         content_style = self.styles["content"]
 
         lines: list[tuple[Span, ...]] = [
@@ -549,6 +538,17 @@ class Widget:  # pylint: disable=too-many-instance-attributes
             self._slice_line(line, self.scroll[0], self.scroll[0] + width)
             for line in lines
         ]
+
+        # Determine whether scrollbars should be shown
+        scrollbar_x = self.overflow[0] is Overflow.SCROLL or (
+            self.overflow[0] is Overflow.AUTO
+            and _should_scroll(width, self._virtual_width)
+        )
+
+        scrollbar_y = self.overflow[1] is Overflow.SCROLL or (
+            self.overflow[1] is Overflow.AUTO
+            and _should_scroll(height, self._virtual_height)
+        )
 
         # Composite together frame + content + scrollbar
         self._add_scrollbars(
