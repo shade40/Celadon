@@ -85,7 +85,7 @@ def test_state_machine_copy():
             },
         },
     )
-    assert state._states == state._states
+    assert state.states == state.states
     assert state._transitions == og._transitions | {
         "/": {
             "CLICKED": "/checked",
@@ -110,7 +110,7 @@ def test_state_machine_copy():
             },
         },
     )
-    assert state._states == state._states
+    assert state.states == state.states
     assert state._transitions == {
         "/": {
             "CLICKED": "/checked",
@@ -124,14 +124,14 @@ def test_state_machine_copy():
     state = og.copy(
         add_states=("test",),
     )
-    assert state._states == tuple((*og._states, "test"))
+    assert state.states == tuple((*og.states, "test"))
     assert state._transitions == og._transitions
 
     # Keep transitions, overwrite states
     state = og.copy(
         states=("test",),
     )
-    assert state._states == ("test",)
+    assert state.states == ("test",)
     assert state._transitions == og._transitions
 
 

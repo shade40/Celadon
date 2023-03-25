@@ -8,6 +8,7 @@ from gunmetal import Event
 
 __all__ = [
     "StateMachine",
+    "deep_merge",
 ]
 
 
@@ -53,7 +54,7 @@ class StateMachine:
     ) -> None:
         self.on_change = Event("State Changed")
 
-        self._states = states
+        self.states = states
         self._transitions = transitions
 
         self._state = states[0]
@@ -68,10 +69,10 @@ class StateMachine:
         return f"<{self.__class__.__name__} state: {self()!r}>"
 
     def __contains__(self, item: object) -> bool:
-        return item in self._states
+        return item in self.states
 
     def __getitem__(self, index: int) -> str:
-        return self._states[index]
+        return self.states[index]
 
     def copy(
         self,
@@ -93,10 +94,10 @@ class StateMachine:
             new_states = states
 
         elif add_states is not None:
-            new_states = tuple((*self._states, *add_states))
+            new_states = tuple((*self.states, *add_states))
 
         else:
-            new_states = self._states
+            new_states = self.states
 
         if transitions is not None:
             new_transitions = transitions
