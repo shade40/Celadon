@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from typing import Any, Callable, Generator, Type
 
 from gunmetal import Event, Span
@@ -7,6 +8,7 @@ from zenith.markup import markup_spans, FULL_RESET
 
 from ..enums import Alignment, Overflow
 from ..frames import Frame, get_frame
+from ..style_map import StyleMap
 from ..state_machine import StateMachine
 
 __all__ = [
@@ -97,42 +99,44 @@ class Widget:  # pylint: disable=too-many-instance-attributes
     ...that are used for state-transitions.
     """
 
-    style_map = {
-        "idle": {
-            "fill": "@panel1-3",
-            "frame": "panel1+1",
-            "content": "text-1",
-            "scrollbar_x": "panel1-1",
-            "scrollbar_y": "panel1-1",
-        },
-        "hover": {
-            "fill": "@panel1-2",
-            "frame": "panel1+1",
-            "content": "text",
-            "scrollbar_x": "text",
-            "scrollbar_y": "text",
-        },
-        "selected": {
-            "fill": "@accent",
-            "frame": "panel1+1",
-            "content": "text",
-            "scrollbar_x": "text",
-            "scrollbar_y": "text",
-        },
-        "active": {
-            "fill": "@accent+1",
-            "frame": "panel1+1",
-            "content": "text",
-            "scrollbar_x": "text",
-            "scrollbar_y": "text",
-        },
-        "/scrolling_x": {
-            "scrollbar_x": "primary",
-        },
-        "/scrolling_y": {
-            "scrollbar_y": "primary",
-        },
-    }
+    style_map = StyleMap(
+        {
+            "idle": {
+                "fill": "@panel1-3",
+                "frame": "panel1+1",
+                "content": "text-1",
+                "scrollbar_x": "panel1-1",
+                "scrollbar_y": "panel1-1",
+            },
+            "hover": {
+                "fill": "@panel1-2",
+                "frame": "panel1+1",
+                "content": "text",
+                "scrollbar_x": "panel1-1",
+                "scrollbar_y": "panel1-1",
+            },
+            "selected": {
+                "fill": "@accent",
+                "frame": "panel1+1",
+                "content": "text",
+                "scrollbar_x": "panel1-1",
+                "scrollbar_y": "panel1-1",
+            },
+            "active": {
+                "fill": "@primary-3",
+                "frame": "panel1+1",
+                "content": "text-3",
+                "scrollbar_x": "panel1-1",
+                "scrollbar_y": "panel1-1",
+            },
+            "/scrolling_x": {
+                "scrollbar_x": "primary",
+            },
+            "/scrolling_y": {
+                "scrollbar_y": "primary",
+            },
+        }
+    )
     """The style map is the lookup table for the widget's styles at certain states."""
 
     on_state_change: Event
@@ -157,6 +161,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
         self.width = width
         self.height = height
+        self.state_machine = deepcopy(self.state_machine)
 
         # These conversions are handled in their properties
         self.frame = frame  # type: ignore
