@@ -41,7 +41,7 @@ class TextWidget(Widget):
     def __init__(self, text: str) -> None:
         self.text = text
 
-        super().__init__(width=20, height=5, frame="ASCII_X")
+        super().__init__(width=20, height=5, frame="ASCII_X", overflow=("hide", "hide"))
 
     def get_content(self) -> list[str]:
         return self.text.splitlines()
@@ -51,7 +51,7 @@ class ScrollingWidget(Widget):
     style_map = EMPTY_STYLEMAP
 
     def __init__(self) -> None:
-        super().__init__(width=20, height=20, frame="Light")
+        super().__init__(width=20, height=20, frame="Light", overflow=("hide", "hide"))
 
         self.overflow = ("scroll", "scroll")
 
@@ -304,11 +304,9 @@ def test_widget_inline_markup():
         style_map = EMPTY_STYLEMAP
 
         def get_content(self) -> list[str]:
-            return [
-                "This is normal [bold 141]but this ain't [yellow]and this is does it ever break??????????????????????"
-            ]
+            return ["This is normal [bold 141]but this ain't [yellow]and this is"]
 
-    w = MarkupWidget(width=20, height=5, frame="ASCII_X")
+    w = MarkupWidget(width=20, height=5, frame="ASCII_X", overflow=("hide", "hide"))
 
     assert (output := w.build()) == _as_spans(
         [

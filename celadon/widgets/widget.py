@@ -149,12 +149,17 @@ class Widget:  # pylint: disable=too-many-instance-attributes
     scroll: tuple[int, int] = (0, 0)
     """The widget's (horizontal, vertical) scrolling offset."""
 
+    position: tuple[int, int] = (0, 0)
+    """The widget's (horizontal, vertical) position."""
+
     def __init__(
         self,
         *args,
         width: int = 1,
         height: int = 1,
         frame: Frame | str = "Frameless",
+        alignment: tuple[str | Alignment, str | Alignment] = ("center", "center"),
+        overflow: tuple[str | Overflow, str | Overflow] = ("auto", "auto"),
         **kwargs,
     ) -> None:
         self.on_state_change = self.state_machine.on_change
@@ -165,8 +170,8 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
         # These conversions are handled in their properties
         self.frame = frame  # type: ignore
-        self.alignment = ("center", "center")  # type: ignore
-        self.overflow = ("hide", "hide")  # type: ignore
+        self.alignment = alignment  # type: ignore
+        self.overflow = overflow  # type: ignore
 
         self._virtual_width = 0
         self._virtual_height = 0
