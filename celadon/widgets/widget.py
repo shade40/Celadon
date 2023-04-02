@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import Any, Callable, Generator, Type
+from typing import Any, Callable, Generator, Type, Iterable
 
 from gunmetal import Event, Span
 from zenith.markup import markup_spans, FULL_RESET
@@ -175,6 +175,9 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
         self._virtual_width = 0
         self._virtual_height = 0
+
+        self._clip_start: tuple[int, int] = (0, 0)
+        self._clip_end: tuple[int, int] = (None, None)
 
         self._set_annotated_fields(args, kwargs)
 
@@ -499,18 +502,31 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
         if "click" in value:
             self.state_machine.apply_action("CLICKED")
-            return
-
-        if "hover" in value:
-            self.state_machine.apply_action("HOVERED")
+            self.state_machine.apply_action("SUBSTATE_EXIT_SCROLLING_X")
+            self.state_machine.apply_action("SUBSTATE_EXIT_SCROLLING_Y")
             return
 
         if "release" in value:
             self.state_machine.apply_action("RELEASED")
+            self.state_machine.apply_action("SUBSTATE_EXIT_SCROLLING_X")
+            self.state_machine.apply_action("SUBSTATE_EXIT_SCROLLING_Y")
+            return
+
+        if "hover" in value and any("click" in attr for attr in dir(self)):
+            self.state_machine.apply_action("HOVERED")
             return
 
     def setup(self) -> None:
         """Called at the end of __init__ to do custom set up."""
+
+    def drawables(self) -> Iterable[Widget]:
+        """Yields all contained widgets that should be drawn."""
+
+        yield self
+
+    def clip(self, start: tuple[int, int], end: tuple[int, int]) -> None:
+        self._clip_start = start
+        self._clip_end = end
 
     def contains(self, position: tuple[int, int]) -> bool:
         """Determines whether this widget contains the given position."""
@@ -570,7 +586,9 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
         raise NotImplementedError
 
-    def build(self) -> list[tuple[Span, ...]]:
+    def build(
+        self, *, virt_width: int | None = None, virt_height: int | None = None
+    ) -> list[tuple[Span, ...]]:
         """Builds the strings that represent the widget."""
 
         width = max(self.width - self.frame.width, 0)
@@ -596,8 +614,10 @@ class Widget:  # pylint: disable=too-many-instance-attributes
             self._parse_markup(content_style(line)) for line in self.get_content()
         ]
 
-        self._virtual_height = len(lines)
-        self._virtual_width = max(sum(len(span) for span in line) for line in lines)
+        self._virtual_height = virt_height or len(lines)
+        self._virtual_width = virt_width or max(
+            sum(len(span) for span in line) for line in lines
+        )
 
         # Clip into vertical size
         if self._virtual_height > height:
@@ -639,5 +659,12 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         )
 
         self._apply_frame(lines, width)
+
+        # lines = [
+        #     self._slice_line(line, self._clip_start[0], self._clip_end[0])
+        #     for line in lines
+        # ]
+
+        lines = lines[self._clip_start[1] : self._clip_end[1]]
 
         return lines

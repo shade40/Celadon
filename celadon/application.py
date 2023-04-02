@@ -67,10 +67,11 @@ class Application:
             terminal.clear()
 
             for widget in self._widgets:
-                origin = widget.position
+                for child in widget.drawables():
+                    origin = child.position
 
-                for i, line in enumerate(widget.build()):
-                    terminal.write(line, cursor=(origin[0], origin[1] + i))
+                    for i, line in enumerate(child.build()):
+                        terminal.write(line, cursor=(origin[0], origin[1] + i))
 
             elapsed = perf_counter() - start
             terminal.draw()
