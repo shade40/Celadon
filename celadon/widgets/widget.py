@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from typing import Any, Callable, Generator, Type, Iterable
+import re
 
 from gunmetal import Event, Span
 from zenith.markup import markup_spans, FULL_RESET
@@ -14,6 +15,8 @@ from ..state_machine import StateMachine
 __all__ = [
     "Widget",
 ]
+
+RE_FULL_UNSETTER = re.compile(r"\/(?=\]| )")
 
 
 def _build_scrollbar(
@@ -123,7 +126,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes
                 "scrollbar_y": "panel1-1",
             },
             "active": {
-                "fill": "@primary-3",
+                "fill": "@panel1",
                 "frame": "panel1+1",
                 "content": "text-3",
                 "scrollbar_x": "panel1-1",
@@ -158,8 +161,8 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         width: int = 1,
         height: int = 1,
         frame: Frame | str = "Frameless",
-        alignment: tuple[str | Alignment, str | Alignment] = ("center", "center"),
-        overflow: tuple[str | Overflow, str | Overflow] = ("auto", "auto"),
+        alignment: tuple[str | Alignment, str | Alignment] = ("start", "start"),
+        overflow: tuple[str | Overflow, str | Overflow] = ("hide", "hide"),
         **kwargs,
     ) -> None:
         self.on_state_change = self.state_machine.on_change
@@ -280,10 +283,19 @@ class Widget:  # pylint: disable=too-many-instance-attributes
     def _set_annotated_fields(
         self, args: tuple[str, ...], kwargs: dict[str, Any]
     ) -> None:
+        """
+
+        Source: https://stackoverflow.com/a/72037059
+        """
+
         fields = self.__annotations__
         fields.update(**{key: getattr(self, key, None) for key in fields})
 
         for key, value in zip(fields.keys(), args):
+            # Don't allow setting private fields
+            if key.startswith("_"):
+                continue
+
             if key in kwargs:
                 raise ValueError(
                     f"Annotated field {key!r} got multiple values: "
@@ -304,7 +316,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         content_style = self.styles["content"]("")[1:-1]
 
         # Replace full unsetters with full unsetter + content style
-        markup = markup.replace("/", "/ " + content_style)
+        markup = RE_FULL_UNSETTER.sub("/ " + content_style, markup)
 
         return tuple(
             span
@@ -451,6 +463,9 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         self, line: tuple[Span, ...], start: int, end: int
     ) -> tuple[Span, ...]:
         """Slices a line into the given width."""
+
+        if end is None:
+            end = len(line) - 1
 
         width = end - start
 
