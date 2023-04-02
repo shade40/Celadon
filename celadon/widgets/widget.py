@@ -306,7 +306,11 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         # Replace full unsetters with full unsetter + content style
         markup = markup.replace("/", "/ " + content_style)
 
-        return tuple(span for span in markup_spans(markup) if span is not FULL_RESET)
+        return tuple(
+            span
+            for span in markup_spans(markup, prefix="ui.")
+            if span is not FULL_RESET
+        )
 
     def _add_scrollbars(  # pylint: disable=too-many-arguments
         self,
@@ -330,8 +334,8 @@ class Widget:  # pylint: disable=too-many-instance-attributes
                 )
             )
 
-            lines[-1] = tuple(
-                markup_spans(self.styles["scrollbar_x"](buff + " " * scrollbar_y))
+            lines[-1] = self._parse_markup(
+                self.styles["scrollbar_x"](buff + " " * scrollbar_y)
             )
 
         if scrollbar_y:
@@ -353,7 +357,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes
                 lines[i] = (  # type: ignore
                     *line[:-1],
                     span.mutate(text=span.text[:-1]),
-                    *(markup_spans(self.styles["scrollbar_y"](chars[i]))),
+                    *(self._parse_markup(self.styles["scrollbar_y"](chars[i]))),
                 )
 
     def _apply_frame(self, lines: list[tuple[Span, ...]], width: int) -> None:
