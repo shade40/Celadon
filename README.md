@@ -5,7 +5,7 @@
 A state-driven UI library for the terminal.
 
 ```
-pip install celadon
+pip install sh40-celadon
 ```
 
 ![rule](https://singlecolorimage.com/get/afe1af/1600x5)
