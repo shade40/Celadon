@@ -21,7 +21,11 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["gunmetal", "zenith"]
+dependencies = [
+    "sh40-slate",
+    "sh40-zenith",
+    "sh40-carmine",
+]
 dynamic = ["version"]
 
 [project.urls]
@@ -29,8 +33,17 @@ Documentation = "https://github.com/unknown/celadon#readme"
 Issues = "https://github.com/unknown/celadon/issues"
 Source = "https://github.com/unknown/celadon"
 
+[project.scripts]
+celadon = "celadon.__main__:main"
+
 [tool.hatch.version]
 path = "celadon/__about__.py"
+
+[tool.hatch.build]
+include = [
+  "celadon/*.py",
+  "/tests",
+]
 
 [tool.hatch.envs.default]
 dependencies = [

@@ -4,7 +4,7 @@ from copy import deepcopy
 from functools import reduce
 from typing import Any
 
-from gunmetal import Event
+from slate import Event
 
 __all__ = [
     "StateMachine",

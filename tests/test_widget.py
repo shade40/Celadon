@@ -1,5 +1,5 @@
 import pytest
-from gunmetal import Span
+from slate import Span
 
 from celadon import Alignment, Overflow, Widget, frames
 

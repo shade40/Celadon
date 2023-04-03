@@ -4,7 +4,7 @@ from copy import deepcopy
 from typing import Any, Callable, Generator, Type, Iterable
 import re
 
-from gunmetal import Event, Span
+from slate import Event, Span
 from zenith.markup import markup_spans, FULL_RESET
 
 from ..enums import Alignment, Overflow, MouseAction
@@ -564,6 +564,25 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
     def handle_mouse(self, action: MouseAction, position: tuple[int, int]) -> bool:
         self._apply_mouse_state(action)
+
+        if "scroll" in action.value:
+            if (
+                action is MouseAction.SCROLL_LEFT
+                or action is MouseAction.SHIFT_SCROLL_UP
+            ):
+                self.scroll = (self.scroll[0] - 1, self.scroll[1])
+
+            elif (
+                action is MouseAction.SCROLL_RIGHT
+                or action is MouseAction.SHIFT_SCROLL_DOWN
+            ):
+                self.scroll = (self.scroll[0] + 1, self.scroll[1])
+
+            elif action is MouseAction.SCROLL_UP:
+                self.scroll = (self.scroll[0], self.scroll[1] - 1)
+
+            elif action is MouseAction.SCROLL_DOWN:
+                self.scroll = (self.scroll[0], self.scroll[1] + 1)
 
         def _get_names(action: MouseAction) -> tuple[str, ...]:
             if action.value in ["hover", "release"]:

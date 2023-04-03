@@ -1,6 +1,7 @@
 from gunmetal import Terminal, getch, set_echo
 
 from celadon import Widget
+from celadon.widgets.text import Text
 
 LOREM = """\
 [blue]Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec fringilla vel arcu sed
@@ -65,6 +66,7 @@ class TextArea(Widget):
 
 
 def draw(widget: Widget, terminal: Terminal) -> None:
+    terminal.size
     terminal.clear()
 
     for i, line in enumerate(widget.build()):
@@ -76,10 +78,16 @@ def draw(widget: Widget, terminal: Terminal) -> None:
 def main() -> None:
     term = Terminal()
 
-    txt = TextArea(term.width, term.height, frame="Padded")
+    txt = Text(LOREM, width=term.width, height=term.height, frame="Padded")
+
+    def resize(new: tuple[int, int]) -> None:
+        txt.width = new[0]
+        txt.height = new[1]
+
+    term.on_resize += resize
 
     txt.overflow = ("auto", "auto")
-    txt.alignment = ("start", "start")
+    txt.alignment = ("center", "start")
 
     with term.no_echo(), term.report_mouse(), term.alt_buffer() as buff:
         draw(txt, term)

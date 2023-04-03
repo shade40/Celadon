@@ -3,7 +3,7 @@ from __future__ import annotations
 from threading import Thread
 from time import perf_counter, sleep
 
-from gunmetal import Terminal, getch
+from slate import Terminal, getch
 
 from .enums import MouseAction
 from .widgets import Widget
