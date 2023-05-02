@@ -47,6 +47,14 @@ class Frame:
         self.width = len(self.borders[1] + self.borders[3])
         self.height = len(self.borders[0] + self.borders[2])
 
+        self.left, self.top, self.right, self.bottom = self.borders
+        (
+            self.left_top,
+            self.right_top,
+            self.right_bottom,
+            self.left_bottom,
+        ) = self.borders
+
     def _parse_descriptor(self) -> tuple[CharTuple, CharTuple]:
         """Parses the descriptor into tuples of chartuples."""
 
