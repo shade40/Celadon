@@ -67,6 +67,8 @@ class Application:
             terminal.clear()
 
             for widget in self._widgets:
+                widget.compute_dimensions()
+
                 for child in widget.drawables():
                     origin = child.position
 
@@ -78,6 +80,30 @@ class Application:
 
             if elapsed < frametime:
                 sleep(frametime)
+
+    @property
+    def width(self) -> int:
+        """Returns the terminal's width."""
+
+        return terminal.width
+
+    @property
+    def width_hint(self) -> int:
+        """Returns the terminal's width."""
+
+        return self.width
+
+    @property
+    def height(self) -> int:
+        """Returns the terminal's height."""
+
+        return terminal.height
+
+    @property
+    def height_hint(self) -> int:
+        """Returns the terminal's height."""
+
+        return self.height
 
     def process_input(self, inp: str) -> bool:
         if (event := _parse_mouse_input(inp)) is not None:

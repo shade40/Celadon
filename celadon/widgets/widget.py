@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import Any, Callable, Generator, Type, Iterable
+from typing import Any, Callable, Generator, Type, Iterable, Literal, Protocol
 import re
 
 from slate import Event, Span
-from zenith.markup import markup_spans, FULL_RESET
+from zenith.markup import zml_pre_process, zml_get_spans, FULL_RESET
 
 from ..enums import Alignment, Overflow, MouseAction
 from ..frames import Frame, get_frame
@@ -17,6 +17,25 @@ __all__ = [
 ]
 
 RE_FULL_UNSETTER = re.compile(r"\/(?=\]| )")
+
+
+class Sized(Protocol):
+    """An object that has size attributes."""
+
+    width_hint: int
+    height_hint: int
+
+
+def _compute(spec: int | float | None, hint: int) -> int:
+    if isinstance(spec, float):
+        return int(spec * hint)
+
+    # Auto (fill available)
+    if spec is None:
+        return hint
+
+    # Static (int)
+    return spec
 
 
 def _build_scrollbar(
@@ -155,6 +174,10 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         state: The new state.
     """
 
+    parent: Sized | None
+    width_hint: int
+    height_hint: int
+
     scroll: tuple[int, int] = (0, 0)
     """The widget's (horizontal, vertical) scrolling offset."""
 
@@ -164,8 +187,8 @@ class Widget:  # pylint: disable=too-many-instance-attributes
     def __init__(
         self,
         *args,
-        width: int = 1,
-        height: int = 1,
+        width: int | float | None = None,
+        height: int | float | None = None,
         frame: Frame | str = "Frameless",
         alignment: tuple[str | Alignment, str | Alignment] = ("start", "start"),
         overflow: tuple[str | Overflow, str | Overflow] = ("hide", "hide"),
@@ -185,8 +208,11 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         self._virtual_width = 0
         self._virtual_height = 0
 
-        self._clip_start: tuple[int, int] = (0, 0)
-        self._clip_end: tuple[int, int] = (None, None)
+        self._clip_start: int | None = None
+        self._clip_end: int | None = None
+
+        self._computed_width = 1
+        self._computed_height = 1
 
         self._set_annotated_fields(args, kwargs)
 
@@ -285,6 +311,72 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
         assert isinstance(new[0], Overflow) and isinstance(new[1], Overflow)
         self._overflow = new
+
+    @property
+    def width(self) -> int:
+        """Gets the widgets applied width."""
+
+        return self._computed_width
+
+    @width.setter
+    def width(self, new: float | int) -> None:
+        """Sets the width spec."""
+
+        self._width_spec = new
+
+    @property
+    def width_hint(self) -> int:
+        return self.width
+
+    @property
+    def height(self) -> int:
+        """Gets the widgets applied height."""
+
+        return self._computed_height
+
+    @height.setter
+    def height(self, new: float | int) -> None:
+        """Sets the height spec."""
+
+        self._height_spec = new
+
+    @property
+    def height_hint(self) -> int:
+        return self.height
+
+    def is_fill_width(self) -> bool:
+        return self._width_spec is None
+
+    def is_fill_height(self) -> bool:
+        return self._height_spec is None
+
+    @property
+    def _framed_width(self) -> int:
+        """Gets the widget's width excluding its frame."""
+
+        return max(self.width - self.frame.width, 0)
+
+    @property
+    def _framed_height(self) -> int:
+        """Gets the widget's height excluding its frame."""
+
+        return max(self.height - self.frame.height, 0)
+
+    def has_scrollbar(self, index: Literal[0, 1]) -> bool:
+        """Returns whether the given dimension should display a scrollbar.
+
+        Args:
+            index: The axis to check. 0 for horizontal scrolling, 1 for vertical.
+        """
+
+        real, virt = [
+            (self._framed_width, self._virtual_width),
+            (self._framed_height, self._virtual_height),
+        ][index]
+
+        return self.overflow[index] is Overflow.SCROLL or (
+            self.overflow[index] is Overflow.AUTO and _overflows(real, virt)
+        )
 
     def _set_annotated_fields(
         self, args: tuple[str, ...], kwargs: dict[str, Any]
@@ -435,6 +527,8 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
             return (span.mutate(text=diff * " " + span.text), *line[1:])
 
+        raise NotImplementedError(f"Unknown alignment {alignment!r}.")
+
     def _vertical_align(self, lines: list[tuple[Span, ...]], height: int) -> None:
         """Aligns a list of tuples of spans vertically, using `self.alignment[1]`.
 
@@ -554,8 +648,8 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         """Determines whether this widget contains the given position."""
 
         rect = self.position, (
-            self.position[0] + self.width,
-            self.position[1] + self.height,
+            self.position[0] + self.width - self.has_scrollbar(1),
+            self.position[1] + self.height - self.has_scrollbar(0),
         )
 
         (left, top), (right, bottom) = rect
@@ -632,6 +726,12 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         # Always return True for hover, even if no specific handler is found
         return action is MouseAction.HOVER
 
+    def compute_dimensions(self) -> None:
+        """Computes width & height based on our specifications and the parent's hint."""
+
+        self._computed_width = _compute(self._width_spec, self.parent.width_hint)
+        self._computed_height = _compute(self._height_spec, self.parent.height_hint)
+
     def get_content(self) -> list[str]:
         """Gets the dynamic content for this widget."""
 
@@ -691,8 +791,8 @@ class Widget:  # pylint: disable=too-many-instance-attributes
             lines,
             width,
             height,
-            scrollbar_x,
-            scrollbar_y,
+            self.has_scrollbar(0),
+            self.has_scrollbar(1),
         )
 
         self._apply_frame(lines, width)
