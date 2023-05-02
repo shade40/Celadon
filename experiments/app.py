@@ -6,7 +6,7 @@ from celadon.widgets.text import Text
 from celadon.widgets.button import Button
 from celadon.widgets.checkbox import Checkbox
 
-from gunmetal import Terminal, Event, Span
+from slate import Terminal, Event, Span
 
 terminal = Terminal()
 

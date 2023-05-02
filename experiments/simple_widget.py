@@ -1,4 +1,4 @@
-from gunmetal import Terminal, getch, set_echo
+from slate import Terminal, getch, set_echo
 
 from celadon import Widget
 from celadon.widgets.text import Text

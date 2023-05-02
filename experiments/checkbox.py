@@ -1,4 +1,4 @@
-from gunmetal import Span
+from slate import Span
 
 from celadon import Widget
 
@@ -78,7 +78,7 @@ if __name__ == "__main__":
     import random
     import time
 
-    from gunmetal import Terminal, getch
+    from slate import Terminal, getch
 
     with (term := Terminal()).alt_buffer():
         bigboy = BigBoy(width=20, height=10, frame="Light")

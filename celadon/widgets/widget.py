@@ -58,6 +58,12 @@ def _build_scrollbar(
         yield rail
 
 
+def _overflows(real: int, virt: int) -> bool:
+    """Determines whether the given real and virtual dimensions overflow."""
+
+    return real / max(virt, 1) <= 1.0
+
+
 class Widget:  # pylint: disable=too-many-instance-attributes
     """This is a docstring."""
 
@@ -105,38 +111,38 @@ class Widget:  # pylint: disable=too-many-instance-attributes
     style_map = StyleMap(
         {
             "idle": {
-                "fill": "@panel1-3",
-                "frame": "panel1+1",
-                "content": "text-1",
-                "scrollbar_x": "panel1-1",
-                "scrollbar_y": "panel1-1",
+                "fill": "@ui.panel1-3",
+                "frame": "ui.panel1+1",
+                "content": "ui.text-1",
+                "scrollbar_x": "ui.panel1-1",
+                "scrollbar_y": "ui.panel1-1",
             },
             "hover": {
-                "fill": "@panel1-2",
-                "frame": "panel1+1",
-                "content": "text",
-                "scrollbar_x": "panel1-1",
-                "scrollbar_y": "panel1-1",
+                "fill": "@ui.panel1-2",
+                "frame": "ui.panel1+1",
+                "content": "ui.text",
+                "scrollbar_x": "ui.panel1-1",
+                "scrollbar_y": "ui.panel1-1",
             },
             "selected": {
-                "fill": "@accent",
-                "frame": "panel1+1",
-                "content": "text",
-                "scrollbar_x": "panel1-1",
-                "scrollbar_y": "panel1-1",
+                "fill": "@ui.accent",
+                "frame": "ui.panel1+1",
+                "content": "ui.text",
+                "scrollbar_x": "ui.panel1-1",
+                "scrollbar_y": "ui.panel1-1",
             },
             "active": {
-                "fill": "@panel1",
-                "frame": "panel1+1",
-                "content": "text-3",
-                "scrollbar_x": "panel1-1",
-                "scrollbar_y": "panel1-1",
+                "fill": "@ui.panel1",
+                "frame": "ui.panel1+1",
+                "content": "ui.text-3",
+                "scrollbar_x": "ui.panel1-1",
+                "scrollbar_y": "ui.panel1-1",
             },
             "/scrolling_x": {
-                "scrollbar_x": "primary",
+                "scrollbar_x": "ui.primary",
             },
             "/scrolling_y": {
-                "scrollbar_y": "primary",
+                "scrollbar_y": "ui.primary",
             },
         }
     )
@@ -317,12 +323,9 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
         # Replace full unsetters with full unsetter + content style
         markup = RE_FULL_UNSETTER.sub("/ " + content_style, markup)
+        markup = zml_pre_process(markup)
 
-        return tuple(
-            span
-            for span in markup_spans(markup, prefix="ui.")
-            if span is not FULL_RESET
-        )
+        return tuple(span for span in zml_get_spans(markup) if span is not FULL_RESET)
 
     def _add_scrollbars(  # pylint: disable=too-many-arguments
         self,
@@ -543,7 +546,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
         yield self
 
-    def clip(self, start: tuple[int, int], end: tuple[int, int]) -> None:
+    def clip_height(self, start: int | None, end: int | None) -> None:
         self._clip_start = start
         self._clip_end = end
 
@@ -558,6 +561,16 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         (left, top), (right, bottom) = rect
 
         return left < position[0] <= right and top < position[1] <= bottom
+
+    def move_to(self, x: int, y: int) -> none:
+        """Moves the widget to the given position."""
+
+        self.position = x, y
+
+    def move_by(self, x: int, y: int) -> none:
+        """Moves the widget by the given changes."""
+
+        self.move_to(self.position[0] + x, self.position[1] + y)
 
     def handle_keyboard(self, key: str) -> bool:
         ...
@@ -629,15 +642,12 @@ class Widget:  # pylint: disable=too-many-instance-attributes
     ) -> list[tuple[Span, ...]]:
         """Builds the strings that represent the widget."""
 
-        width = max(self.width - self.frame.width, 0)
-        height = max(self.height - self.frame.height, 0)
-
-        def _should_scroll(real: int, virt: int) -> bool:
-            return real / max(virt, 1) <= 1.0
+        width = self._framed_width
+        height = self._framed_height
 
         def _clamp_scrolls() -> int:
-            x_bar = _should_scroll(width, self._virtual_width)
-            y_bar = _should_scroll(height, self._virtual_height)
+            x_bar = _overflows(width, self._virtual_width)
+            y_bar = _overflows(height, self._virtual_height)
 
             return (
                 max(min(self.scroll[0], self._virtual_width - width + x_bar), 0),
@@ -676,17 +686,6 @@ class Widget:  # pylint: disable=too-many-instance-attributes
             for line in lines
         ]
 
-        # Determine whether scrollbars should be shown
-        scrollbar_x = self.overflow[0] is Overflow.SCROLL or (
-            self.overflow[0] is Overflow.AUTO
-            and _should_scroll(width, self._virtual_width)
-        )
-
-        scrollbar_y = self.overflow[1] is Overflow.SCROLL or (
-            self.overflow[1] is Overflow.AUTO
-            and _should_scroll(height, self._virtual_height)
-        )
-
         # Composite together frame + content + scrollbar
         self._add_scrollbars(
             lines,
@@ -698,11 +697,9 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
         self._apply_frame(lines, width)
 
-        # lines = [
-        #     self._slice_line(line, self._clip_start[0], self._clip_end[0])
-        #     for line in lines
-        # ]
+        if len(lines) > self.height:
+            lines = lines[: self.height]
 
-        lines = lines[self._clip_start[1] : self._clip_end[1]]
+        lines = lines[self._clip_start : self._clip_end]
 
         return lines

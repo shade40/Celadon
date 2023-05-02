@@ -31,7 +31,7 @@ def _parse_mouse_input(inp: str) -> tuple[MouseAction, tuple[int, int]] | None:
 class Application:
     def __init__(self, name: str, target_frames: int = 60) -> None:
         self._name = name
-        self._target_frames = 60
+        self._target_frames = target_frames
         self._widgets: list[Widget] = []
         self._mouse_target: Widget | None = None
 
@@ -83,12 +83,12 @@ class Application:
         if (event := _parse_mouse_input(inp)) is not None:
             action, position = event
 
-            for widget in reversed(self._widgets):
+            for widget in self._widgets:
                 if not widget.contains(position):
                     continue
 
                 if widget.handle_mouse(action, position):
-                    if self._mouse_target not in [None, widget]:
+                    if self._mouse_target not in [widget, None]:
                         self._mouse_target.handle_mouse(
                             MouseAction.LEFT_RELEASE, position
                         )
@@ -99,8 +99,6 @@ class Application:
             if self._mouse_target is not None:
                 self._mouse_target.handle_mouse(MouseAction.LEFT_RELEASE, position)
 
-            return False
-
         if len(self._widgets) == 0:
             return False
 
@@ -108,6 +106,7 @@ class Application:
 
     def add(self, widget: Widget) -> None:
         self._widgets.append(widget)
+        widget.parent = self
 
     def run(self) -> None:
         self._is_active = True
