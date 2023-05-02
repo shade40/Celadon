@@ -112,6 +112,8 @@ class Application:
         self._is_active = True
 
         with terminal.alt_buffer(), terminal.report_mouse(), terminal.no_echo():
+            terminal.set_title(self._name)
+
             thread = Thread(name=f"{self._name}_draw", target=self._draw_loop)
             thread.start()
 
