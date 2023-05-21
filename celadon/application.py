@@ -109,7 +109,14 @@ class Application:
         if (event := _parse_mouse_input(inp)) is not None:
             action, position = event
 
-            for widget in self._widgets:
+            if (
+                self._mouse_target is not None
+                and action is MouseAction.HOVER
+                and not self._mouse_target.contains(position)
+            ):
+                self._mouse_target.handle_mouse(MouseAction.LEFT_RELEASE, position)
+
+            for widget in reversed(self._widgets):
                 if not widget.contains(position):
                     continue
 
@@ -122,8 +129,10 @@ class Application:
                     self._mouse_target = widget
                     return True
 
-            if self._mouse_target is not None:
-                self._mouse_target.handle_mouse(MouseAction.LEFT_RELEASE, position)
+        if self._mouse_target is not None:
+            self._mouse_target.handle_mouse(
+                MouseAction.LEFT_RELEASE, self._mouse_target.position
+            )
 
         if len(self._widgets) == 0:
             return False
