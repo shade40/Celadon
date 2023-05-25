@@ -1,8 +1,20 @@
 from __future__ import annotations
 
-from copy import deepcopy
-from typing import Any, Callable, Generator, Type, Iterable, Literal, Protocol
+import uuid
 import re
+
+from copy import deepcopy
+from typing import (
+    Any,
+    Callable,
+    Generator,
+    Type,
+    Iterable,
+    Literal,
+    Union,
+    Protocol,
+    TypedDict,
+)
 
 from slate import Event, Span
 from zenith.markup import zml_pre_process, zml_get_spans, FULL_RESET
@@ -24,6 +36,21 @@ class Sized(Protocol):
 
     width_hint: int
     height_hint: int
+
+
+DimensionSpec = Union[int, float, None]
+AlignmentSetting = Literal["start", "center", "end"]
+OverflowSetting = Literal["hide", "auto", "scroll"]
+
+
+class Config(TypedDict):
+    width: int | float | None
+    height: int | float | None
+
+    frame: str
+
+    alignment: tuple[AlignmentSetting, AlignmentSetting]
+    overflow: tuple[OverflowSetting, OverflowSetting]
 
 
 def _compute(spec: int | float | None, hint: int) -> int:
@@ -85,6 +112,32 @@ def _overflows(real: int, virt: int) -> bool:
 
 class Widget:  # pylint: disable=too-many-instance-attributes
     """This is a docstring."""
+
+    on_state_change: Event
+    """Called when the widget's state changes.
+
+    Args:
+        state: The new state.
+    """
+
+    parent: Sized | None
+    """The parent of this widget.
+
+    An application instance if the widget is at the root, another widget otherwise.
+    """
+
+    width_hint: int
+    """The hint the widget uses to calculate its width. See dimension hint"""
+    # TODO: Add dimension hint docs
+
+    height_hint: int
+    """The hint the widget uses to calculate its height. See dimension hint"""
+
+    scroll: tuple[int, int]
+    """The widget's (horizontal, vertical) scrolling offset."""
+
+    position: tuple[int, int]
+    """The widget's (horizontal, vertical) position."""
 
     state_machine = StateMachine(
         states=("idle", "hover", "selected", "active"),
@@ -167,39 +220,34 @@ class Widget:  # pylint: disable=too-many-instance-attributes
     )
     """The style map is the lookup table for the widget's styles at certain states."""
 
-    on_state_change: Event
-    """Called when the widget's state changes.
-
-    Args:
-        state: The new state.
-    """
-
-    parent: Sized | None
-    width_hint: int
-    height_hint: int
-
-    scroll: tuple[int, int] = (0, 0)
-    """The widget's (horizontal, vertical) scrolling offset."""
-
-    position: tuple[int, int] = (0, 0)
-    """The widget's (horizontal, vertical) position."""
-
     def __init__(
         self,
-        *args,
+        eid: str | None = None,
+        groups: tuple[str] = tuple(),
         width: int | float | None = None,
         height: int | float | None = None,
         frame: Frame | str = "Frameless",
         alignment: tuple[str | Alignment, str | Alignment] = ("start", "start"),
         overflow: tuple[str | Overflow, str | Overflow] = ("hide", "hide"),
-        **kwargs,
     ) -> None:
-        self.on_state_change = self.state_machine.on_change
+        """Initializes a Widget.
+
+        Args:
+            width: The width hint.
+            height: The height hint.
+            frame: The frame this widget will be put into.
+            alignment: How our content gets aligned, (horizontal, vertical) axes.
+            overflow: The strategy to use for content that extends beyond our size.
+        """
+
+        self.eid = eid or str(uuid.uuid4())
+        self.groups = groups
+        self.scroll = (0, 0)
+        self.position = (0, 0)
+        self.state_machine = deepcopy(self.state_machine)
 
         self.width = width
         self.height = height
-        self.state_machine = deepcopy(self.state_machine)
-
         # These conversions are handled in their properties
         self.frame = frame  # type: ignore
         self.alignment = alignment  # type: ignore
@@ -207,16 +255,13 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
         self._virtual_width = 0
         self._virtual_height = 0
+        self._last_query = None
 
         self._clip_start: int | None = None
         self._clip_end: int | None = None
 
         self._computed_width = 1
         self._computed_height = 1
-
-        self._set_annotated_fields(args, kwargs)
-
-        self.setup()
 
     @property
     def state(self) -> str:
@@ -320,9 +365,9 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
     @width.setter
     def width(self, new: float | int) -> None:
-        """Sets the width spec."""
+        """Forwards the setting to width spec."""
 
-        self._width_spec = new
+        self.width_spec = new
 
     @property
     def width_hint(self) -> int:
@@ -336,19 +381,13 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
     @height.setter
     def height(self, new: float | int) -> None:
-        """Sets the height spec."""
+        """Forwards the setting to width spec."""
 
-        self._height_spec = new
+        self.height_spec = new
 
     @property
     def height_hint(self) -> int:
         return self.height
-
-    def is_fill_width(self) -> bool:
-        return self._width_spec is None
-
-    def is_fill_height(self) -> bool:
-        return self._height_spec is None
 
     @property
     def _framed_width(self) -> int:
@@ -361,6 +400,54 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         """Gets the widget's height excluding its frame."""
 
         return max(self.height - self.frame.height, 0)
+
+    def as_config(self) -> Config:
+        return Config(
+            width=self.width_spec,
+            height=self.height_spec,
+            frame=self.frame.name,
+            alignment_x=self.alignment[0],
+            alignment_y=self.alignment[1],
+            overflow_x=self.overflow[0],
+            overflow_y=self.overflow[1],
+        )
+
+    def update(
+        self,
+        attrs: dict[str, DimensionSpec | AlignmentSetting | OverflowSetting],
+        style_map: dict[str, str],
+    ) -> None:
+        for key, value in attrs.items():
+            setattr(self, key, value)
+
+        self.style_map = self.style_map | {self.state: style_map}
+
+    def as_query(self, state: bool = False) -> str:
+        query = type(self).__name__
+
+        if self.eid is not None:
+            query += f"#{self.eid}"
+
+        for variant in self.groups:
+            query += f".{variant}"
+
+        if state:
+            query += f"/{self.state}"
+
+        return query
+
+    def query_changed(self) -> bool:
+        query = self.as_query(state=True)
+        value = query != self._last_query
+
+        self._last_query = query
+        return value
+
+    def is_fill_width(self) -> bool:
+        return self.width_spec is None
+
+    def is_fill_height(self) -> bool:
+        return self.height_spec is None
 
     def has_scrollbar(self, index: Literal[0, 1]) -> bool:
         """Returns whether the given dimension should display a scrollbar.
@@ -377,33 +464,6 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         return self.overflow[index] is Overflow.SCROLL or (
             self.overflow[index] is Overflow.AUTO and _overflows(real, virt)
         )
-
-    def _set_annotated_fields(
-        self, args: tuple[str, ...], kwargs: dict[str, Any]
-    ) -> None:
-        """
-
-        Source: https://stackoverflow.com/a/72037059
-        """
-
-        fields = self.__annotations__
-        fields.update(**{key: getattr(self, key, None) for key in fields})
-
-        for key, value in zip(fields.keys(), args):
-            # Don't allow setting private fields
-            if key.startswith("_"):
-                continue
-
-            if key in kwargs:
-                raise ValueError(
-                    f"Annotated field {key!r} got multiple values: "
-                    + f"({value!r}, {kwargs[key]!r}."
-                )
-
-            fields[key] = value
-
-        fields.update(**kwargs)
-        self.__dict__.update(**fields)
 
     def _parse_markup(self, markup: str) -> tuple[Span, ...]:
         """Parses some markup into a span of tuples.
@@ -628,12 +688,9 @@ class Widget:  # pylint: disable=too-many-instance-attributes
             self.state_machine.apply_action("SUBSTATE_EXIT_SCROLLING_Y")
             return
 
-        if "hover" in value and any("click" in attr for attr in dir(self)):
+        if "hover" in value:  # and any("click" in attr for attr in dir(self)):
             self.state_machine.apply_action("HOVERED")
             return
-
-    def setup(self) -> None:
-        """Called at the end of __init__ to do custom set up."""
 
     def drawables(self) -> Iterable[Widget]:
         """Yields all contained widgets that should be drawn."""
@@ -643,6 +700,14 @@ class Widget:  # pylint: disable=too-many-instance-attributes
     def clip_height(self, start: int | None, end: int | None) -> None:
         self._clip_start = start
         self._clip_end = end
+
+    def toggle_group(self, group: str) -> bool:
+        if group in self.groups:
+            self.groups = tuple(group for group in self.groups if group != group)
+            return False
+
+        self.groups = tuple(list(self.groups) + [group])
+        return True
 
     def contains(self, position: tuple[int, int]) -> bool:
         """Determines whether this widget contains the given position."""
@@ -673,22 +738,25 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         self._apply_mouse_state(action)
 
         if "scroll" in action.value:
+            can_scroll_x, can_scroll_y = self.has_scrollbar(0), self.has_scrollbar(1)
             if (
-                action is MouseAction.SCROLL_LEFT
+                can_scroll_x
+                and action is MouseAction.SCROLL_LEFT
                 or action is MouseAction.SHIFT_SCROLL_UP
             ):
                 self.scroll = (self.scroll[0] - 1, self.scroll[1])
 
             elif (
-                action is MouseAction.SCROLL_RIGHT
+                can_scroll_x
+                and action is MouseAction.SCROLL_RIGHT
                 or action is MouseAction.SHIFT_SCROLL_DOWN
             ):
                 self.scroll = (self.scroll[0] + 1, self.scroll[1])
 
-            elif action is MouseAction.SCROLL_UP:
+            elif can_scroll_y and action is MouseAction.SCROLL_UP:
                 self.scroll = (self.scroll[0], self.scroll[1] - 1)
 
-            elif action is MouseAction.SCROLL_DOWN:
+            elif can_scroll_y and action is MouseAction.SCROLL_DOWN:
                 self.scroll = (self.scroll[0], self.scroll[1] + 1)
 
         def _get_names(action: MouseAction) -> tuple[str, ...]:
@@ -729,8 +797,8 @@ class Widget:  # pylint: disable=too-many-instance-attributes
     def compute_dimensions(self) -> None:
         """Computes width & height based on our specifications and the parent's hint."""
 
-        self._computed_width = _compute(self._width_spec, self.parent.width_hint)
-        self._computed_height = _compute(self._height_spec, self.parent.height_hint)
+        self._computed_width = _compute(self.width_spec, self.parent.width_hint)
+        self._computed_height = _compute(self.height_spec, self.parent.height_hint)
 
     def get_content(self) -> list[str]:
         """Gets the dynamic content for this widget."""
@@ -803,3 +871,6 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         lines = lines[self._clip_start : self._clip_end]
 
         return lines
+
+
+widget_annotations = Widget.__annotations__

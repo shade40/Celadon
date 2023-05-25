@@ -14,4 +14,7 @@ class StyleMap(dict):
                 f" not {type(other)!r}."
             )
 
+        # if "*" in other:
+        #     for key in
+
         return StyleMap(deep_merge(deepcopy(self), other))

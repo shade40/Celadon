@@ -1,5 +1,5 @@
 import pytest
-from slate import Span
+from slate import Span, Color
 
 from celadon import Alignment, Overflow, Widget, frames
 
@@ -333,7 +333,7 @@ def test_widget_inline_markup():
             (
                 "|",
                 "This is normal ",
-                Span("but", bold=True, foreground="38;5;141"),
+                Span("but", bold=True, foreground=Color.from_ansi("38;5;141")),
                 "|",
             ),
             ("|", "                  ", "|"),
@@ -403,32 +403,34 @@ def test_widget_styling():
         "scrollbar_y": "[]item",
     }
 
+    red = Color.from_ansi("38;2;255;0;0")
+
     assert w.build() == _as_spans(
         [
             (
-                Span("X", bold=True, foreground="38;2;255;0;0"),
-                Span("------------------", bold=True, foreground="38;2;255;0;0"),
-                Span("X", bold=True, foreground="38;2;255;0;0"),
+                Span("X", bold=True, foreground=red),
+                Span("------------------", bold=True, foreground=red),
+                Span("X", bold=True, foreground=red),
             ),
             (
-                Span("|", bold=True, foreground="38;2;255;0;0"),
-                Span("Alma              ", foreground="38;2;255;0;0"),
-                Span("|", bold=True, foreground="38;2;255;0;0"),
+                Span("|", bold=True, foreground=red),
+                Span("Alma              ", foreground=red),
+                Span("|", bold=True, foreground=red),
             ),
             (
-                Span("|", bold=True, foreground="38;2;255;0;0"),
-                Span("                  ", foreground="38;2;255;0;0"),
-                Span("|", bold=True, foreground="38;2;255;0;0"),
+                Span("|", bold=True, foreground=red),
+                Span("                  ", foreground=red),
+                Span("|", bold=True, foreground=red),
             ),
             (
-                Span("|", bold=True, foreground="38;2;255;0;0"),
-                Span("                  ", foreground="38;2;255;0;0"),
-                Span("|", bold=True, foreground="38;2;255;0;0"),
+                Span("|", bold=True, foreground=red),
+                Span("                  ", foreground=red),
+                Span("|", bold=True, foreground=red),
             ),
             (
-                Span("X", bold=True, foreground="38;2;255;0;0"),
-                Span("------------------", bold=True, foreground="38;2;255;0;0"),
-                Span("X", bold=True, foreground="38;2;255;0;0"),
+                Span("X", bold=True, foreground=red),
+                Span("------------------", bold=True, foreground=red),
+                Span("X", bold=True, foreground=red),
             ),
         ]
     )

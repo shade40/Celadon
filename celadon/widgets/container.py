@@ -19,12 +19,22 @@ class Container(Widget):
 
     children: list[Widget]
 
-    _mouse_target: Widget | None = None
-
     _width_hint = 1
     _height_hint = 1
 
-    style_map = Widget.style_map | {"idle": {"scrollbar_y": "ui.secondary"}}
+    style_map = Widget.style_map | {
+        "idle": {"scrollbar_y": "ui.secondary"},
+        "hover": {"fill": Widget.style_map["idle"]["fill"]},
+    }
+
+    def __init__(self, *children: Widget, **widget_args: Any) -> None:
+        super().__init__(**widget_args)
+
+        self.children = []
+        for child in children:
+            self.add(child)
+
+        self._mouse_target: Widget | None = None
 
     @property
     def width_hint(self) -> int:
@@ -39,6 +49,7 @@ class Container(Widget):
             raise TypeError(f"Can only add widgets to containers, not {type(other)!r}.")
 
         self.add(other)
+        return self
 
     def setup(self) -> None:
         for child in self.children:
@@ -97,10 +108,16 @@ class Container(Widget):
             return True
 
     def handle_mouse(self, action: MouseAction, position: tuple[int, int]) -> bool:
-        if self._mouse_target is not None and action is MouseAction.LEFT_RELEASE:
-            self._mouse_target.handle_mouse(action, position)
-            self._mouse_target = None
-            return True
+        if self._mouse_target is not None:
+            if action is MouseAction.LEFT_RELEASE:
+                self._mouse_target.handle_mouse(action, position)
+                self._mouse_target = None
+                return True
+
+            if action is MouseAction.HOVER and not self._mouse_target.contains(
+                position
+            ):
+                self._mouse_target.handle_mouse(MouseAction.LEFT_RELEASE, position)
 
         for widget in self.children:
             if not widget.contains(position):
