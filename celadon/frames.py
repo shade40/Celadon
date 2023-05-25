@@ -70,6 +70,12 @@ class Frame:
             (left_top, right_top, right_bottom, left_bottom),
         )
 
+    @property
+    def name(self) -> str:
+        """Return the frame class' name."""
+
+        return type(self).__name__
+
 
 def get_frame(name: str) -> Type[Frame]:
     """Gets a frame by its name.
@@ -84,7 +90,7 @@ def get_frame(name: str) -> Type[Frame]:
         ValueError: No frame found with the given name.
     """
 
-    frame = globals().get(name)
+    frame = {key.lower(): value for key, value in globals().items()}.get(name.lower())
 
     if frame is not None and issubclass(frame, Frame):
         return frame
@@ -103,9 +109,11 @@ def add_frame_preview(cls: Type[Frame]):
 
 Preview:
 
-    {cls.descriptor[0]}
-    {cls.descriptor[1]}
-    {cls.descriptor[2]}
+```
+{cls.descriptor[0]}
+{cls.descriptor[1]}
+{cls.descriptor[2]}
+```
 """
     return cls
 
@@ -123,6 +131,7 @@ class ASCII_X(Frame):  # pylint: disable=invalid-name
     scrollbars = (("-", "#"), ("|", "#"))
 
 
+@add_frame_preview
 class Light(Frame):
     """A frame with a light outline."""
 
@@ -130,6 +139,84 @@ class Light(Frame):
         "┌───┐",
         "│   │",
         "└───┘",
+    )
+
+    scrollbars = ((" ", "▅"), (" ", "█"))
+
+
+@add_frame_preview
+class Heavy(Frame):
+    """A frame with a heavy outline."""
+
+    descriptor = (
+        "┏━━━┓",
+        "┃   ┃",
+        "┗━━━┛",
+    )
+
+    scrollbars = ((" ", "▅"), (" ", "█"))
+
+
+@add_frame_preview
+class Rounded(Frame):
+    """A frame with a light outline."""
+
+    descriptor = (
+        "╭───╮",
+        "│   │",
+        "╰───╯",
+    )
+
+    scrollbars = ((" ", "▅"), (" ", "█"))
+
+
+@add_frame_preview
+class Double(Frame):
+    """A frame with a double-lined outline."""
+
+    descriptor = (
+        "╔═══╗",
+        "║   ║",
+        "╚═══╝",
+    )
+
+    scrollbars = ((" ", "▅"), (" ", "█"))
+
+
+@add_frame_preview
+class Dashed(Frame):
+    """A frame with a dashed outline."""
+
+    descriptor = (
+        "┌╌╌╌┐",
+        "╎   ╎",
+        "└╌╌╌┘",
+    )
+
+    scrollbars = ((" ", "▅"), (" ", "█"))
+
+
+@add_frame_preview
+class HeavyDashed(Frame):
+    """A frame with a dashed outline."""
+
+    descriptor = (
+        "┏╍╍╍┓",
+        "╏   ╏",
+        "┗╍╍╍┛",
+    )
+
+    scrollbars = ((" ", "▅"), (" ", "█"))
+
+
+@add_frame_preview
+class Padded(Frame):
+    """A frame of spaces."""
+
+    descriptor = (
+        "   ",
+        "   ",
+        "   ",
     )
 
     scrollbars = ((" ", "▅"), (" ", "█"))
