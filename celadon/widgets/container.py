@@ -17,11 +17,6 @@ class Container(Widget):
     See `Tower` and `Splitter` for the implementations you should use.
     """
 
-    children: list[Widget]
-
-    _width_hint = 1
-    _height_hint = 1
-
     style_map = Widget.style_map | {
         "idle": {"scrollbar_y": "ui.secondary"},
         "hover": {"fill": Widget.style_map["idle"]["fill"]},
@@ -29,6 +24,10 @@ class Container(Widget):
 
     def __init__(self, *children: Widget, **widget_args: Any) -> None:
         super().__init__(**widget_args)
+        self._width_hint = 1
+        self._height_hint = 1
+        self._should_layout = False
+        self._layout_state: int = -1
 
         self.children = []
         for child in children:
@@ -51,6 +50,16 @@ class Container(Widget):
         self.add(other)
         return self
 
+    def _as_layout_state(self) -> int:
+        """Generates an integer that represents the current layout."""
+
+        return hash(
+            " ".join(
+                f"{widget.position[0]};{widget.position[1]}-{widget.width}x{widget.height}"
+                for widget in self.children
+            )
+        )
+
     def setup(self) -> None:
         for child in self.children:
             child.parent = self
@@ -60,6 +69,7 @@ class Container(Widget):
 
         self.children.append(widget)
         widget.parent = self
+        self._should_layout = True
 
     def move_by(self, x: int, y: int) -> None:
         """Moves the widget (and all its children) to the given position."""
@@ -82,10 +92,16 @@ class Container(Widget):
     def get_content(self) -> list[str]:
         """Calls our `arrange` method and returns a single empty line."""
 
-        start_x = self.position[0] + (self.frame.left != "")
-        start_y = self.position[1] + (self.frame.top != "") + (self._clip_start or 0)
+        layout_state = self._as_layout_state()
 
-        self.arrange(start_x - self.scroll[0], start_y - self.scroll[1])
+        if layout_state != self._layout_state:
+            start_x = self.position[0] + (self.frame.left != "")
+            start_y = (
+                self.position[1] + (self.frame.top != "") + (self._clip_start or 0)
+            )
+
+            self.arrange(start_x - self.scroll[0], start_y - self.scroll[1])
+            self._layout_state = layout_state
 
         return [""]
 
