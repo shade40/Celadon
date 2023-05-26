@@ -92,16 +92,14 @@ class Container(Widget):
     def get_content(self) -> list[str]:
         """Calls our `arrange` method and returns a single empty line."""
 
-        layout_state = self._as_layout_state()
+        # layout_state = self._as_layout_state()
 
-        if layout_state != self._layout_state:
-            start_x = self.position[0] + (self.frame.left != "")
-            start_y = (
-                self.position[1] + (self.frame.top != "") + (self._clip_start or 0)
-            )
+        # if layout_state != self._layout_state:
+        start_x = self.position[0] + (self.frame.left != "")
+        start_y = self.position[1] + (self.frame.top != "") + (self._clip_start or 0)
 
-            self.arrange(start_x - self.scroll[0], start_y - self.scroll[1])
-            self._layout_state = layout_state
+        self.arrange(start_x - self.scroll[0], start_y - self.scroll[1])
+        # self._layout_state = layout_state
 
         return [""]
 
