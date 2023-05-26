@@ -197,8 +197,8 @@ class Selector:
         score = (
             (eid_matches - (self.eid is None)) * 1000
             + (group_matches - (len(self.groups) == 0)) * 500
-            + (state_matches - (self.states is None)) * 250
-            + (type_matches - (self.elements == (Widget,))) * 100
+            + ((state_matches - (self.states is None)) * 250)
+            * (type_matches - (self.elements == (Widget,)))
         )
 
         return score
@@ -381,7 +381,7 @@ class Application:
 
         return None
 
-    def rule(self, query: str, base: bool = False, **rules: str) -> None:
+    def rule(self, query: str, base: bool = False, **rules: str) -> Selector:
         """Applies some styling rules for the given query."""
 
         style_map = {}
@@ -400,6 +400,8 @@ class Application:
         old_attrs, old_style_map = self._rules[selector]
         deep_merge(old_attrs, attrs)
         deep_merge(old_style_map, style_map)
+
+        return selector
 
     def process_input(self, inp: str) -> bool:
         if (event := _parse_mouse_input(inp)) is not None:
