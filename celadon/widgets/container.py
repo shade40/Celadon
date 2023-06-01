@@ -31,7 +31,7 @@ class Container(Widget):
 
         self.children = []
         for child in children:
-            self.add(child)
+            self.append(child)
 
         self._mouse_target: Widget | None = None
 
@@ -45,9 +45,11 @@ class Container(Widget):
 
     def __iadd__(self, other: object) -> Container:
         if not isinstance(other, Widget):
-            raise TypeError(f"Can only add widgets to containers, not {type(other)!r}.")
+            raise TypeError(
+                f"Can only append widgets to containers, not {type(other)!r}."
+            )
 
-        self.add(other)
+        self.append(other)
         return self
 
     def _as_layout_state(self) -> int:
@@ -68,12 +70,49 @@ class Container(Widget):
             )
         )
 
-    def add(self, widget: Widget) -> None:
+    def append(self, widget: Widget) -> None:
         """Adds a new widget setting its parent attribute to self."""
 
         self.children.append(widget)
         widget.parent = self
         self._should_layout = True
+
+    def extend(self, widgets: Iterable[Widget]) -> None:
+        """Extends our children by the given iterable."""
+
+        for widget in widgets:
+            self.append(widget)
+
+    def remove(self, widget: Widget) -> None:
+        """Removes a widget from self, resetting its parent attribute to None."""
+
+        self.children.remove(widget)
+        widget.parent = None
+        self._should_layout = True
+
+    def pop(self, index: int) -> Widget:
+        """Pops a widget from our children.
+
+        Returns:
+            The widget that was just removed.
+        """
+
+        widget = self.children[i]
+        self.remove(widget)
+
+        return widget
+
+    def clear(self) -> None:
+        """Removes all widgets."""
+
+        for widget in self.children:
+            self.remove(widget)
+
+    def update(self, widgets: Iterable[Widget]) -> None:
+        """Updates our children to the given iterable."""
+
+        self.clear()
+        self.extend(widgets)
 
     def move_by(self, x: int, y: int) -> None:
         """Moves the widget (and all its children) to the given position."""
