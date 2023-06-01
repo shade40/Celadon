@@ -68,10 +68,6 @@ class Container(Widget):
             )
         )
 
-    def setup(self) -> None:
-        for child in self.children:
-            child.parent = self
-
     def add(self, widget: Widget) -> None:
         """Adds a new widget setting its parent attribute to self."""
 

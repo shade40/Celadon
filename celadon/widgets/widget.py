@@ -263,6 +263,8 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         self._computed_width = 1
         self._computed_height = 1
 
+        self.setup()
+
     @property
     def state(self) -> str:
         """Returns the current state of the widget."""
@@ -400,70 +402,6 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         """Gets the widget's height excluding its frame."""
 
         return max(self.height - self.frame.height, 0)
-
-    def as_config(self) -> Config:
-        return Config(
-            width=self.width_spec,
-            height=self.height_spec,
-            frame=self.frame.name,
-            alignment_x=self.alignment[0],
-            alignment_y=self.alignment[1],
-            overflow_x=self.overflow[0],
-            overflow_y=self.overflow[1],
-        )
-
-    def update(
-        self,
-        attrs: dict[str, DimensionSpec | AlignmentSetting | OverflowSetting],
-        style_map: dict[str, str],
-    ) -> None:
-        for key, value in attrs.items():
-            setattr(self, key, value)
-
-        self.style_map = self.style_map | {self.state: style_map}
-
-    def as_query(self, state: bool = False) -> str:
-        query = type(self).__name__
-
-        if self.eid is not None:
-            query += f"#{self.eid}"
-
-        for variant in self.groups:
-            query += f".{variant}"
-
-        if state:
-            query += f"/{self.state}"
-
-        return query
-
-    def query_changed(self) -> bool:
-        query = self.as_query(state=True)
-        value = query != self._last_query
-
-        self._last_query = query
-        return value
-
-    def is_fill_width(self) -> bool:
-        return self.width_spec is None
-
-    def is_fill_height(self) -> bool:
-        return self.height_spec is None
-
-    def has_scrollbar(self, index: Literal[0, 1]) -> bool:
-        """Returns whether the given dimension should display a scrollbar.
-
-        Args:
-            index: The axis to check. 0 for horizontal scrolling, 1 for vertical.
-        """
-
-        real, virt = [
-            (self._framed_width, self._virtual_width),
-            (self._framed_height, self._virtual_height),
-        ][index]
-
-        return self.overflow[index] is Overflow.SCROLL or (
-            self.overflow[index] is Overflow.AUTO and _overflows(real, virt)
-        )
 
     def _parse_markup(self, markup: str) -> tuple[Span, ...]:
         """Parses some markup into a span of tuples.
@@ -691,6 +629,73 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         if "hover" in value:  # and any("click" in attr for attr in dir(self)):
             self.state_machine.apply_action("HOVERED")
             return
+
+    def setup(self) -> None:
+        """Use this to do simple setup actions without overriding __init__."""
+
+    def as_config(self) -> Config:
+        return Config(
+            width=self.width_spec,
+            height=self.height_spec,
+            frame=self.frame.name,
+            alignment_x=self.alignment[0],
+            alignment_y=self.alignment[1],
+            overflow_x=self.overflow[0],
+            overflow_y=self.overflow[1],
+        )
+
+    def update(
+        self,
+        attrs: dict[str, DimensionSpec | AlignmentSetting | OverflowSetting],
+        style_map: dict[str, str],
+    ) -> None:
+        for key, value in attrs.items():
+            setattr(self, key, value)
+
+        self.style_map = self.style_map | {self.state: style_map}
+
+    def as_query(self, state: bool = False) -> str:
+        query = type(self).__name__
+
+        if self.eid is not None:
+            query += f"#{self.eid}"
+
+        for variant in self.groups:
+            query += f".{variant}"
+
+        if state:
+            query += f"/{self.state}"
+
+        return query
+
+    def query_changed(self) -> bool:
+        query = self.as_query(state=True)
+        value = query != self._last_query
+
+        self._last_query = query
+        return value
+
+    def is_fill_width(self) -> bool:
+        return self.width_spec is None
+
+    def is_fill_height(self) -> bool:
+        return self.height_spec is None
+
+    def has_scrollbar(self, index: Literal[0, 1]) -> bool:
+        """Returns whether the given dimension should display a scrollbar.
+
+        Args:
+            index: The axis to check. 0 for horizontal scrolling, 1 for vertical.
+        """
+
+        real, virt = [
+            (self._framed_width, self._virtual_width),
+            (self._framed_height, self._virtual_height),
+        ][index]
+
+        return self.overflow[index] is Overflow.SCROLL or (
+            self.overflow[index] is Overflow.AUTO and _overflows(real, virt)
+        )
 
     def drawables(self) -> Iterable[Widget]:
         """Yields all contained widgets that should be drawn."""
