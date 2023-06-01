@@ -223,6 +223,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes
     def __init__(
         self,
         eid: str | None = None,
+        group: str | None = None,
         groups: tuple[str] = tuple(),
         width: int | float | None = None,
         height: int | float | None = None,
@@ -233,6 +234,9 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         """Initializes a Widget.
 
         Args:
+            eid: The id for this widget. Defaults to a UUID.
+            group: If set, `groups` is overwritten as `(group,)`.
+            groups: The initial groups this widget will belong to.
             width: The width hint.
             height: The height hint.
             frame: The frame this widget will be put into.
@@ -241,6 +245,8 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         """
 
         self.eid = eid or str(uuid.uuid4())
+        if group is not None:
+            groups = (group,)
         self.groups = groups
         self.scroll = (0, 0)
         self.position = (0, 0)
