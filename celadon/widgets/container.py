@@ -245,7 +245,7 @@ class Tower(Container):
             if widget.is_fill_height():
                 continue
 
-            widget.compute_dimensions()
+            widget.compute_dimensions(self.width_hint, self.height_hint)
             total += widget.height
 
         # Fill heights
@@ -259,7 +259,7 @@ class Tower(Container):
                 self._height_hint = chunk + extra
                 extra = 0
 
-            widget.compute_dimensions()
+            widget.compute_dimensions(self.width_hint, self.height_hint)
 
             offset = self._width_hint - widget.width
 
@@ -331,7 +331,7 @@ class Row(Container):
             if widget.is_fill_width():
                 continue
 
-            widget.compute_dimensions()
+            widget.compute_dimensions(self.width_hint, self.height_hint)
             total += widget.width
 
         # Fill widths
@@ -345,7 +345,7 @@ class Row(Container):
                 self._width_hint = chunk + extra
                 extra = 0
 
-            widget.compute_dimensions()
+            widget.compute_dimensions(self.width_hint, self.height_hint)
 
             offset = self._width_hint - widget.width
 

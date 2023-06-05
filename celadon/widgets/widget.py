@@ -805,11 +805,11 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         # Always return True for hover, even if no specific handler is found
         return action is MouseAction.HOVER
 
-    def compute_dimensions(self) -> None:
+    def compute_dimensions(self, available_width: int, available_height: int) -> None:
         """Computes width & height based on our specifications and the parent's hint."""
 
-        self._computed_width = _compute(self.width_spec, self.parent.width_hint)
-        self._computed_height = _compute(self.height_spec, self.parent.height_hint)
+        self._computed_width = _compute(self.width_spec, available_width)
+        self._computed_height = _compute(self.height_spec, available_height)
 
     def get_content(self) -> list[str]:
         """Gets the dynamic content for this widget."""

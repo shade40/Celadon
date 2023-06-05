@@ -291,7 +291,7 @@ class Application:
             self._update_and_apply_rules()
 
             for widget in self._widgets:
-                widget.compute_dimensions()
+                widget.compute_dimensions(self.terminal.width, self.terminal.height)
 
                 for child in widget.drawables():
                     origin = child.position
@@ -328,29 +328,6 @@ class Application:
                 base=True,
             )
 
-    @property
-    def width(self) -> int:
-        """Returns the terminal's width."""
-
-        return self.terminal.width
-
-    @property
-    def width_hint(self) -> int:
-        """Returns the terminal's width."""
-
-        return self.width
-
-    @property
-    def height(self) -> int:
-        """Returns the terminal's height."""
-
-        return self.terminal.height
-
-    @property
-    def height_hint(self) -> int:
-        """Returns the terminal's height."""
-
-        return self.height
 
     def select(self, query: str) -> Selector:
         """Creates a new selector and returns it."""
