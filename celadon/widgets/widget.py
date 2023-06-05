@@ -266,8 +266,8 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         self._clip_start: int | None = None
         self._clip_end: int | None = None
 
-        self._computed_width = 1
-        self._computed_height = 1
+        self.computed_width = 1
+        self.computed_height = 1
 
         self.setup()
 
@@ -366,48 +366,16 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         self._overflow = new
 
     @property
-    def width(self) -> int:
-        """Gets the widgets applied width."""
-
-        return self._computed_width
-
-    @width.setter
-    def width(self, new: float | int) -> None:
-        """Forwards the setting to width spec."""
-
-        self.width_spec = new
-
-    @property
-    def width_hint(self) -> int:
-        return self.width
-
-    @property
-    def height(self) -> int:
-        """Gets the widgets applied height."""
-
-        return self._computed_height
-
-    @height.setter
-    def height(self, new: float | int) -> None:
-        """Forwards the setting to width spec."""
-
-        self.height_spec = new
-
-    @property
-    def height_hint(self) -> int:
-        return self.height
-
-    @property
     def _framed_width(self) -> int:
         """Gets the widget's width excluding its frame."""
 
-        return max(self.width - self.frame.width, 0)
+        return max(self.computed_width - self.frame.width, 0)
 
     @property
     def _framed_height(self) -> int:
         """Gets the widget's height excluding its frame."""
 
-        return max(self.height - self.frame.height, 0)
+        return max(self.computed_height - self.frame.height, 0)
 
     def _parse_markup(self, markup: str) -> tuple[Span, ...]:
         """Parses some markup into a span of tuples.
@@ -641,8 +609,8 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
     def as_config(self) -> Config:
         return Config(
-            width=self.width_spec,
-            height=self.height_spec,
+            width=self.width,
+            height=self.height,
             frame=self.frame.name,
             alignment_x=self.alignment[0],
             alignment_y=self.alignment[1],
@@ -682,10 +650,10 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         return value
 
     def is_fill_width(self) -> bool:
-        return self.width_spec is None
+        return self.width is None
 
     def is_fill_height(self) -> bool:
-        return self.height_spec is None
+        return self.height is None
 
     def has_scrollbar(self, index: Literal[0, 1]) -> bool:
         """Returns whether the given dimension should display a scrollbar.
@@ -736,8 +704,8 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         """Determines whether this widget contains the given position."""
 
         rect = self.position, (
-            self.position[0] + self.width - self.has_scrollbar(1),
-            self.position[1] + self.height - self.has_scrollbar(0),
+            self.position[0] + self.computed_width - self.has_scrollbar(1),
+            self.position[1] + self.computed_height - self.has_scrollbar(0),
         )
 
         (left, top), (right, bottom) = rect
@@ -820,8 +788,8 @@ class Widget:  # pylint: disable=too-many-instance-attributes
     def compute_dimensions(self, available_width: int, available_height: int) -> None:
         """Computes width & height based on our specifications and the parent's hint."""
 
-        self._computed_width = _compute(self.width_spec, available_width)
-        self._computed_height = _compute(self.height_spec, available_height)
+        self.computed_width = _compute(self.width, available_width)
+        self.computed_height = _compute(self.height, available_height)
 
     def get_content(self) -> list[str]:
         """Gets the dynamic content for this widget."""
@@ -888,8 +856,8 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
         self._apply_frame(lines, width)
 
-        if len(lines) > self.height:
-            lines = lines[: self.height]
+        if len(lines) > self.computed_height:
+            lines = lines[: self.computed_height]
 
         lines = lines[self._clip_start : self._clip_end]
 

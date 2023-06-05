@@ -24,8 +24,7 @@ class Container(Widget):
 
     def __init__(self, *children: Widget, **widget_args: Any) -> None:
         super().__init__(**widget_args)
-        self._width_hint = 1
-        self._height_hint = 1
+
         self._should_layout = False
         self._layout_state: int = -1
 
@@ -34,14 +33,6 @@ class Container(Widget):
             self.append(child)
 
         self._mouse_target: Widget | None = None
-
-    @property
-    def width_hint(self) -> int:
-        return self._width_hint
-
-    @property
-    def height_hint(self) -> int:
-        return self._height_hint
 
     @property
     def visible_children(self) -> list[Widget]:
@@ -203,8 +194,10 @@ class Container(Widget):
 
     def build(self) -> list[tuple[Span, ...]]:
         return super().build(
-            virt_width=max((widget.width for widget in self.children), default=1),
-            virt_height=sum(widget.height for widget in self.children),
+            virt_width=max(
+                (widget.computed_width for widget in self.children), default=1
+            ),
+            virt_height=sum(widget.computed_height for widget in self.children),
         )
 
 
@@ -235,15 +228,12 @@ class Tower(Container):
             x: The x position this widget starts at.
             y: The y position this widget starts at.
         """
-
         children = self.visible_children
 
-        self._width_hint = self._framed_width - self.has_scrollbar(1)
-        x_alignment, y_alignment = self.alignment[0].value, self.alignment[1].value
+        width = self._framed_width - self.has_scrollbar(1)
+        height = self._framed_height - self.has_scrollbar(0)
 
-        height, extra = divmod(
-            self._framed_height - self.has_scrollbar(0), len(children) or 1
-        )
+        x_alignment, y_alignment = self.alignment[0].value, self.alignment[1].value
 
         # Relative or static widths
         total = 0
@@ -251,8 +241,8 @@ class Tower(Container):
             if widget.is_fill_height():
                 continue
 
-            widget.compute_dimensions(self.width_hint, self.height_hint)
-            total += widget.height
+            widget.compute_dimensions(width, height)
+            total += widget.computed_height
 
         # Fill heights
         autos = len([wdg for wdg in children if wdg.is_fill_height()])
@@ -260,14 +250,14 @@ class Tower(Container):
 
         for widget in children:
             if not widget.is_fill_height():
-                self._height_hint = self._framed_height
+                height = self._framed_height
             else:
-                self._height_hint = chunk + extra
+                height = chunk + extra
                 extra = 0
 
-            widget.compute_dimensions(self.width_hint, self.height_hint)
+            widget.compute_dimensions(width, height)
 
-            offset = self._width_hint - widget.width
+            offset = self.computed_width - widget.computed_width
 
             if x_alignment == "end":
                 widget.move_to(x + offset, y)
@@ -278,9 +268,7 @@ class Tower(Container):
             else:
                 widget.move_to(x, y)
 
-            y += widget.height
-
-        self._height_hint = self._framed_height
+            y += widget.computed_height
 
         # Aligning the result horizontally
         total = y
@@ -326,12 +314,10 @@ class Row(Container):
 
         children = self.visible_children
 
-        self._height_hint = self._framed_height - self.has_scrollbar(0)
-        x_alignment, y_alignment = self.alignment[0].value, self.alignment[1].value
+        width = self._framed_width - self.has_scrollbar(1)
+        height = self._framed_height - self.has_scrollbar(0)
 
-        width, extra = divmod(
-            self._framed_width - self.has_scrollbar(1), len(children) or 1
-        )
+        x_alignment, y_alignment = self.alignment[0].value, self.alignment[1].value
 
         # Relative or static widths
         total = 0
@@ -339,23 +325,23 @@ class Row(Container):
             if widget.is_fill_width():
                 continue
 
-            widget.compute_dimensions(self.width_hint, self.height_hint)
-            total += widget.width
+            widget.compute_dimensions(width, height)
+            total += widget.computed_width
 
         # Fill widths
         autos = len([wdg for wdg in children if wdg.is_fill_width()])
-        chunk, extra = divmod(self._framed_width - total, autos or 1)
+        chunk, extra = divmod(width - total, autos or 1)
 
         for widget in children:
             if not widget.is_fill_width():
-                self._width_hint = self._framed_width
+                width = self._framed_width
             else:
-                self._width_hint = chunk + extra
+                width = chunk + extra
                 extra = 0
 
-            widget.compute_dimensions(self.width_hint, self.height_hint)
+            widget.compute_dimensions(width, height)
 
-            offset = self._width_hint - widget.width
+            offset = self.computed_width - widget.computed_width
 
             if y_alignment == "end":
                 widget.move_to(x, y + offset)
@@ -366,7 +352,7 @@ class Row(Container):
             else:
                 widget.move_to(x, y)
 
-            x += widget.width
+            x += widget.computed_width
 
         # Aligning the result horizontally
         total = x
@@ -382,4 +368,3 @@ class Row(Container):
             for widget in children:
                 widget.move_by(offset, 0)
 
-        self._width_hint = self._framed_width
