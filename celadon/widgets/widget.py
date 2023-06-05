@@ -712,13 +712,25 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         self._clip_start = start
         self._clip_end = end
 
-    def toggle_group(self, group: str) -> bool:
+    def add_group(self, target: str) -> None:
+        self.groups = tuple(list(self.groups) + [target])
+
+    def remove_group(self, target: str) -> None:
+        self.groups = tuple(group for group in self.groups if group != target)
+
+    def toggle_group(self, target: str) -> bool:
         if group in self.groups:
-            self.groups = tuple(group for group in self.groups if group != group)
+            self.remove_group(target)
             return False
 
-        self.groups = tuple(list(self.groups) + [group])
+        self.add_group(target)
         return True
+
+    def hide(self) -> None:
+        self.add_group("hidden")
+
+    def show(self) -> None:
+        self.remove_group("hidden")
 
     def contains(self, position: tuple[int, int]) -> bool:
         """Determines whether this widget contains the given position."""

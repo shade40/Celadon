@@ -43,6 +43,10 @@ class Container(Widget):
     def height_hint(self) -> int:
         return self._height_hint
 
+    @property
+    def visible_children(self) -> list[Widget]:
+        return [widget for widget in self.children if not "hidden" in widget.groups]
+
     def __iadd__(self, other: object) -> Container:
         if not isinstance(other, Widget):
             raise TypeError(
@@ -108,7 +112,7 @@ class Container(Widget):
         for widget in self.children:
             self.remove(widget)
 
-    def update(self, widgets: Iterable[Widget]) -> None:
+    def update_children(self, widgets: Iterable[Widget]) -> None:
         """Updates our children to the given iterable."""
 
         self.clear()
@@ -176,7 +180,7 @@ class Container(Widget):
             ):
                 self._mouse_target.handle_mouse(MouseAction.LEFT_RELEASE, position)
 
-        for widget in self.children:
+        for widget in self.visible_children:
             if not widget.contains(position):
                 continue
 
@@ -194,7 +198,7 @@ class Container(Widget):
 
         yield self
 
-        for widget in self.children:
+        for widget in self.visible_children:
             yield from widget.drawables()
 
     def build(self) -> list[tuple[Span, ...]]:
@@ -232,16 +236,18 @@ class Tower(Container):
             y: The y position this widget starts at.
         """
 
+        children = self.visible_children
+
         self._width_hint = self._framed_width - self.has_scrollbar(1)
         x_alignment, y_alignment = self.alignment[0].value, self.alignment[1].value
 
         height, extra = divmod(
-            self._framed_height - self.has_scrollbar(0), len(self.children) or 1
+            self._framed_height - self.has_scrollbar(0), len(children) or 1
         )
 
         # Relative or static widths
         total = 0
-        for widget in self.children:
+        for widget in children:
             if widget.is_fill_height():
                 continue
 
@@ -249,10 +255,10 @@ class Tower(Container):
             total += widget.height
 
         # Fill heights
-        autos = len([wdg for wdg in self.children if wdg.is_fill_height()])
+        autos = len([wdg for wdg in children if wdg.is_fill_height()])
         chunk, extra = divmod(self._framed_height - total, autos or 1)
 
-        for widget in self.children:
+        for widget in children:
             if not widget.is_fill_height():
                 self._height_hint = self._framed_height
             else:
@@ -287,7 +293,7 @@ class Tower(Container):
             elif y_alignment == "center":
                 offset //= 2
 
-            for widget in self.children:
+            for widget in children:
                 widget.move_by(0, offset)
 
 
@@ -318,16 +324,18 @@ class Row(Container):
             y: The y position this widget starts at.
         """
 
+        children = self.visible_children
+
         self._height_hint = self._framed_height - self.has_scrollbar(0)
         x_alignment, y_alignment = self.alignment[0].value, self.alignment[1].value
 
         width, extra = divmod(
-            self._framed_width - self.has_scrollbar(1), len(self.children) or 1
+            self._framed_width - self.has_scrollbar(1), len(children) or 1
         )
 
         # Relative or static widths
         total = 0
-        for widget in self.children:
+        for widget in children:
             if widget.is_fill_width():
                 continue
 
@@ -335,10 +343,10 @@ class Row(Container):
             total += widget.width
 
         # Fill widths
-        autos = len([wdg for wdg in self.children if wdg.is_fill_width()])
+        autos = len([wdg for wdg in children if wdg.is_fill_width()])
         chunk, extra = divmod(self._framed_width - total, autos or 1)
 
-        for widget in self.children:
+        for widget in children:
             if not widget.is_fill_width():
                 self._width_hint = self._framed_width
             else:
@@ -371,7 +379,7 @@ class Row(Container):
             elif x_alignment == "center":
                 offset //= 2
 
-            for widget in self.children:
+            for widget in children:
                 widget.move_by(offset, 0)
 
         self._width_hint = self._framed_width
