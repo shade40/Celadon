@@ -6,7 +6,7 @@ from threading import Thread
 from time import perf_counter, sleep
 
 from celadon.widgets import Widget
-from slate import Terminal, getch, Event
+from slate import Terminal, getch, Event, terminal as slt_terminal
 from slate.core import BEGIN_SYNCHRONIZED_UPDATE, END_SYNCHRONIZED_UPDATE
 
 from . import widgets
@@ -19,6 +19,7 @@ from .style_map import StyleMap
 __all__ = [
     "Selector",
     "Application",
+    "Page",
 ]
 
 
@@ -198,36 +199,181 @@ class Selector:
             (eid_matches - (self.eid is None)) * 1000
             + (group_matches - (len(self.groups) == 0)) * 500
             + ((state_matches - (self.states is None)) * 250)
-            * (type_matches - (self.elements == (Widget,)))
-        )
+            - (self.elements == (Widget,))
+            + type_matches
+        ) * type_matches
 
         return score
 
 
-class Application:
+# TODO
+Rulebook = Any
+
+BuilderType = Callable[[Any, ...], "Page"]
+
+
+class Page:
+    children: list[Widget]
+    _rules: dict[Selector, Rulebook]
+
     def __init__(
-        self, name: str, *, terminal: Terminal | None = None, target_frames: int = 60
+        self,
+        *children: Widget,
+        name: str | None = None,
+        route_name: str | None = None,
     ) -> None:
-        self.on_frame_ready = Event("Frame Ready")
-        self.terminal = terminal or Terminal()
+        self.name = name
+        self.route_name = route_name
+        self._children = [*children]
+        self._rules = {}
 
-        self._name = name
-        self._is_active = False
-        self._target_frames = target_frames
-        self._widgets: list[Widget] = []
+    def __iadd__(self, widget: Any) -> Page:
+        if not isinstance(widget, Widget):
+            raise TypeError(f"Can only add Widgets (not {widget!r}) to Page")
+
+        self.append(widget)
+
+        return self
+
+    def __iter__(self) -> Iterable[Widget]:
+        return iter(self._children)
+
+
+
+
+    def append(self, widget: Widget) -> None:
+        self._children.append(widget)
+        widget.parent = self
+
+    def extend(self, widgets: Iterable[Widget]) -> None:
+        for widget in widgets:
+            self.append(widget)
+
+    def insert(self, index: int, widget: Widget) -> None:
+        self._children.insert(index, widget)
+        widget.parent = self
+
+    def remove(self, widget: Widget) -> None:
+        self._children.remove(widget)
+        widget.parent = None
+
+    def pop(self, index: int) -> Widget:
+        widget = self._children.pop(index)
+        widget.parent = self
+
+        return widget
+
+    def clear(self) -> None:
+        for widget in self._children:
+            self.remove(widget)
+
+    def update(self, widgets: Iterable[Widget]) -> None:
+        self.clear()
+        self.extend(widgets)
+
+    # True if anything changed
+    def apply_rules(self) -> bool:
+        drawables = []
+        for widget in self._children:
+            drawables.extend(widget.drawables())
+
+        applicable_rules = None
+
+        for widget in drawables:
+            new_attrs = {}
+            new_style_map = StyleMap()
+
+            if not widget.query_changed():
+                continue
+
+            applicable_rules = [
+                (sel, sel.matches(widget), rule) for sel, rule in self._rules.items()
+            ]
+
+            for sel, score, (attrs, style_map) in sorted(
+                applicable_rules, key=lambda item: item[1]
+            ):
+                if score == 0:
+                    continue
+
+                new_attrs.update(**attrs)
+                new_style_map |= style_map
+
+            widget.update(new_attrs, new_style_map)
+
+        return applicable_rules is not None
+
+    def find_all(self, query: str) -> Generator[Widget, None, None]:
+        if isinstance(query, Selector):
+            selector = query
+        else:
+            selector = Selector.parse(query)
+
+        for widget in self._children:
+            for child in widget.drawables():
+                if selector.matches(child):
+                    yield child
+
+    def find(self, query: str) -> Widget | None:
+        for widget in self.find_all(query):
+            return widget
+
+        return None
+
+    def rule(self, query: str | Selector, base: bool = False, **rules: str) -> Selector:
+        style_map = {}
+        attrs = {}
+
+        for key, value in rules.copy().items():
+            if not key.endswith("_style"):
+                attrs[key] = value
+            else:
+                style_map[key.removesuffix("_style")] = value
+
+        if isinstance(query, Selector):
+            selector = query
+        else:
+            selector = Selector.parse(query, forced_score=(1 if base else None))
+
+        if selector not in self._rules:
+            self._rules[selector] = (attrs, style_map)
+            return selector
+
+        # Merge existing rules for the same selector
+        old_attrs, old_style_map = self._rules[selector]
+        deep_merge(old_attrs, attrs)
+        deep_merge(old_style_map, style_map)
+
+        return selector
+
+
+# Everything currently handling Application._widgets
+# will handle Application.page.children instead.
+#
+# When drawing, we'll draw page.children first, then our children.
+class Application(Page):
+    children: list[Widget]  # For constantly visible, overlay-type widgets
+
+    _pages: list[Page]
+    _page: Page | None
+
+    on_frame_drawn = Event("Frame Drawn")
+
+    def __init__(
+        self, name: str, framerate: int = 60, terminal: Terminal | None = None
+    ) -> None:
+        super().__init__(name=name, route_name="/")
+
+        self._pages = []
+        self._page = None
         self._mouse_target: Widget | None = None
-        self._rules: dict[
-            Selector,
-            dict[
-                str,
-                tuple[
-                    dict[str, DimensionSpec | AlignmentSetting | OverflowSetting],
-                    dict[str, str],
-                ],
-            ],
-        ] = {}
+        self._framerate = 60
+        self._terminal = terminal or slt_terminal
 
-    def __enter__(self) -> Application:
+        self._is_running = False
+        self._is_paused = False
+
+    def __enter__(self) -> None:
         return self
 
     def __exit__(
@@ -241,57 +387,34 @@ class Application:
 
         self.run()
 
-    def __iadd__(self, other: object) -> None:
-        if not isinstance(other, Widget):
-            raise TypeError(f"Can only add widgets to apps, not {type(other)!r}.")
+    def __iadd__(self, page: Any) -> Application:
+        if not isinstance(page, Page):
+            raise TypeError(f"Can only add pages (not {widget!r}) to App")
 
-        self.add(other)
+        self.append(page)
 
         return self
 
-    def _update_and_apply_rules(self) -> None:
-        drawables = []
-        for widget in self._widgets:
-            drawables.extend(widget.drawables())
-
-        for widget in drawables:
-            new_attrs = {}
-            new_style_map = StyleMap()
-
-            if not widget.query_changed():
-                continue
-
-            applicable_rules = [
-                (sel.matches(widget), rule) for sel, rule in self._rules.items()
-            ]
-
-            for score, (attrs, style_map) in sorted(
-                applicable_rules, key=lambda item: item[0]
-            ):
-                if score == 0:
-                    continue
-
-                new_attrs.update(**attrs)
-                new_style_map |= style_map
-
-            widget.update(new_attrs, new_style_map)
-
     def _draw_loop(self) -> None:
-        frametime = 1 / self._target_frames
+        frametime = 1 / self._framerate
 
-        clear = self.terminal.clear
-        write = self.terminal.write
-        draw = self.terminal.draw
-        frame_ready = self.on_frame_ready
+        clear = self._terminal.clear
+        write = self._terminal.write
+        draw = self._terminal.draw
+        on_frame_drawn = self.on_frame_drawn
 
-        while self._is_active:
+        while self._is_running:
+            if self._is_paused:
+                sleep(frametime)
+
             start = perf_counter()
             clear()
 
-            self._update_and_apply_rules()
+            self.apply_rules()
+            self._page.apply_rules()
 
-            for widget in self._widgets:
-                widget.compute_dimensions(self.terminal.width, self.terminal.height)
+            for widget in [*self._page, *self._children]:
+                widget.compute_dimensions(self._terminal.width, self._terminal.height)
 
                 for child in widget.drawables():
                     origin = child.position
@@ -301,9 +424,9 @@ class Application:
 
             draw()
 
-            if frame_ready:
-                frame_ready()
-                frame_ready.clear()
+            if on_frame_drawn:
+                on_frame_drawn()
+                on_frame_drawn.clear()
 
             elapsed = perf_counter() - start
 
@@ -328,57 +451,77 @@ class Application:
                 base=True,
             )
 
+    def build_from(self, path: str | Path) -> None:
+        if not isinstance(path, Path):
+            path = Path(path)
 
-    def select(self, query: str) -> Selector:
-        """Creates a new selector and returns it."""
+        for item in path.iterdir():
+            if item.suffix == ".py":
+                spec = importlib.util.spec_from_file_location(item.stem, item)
+                mod = importlib.util.module_from_spec(spec)
+                sys.modules[item.stem] = mod
+                spec.loader.exec_module(mod)
 
-        return Selector.parse(query)
+                page = mod.get(self)
+
+                page.name = getattr(
+                    mod, "DISPLAY_NAME", item.stem.replace("_", " ").title()
+                )
+                page.route_name = item.stem
+
+                self.append(page)
 
     def find_all(self, query: str) -> Generator[Widget, None, None]:
-        """Finds all widgets that are selected by a query."""
-
-        # matching = [sel for sel in self._rules sel.query == query]
-
-        # if len(matching) > 0:
-        #     selector = matching[0]
-
-        # else:
         selector = Selector.parse(query)
 
-        for widget in self._widgets:
+        for page in self._pages:
+            yield from page.find_all(selector)
+
+        for widget in self._children:
             for child in widget.drawables():
                 if selector.matches(child):
                     yield child
 
-    def find(self, query: str) -> Widget | None:
-        """Finds the first widget that is selected by a query."""
+    def rule(self, query: str | Selector, base: bool = False, **rules: str) -> Selector:
+        if isinstance(query, Selector):
+            selector = query
 
-        for widget in self.find_all(query):
-            return widget
+        else:
+            selector = Selector.parse(query, forced_score=1 if base else None)
 
-        return None
+        for page in self._pages:
+            page.rule(selector, base=base, **rules)
 
-    def rule(self, query: str, base: bool = False, **rules: str) -> Selector:
-        """Applies some styling rules for the given query."""
-
-        style_map = {}
-        attrs = {}
-        for key, value in rules.copy().items():
-            if not key.endswith("_style"):
-                attrs[key] = value
-            else:
-                style_map[key.removesuffix("_style")] = value
-
-        selector = Selector.parse(query, forced_score=(1 if base else None))
-
-        if selector not in self._rules:
-            self._rules[selector] = ({}, {})
-
-        old_attrs, old_style_map = self._rules[selector]
-        deep_merge(old_attrs, attrs)
-        deep_merge(old_style_map, style_map)
-
+        super().rule(selector, base=base, **rules)
         return selector
+
+    # Make sure to add our rules to the page's, and set our terminal
+    def append(self, page: Page) -> None:
+        if page.name is None or page.route_name is None:
+            raise ValueError(
+                "Pages must have both `name` and `route_name`,"
+                f" got {page.name=!r}, {page.route_name=!r}"
+            )
+
+        for selector, rule in self._rules:
+            page.rule(selector, rule)
+
+        self._pages.append(page)
+
+    # Maybe something like `pin` makes more sense? See above.
+    def add_widget(self, widget: Widget) -> None:
+        super().append(widget)
+
+    def route(self, destination: str) -> None:
+        for page in self._pages:
+            if page.route_name == destination:
+                break
+
+        else:
+            raise ValueError(f"No page with route {destination!r}.")
+
+        self._page = page
+        self._terminal.set_title(f"{self.name} - {page.name}")
 
     def process_input(self, inp: str) -> bool:
         if (event := _parse_mouse_input(inp)) is not None:
@@ -391,7 +534,7 @@ class Application:
             ):
                 self._mouse_target.handle_mouse(MouseAction.LEFT_RELEASE, position)
 
-            for widget in reversed(self._widgets):
+            for widget in reversed([*self._page, *self._children]):
                 if not widget.contains(position):
                     continue
 
@@ -409,50 +552,58 @@ class Application:
                 MouseAction.LEFT_RELEASE, self._mouse_target.position
             )
 
-        if len(self._widgets) == 0:
+        if len(self._children) == 0:
             return False
 
-        return self._widgets[0].handle_keyboard(inp)
-
-    def add(self, widget: Widget) -> None:
-        self._widgets.append(widget)
-        widget.parent = self
+        return self._children[0].handle_keyboard(inp)
 
     def run(self) -> None:
-        self._is_active = True
+        self._is_running = True
 
-        exception: Exception | None = None
+        raised: Exception | None = None
 
-        for widget in self._widgets:
+        for widget in self._children:
             self._set_default_rules(widget)
 
-        terminal = self.terminal
+        if self._page is None:
+            self.route("index")
+
+        terminal = self._terminal
 
         with terminal.report_mouse(), terminal.no_echo(), terminal.alt_buffer():
-            terminal.set_title(self._name)
-
-            thread = Thread(name=f"{self._name}_draw", target=self._draw_loop)
+            thread = Thread(name=f"{self.name} draw", target=self._draw_loop)
             thread.start()
 
-            while self._is_active:
+            while self._is_running:
                 inp = getch()
 
+                if self._is_paused:
+                    continue
+
                 if inp == chr(3):
-                    self._is_active = False
+                    self.stop()
                     break
 
                 try:
                     self.process_input(inp)
 
                 except Exception as exc:
-                    self._is_active = False
-                    exception = exc
+                    self.stop()
+                    raised = exc
                     break
 
             thread.join()
 
-        if exception is not None:
-            raise exception
+        if raised is not None:
+            raise raised
 
+    # TODO: Expand this to clear screen (wait for frame to finish)
+    def pause(self) -> None:
+        self._is_paused = True
+
+    def resume(self) -> None:
+        self._is_paused = False
+
+    # Look into piping into stdin / force quitting blocking read early
     def stop(self) -> None:
-        self._is_active = False
+        self._is_running = False

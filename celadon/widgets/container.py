@@ -50,18 +50,18 @@ class Container(Widget):
     def _as_layout_state(self) -> int:
         """Generates an integer that represents the current layout."""
 
-        if any(w.eid == "sidebar" for w in self.children):
+        if any(w.eid == "sidebar" for w in self.visible_children):
             print(
                 " ".join(
                     f"{widget.position[0]};{widget.position[1]}-{widget.width_hint}x{widget.height_hint}"
-                    for widget in self.children
+                    for widget in self.visible_children
                 )
             )
 
         return hash(
             " ".join(
                 f"{widget.position[0]};{widget.position[1]}-{widget.width_hint}x{widget.height_hint}"
-                for widget in self.children
+                for widget in self.visible_children
             )
         )
 
@@ -367,4 +367,3 @@ class Row(Container):
 
             for widget in children:
                 widget.move_by(offset, 0)
-
