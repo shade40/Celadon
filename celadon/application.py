@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import re
+import sys
+import importlib.util
 from dataclasses import dataclass, field
 from threading import Thread
 from time import perf_counter, sleep
+from typing import Any, Callable
+from pathlib import Path
 
 from celadon.widgets import Widget
 from slate import Terminal, getch, Event, terminal as slt_terminal
@@ -221,11 +225,13 @@ class Page:
         *children: Widget,
         name: str | None = None,
         route_name: str | None = None,
+        builder: BuilderType | None = None,
     ) -> None:
         self.name = name
         self.route_name = route_name
         self._children = [*children]
         self._rules = {}
+        self._builder = builder
 
     def __iadd__(self, widget: Any) -> Page:
         if not isinstance(widget, Widget):
@@ -238,8 +244,16 @@ class Page:
     def __iter__(self) -> Iterable[Widget]:
         return iter(self._children)
 
+    def build(self, *args: Any, **kwargs: Any) -> Page:
+        if self._builder is None:
+            if len(args) + len(kwargs):
+                raise ValueError(
+                    f"Page {self!r} takes no arguments, got {args=!r}, {kwargs!r}."
+                )
 
+                return self
 
+        return self._builder(*args, **kwargs)
 
     def append(self, widget: Widget) -> None:
         self._children.append(widget)
