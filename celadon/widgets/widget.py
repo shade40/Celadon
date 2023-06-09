@@ -133,6 +133,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes
     app: Application | None = None
     """A reference to the current (latest-started) application instance."""
 
+    # TODO: Update these!
     width_hint: int
     """The hint the widget uses to calculate its width. See dimension hint"""
     # TODO: Add dimension hint docs

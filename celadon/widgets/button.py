@@ -40,6 +40,7 @@ class Button(Widget):
         content: str,
         on_submit: list[EventCallback] | None = None,
         on_alt_submit: list[EventCallback] | None = None,
+        route: str | None = None,
         **widget_args: Any,
     ):
         super().__init__(**widget_args)
@@ -49,6 +50,9 @@ class Button(Widget):
         self.on_submit = Event("Button submitted")
         for callback in on_submit or []:
             self.on_submit += callback
+
+        if route is not None:
+            self.on_submit += lambda *_: self.app.route(route)
 
         self.on_alt_submit = Event("Button alternate submitted")
         for callback in on_alt_submit or []:
