@@ -259,6 +259,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         self.scroll = (0, 0)
         self.position = (0, 0)
         self.state_machine = deepcopy(self.state_machine)
+        self.parent = None
 
         self.width = width
         self.height = height

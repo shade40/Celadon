@@ -370,12 +370,13 @@ class Application(Page):
     _pages: list[Page]
     _page: Page | None
 
-    on_frame_drawn = Event("Frame Drawn")
-
     def __init__(
         self, name: str, framerate: int = 60, terminal: Terminal | None = None
     ) -> None:
         super().__init__(name=name, route_name="/")
+
+        self.on_frame_drawn = Event("Frame Drawn")
+        self.on_page_added = Event("Page Added")
 
         self._pages = []
         self._page = None
@@ -409,6 +410,9 @@ class Application(Page):
         self.append(page)
 
         return self
+
+    def __iter__(self) -> Iterable[Widget]:
+        return iter(self._pages)
 
     def _draw_loop(self) -> None:
         frametime = 1 / self._framerate
@@ -466,6 +470,10 @@ class Application(Page):
                 base=True,
             )
 
+    @property
+    def page(self) -> Page:
+        return self._page
+
     def build_from(self, path: str | Path) -> None:
         if not isinstance(path, Path):
             path = Path(path)
@@ -522,6 +530,7 @@ class Application(Page):
             page.rule(selector, rule)
 
         self._pages.append(page)
+        self.on_page_added()
 
     # Maybe something like `pin` makes more sense? See above.
     def add_widget(self, widget: Widget) -> None:
