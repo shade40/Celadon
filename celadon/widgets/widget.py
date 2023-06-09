@@ -14,6 +14,7 @@ from typing import (
     Union,
     Protocol,
     TypedDict,
+    TYPE_CHECKING,
 )
 
 from slate import Event, Span
@@ -23,6 +24,9 @@ from ..enums import Alignment, Overflow, MouseAction
 from ..frames import Frame, get_frame
 from ..style_map import StyleMap
 from ..state_machine import StateMachine
+
+if TYPE_CHECKING:
+    from ..application import Application
 
 __all__ = [
     "Widget",
@@ -125,6 +129,9 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
     An application instance if the widget is at the root, another widget otherwise.
     """
+
+    app: Application | None = None
+    """A reference to the current (latest-started) application instance."""
 
     width_hint: int
     """The hint the widget uses to calculate its width. See dimension hint"""

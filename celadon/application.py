@@ -15,10 +15,9 @@ from slate.core import BEGIN_SYNCHRONIZED_UPDATE, END_SYNCHRONIZED_UPDATE
 
 from . import widgets
 from .enums import MouseAction
-from .widgets import Widget, Tower
 from .state_machine import deep_merge
 from .style_map import StyleMap
-
+from .widgets import Widget
 
 __all__ = [
     "Selector",
@@ -388,6 +387,8 @@ class Application(Page):
         self._is_paused = False
 
     def __enter__(self) -> None:
+        Widget.app = self
+
         return self
 
     def __exit__(
