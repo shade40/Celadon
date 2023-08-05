@@ -50,6 +50,7 @@ dependencies = [
   "pytest",
   "pytest-cov",
 ]
+
 [tool.hatch.envs.default.scripts]
 test = "pytest --cov-report=term-missing --cov-config=pyproject.toml --cov=celadon --cov=tests && coverage html"
 lint = "pylint celadon"

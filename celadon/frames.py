@@ -7,10 +7,7 @@ from typing import Type
 __all__ = [
     "Frame",
     "CharTuple",
-    "ASCII_X",
-    "Frameless",
-    "Padded",
-    "Light",
+    "get_frame",
 ]
 
 CharTuple = tuple[str, str, str, str]
@@ -44,8 +41,8 @@ class Frame:
 
         assert self.borders is not None and self.corners is not None
 
-        self.width = len(self.borders[1] + self.borders[3])
-        self.height = len(self.borders[0] + self.borders[2])
+        self.width = len(self.borders[0] + self.borders[2])
+        self.height = len(self.borders[1] + self.borders[3])
 
         self.left, self.top, self.right, self.bottom = self.borders
         (
@@ -140,6 +137,16 @@ class Light(Frame):
         "│   │",
         "└───┘",
     )
+
+    scrollbars = ((" ", "▅"), (" ", "█"))
+
+
+@add_frame_preview
+class LightVertical(Frame):
+    """A frame with a light outline."""
+
+    borders = ("|", "", "|", "")
+    corners = ("", "", "", "")
 
     scrollbars = ((" ", "▅"), (" ", "█"))
 
