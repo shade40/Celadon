@@ -28,9 +28,7 @@ from ..state_machine import StateMachine
 if TYPE_CHECKING:
     from ..application import Application
 
-__all__ = [
-    "Widget",
-]
+__all__ = ["Widget", "widget_types"]
 
 RE_FULL_UNSETTER = re.compile(r"\/(?=\]| )")
 
@@ -45,6 +43,8 @@ class Sized(Protocol):
 DimensionSpec = Union[int, float, None]
 AlignmentSetting = Literal["start", "center", "end"]
 OverflowSetting = Literal["hide", "auto", "scroll"]
+
+widget_types: dict[str, Type[Widget]] = {}
 
 
 class Config(TypedDict):
@@ -279,6 +279,8 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         self.computed_height = 1
 
         self.setup()
+
+        widget_types[type(self).__name__] = type(self)
 
     @property
     def state(self) -> str:
@@ -721,12 +723,12 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
         return left < position[0] <= right and top < position[1] <= bottom
 
-    def move_to(self, x: int, y: int) -> none:
+    def move_to(self, x: int, y: int) -> None:
         """Moves the widget to the given position."""
 
         self.position = x, y
 
-    def move_by(self, x: int, y: int) -> none:
+    def move_by(self, x: int, y: int) -> None:
         """Moves the widget by the given changes."""
 
         self.move_to(self.position[0] + x, self.position[1] + y)

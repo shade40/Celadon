@@ -9,11 +9,10 @@ from time import perf_counter, sleep
 from typing import Any, Callable
 from pathlib import Path
 
-from celadon.widgets import Widget
 from slate import Terminal, getch, Event, terminal as slt_terminal
 from slate.core import BEGIN_SYNCHRONIZED_UPDATE, END_SYNCHRONIZED_UPDATE
 
-from . import widgets
+from .widgets import Widget, widget_types
 from .enums import MouseAction
 from .state_machine import deep_merge
 from .style_map import StyleMap
@@ -128,7 +127,7 @@ class Selector:
             elements = (Widget,)
         else:
             elements = tuple(
-                getattr(widgets, element) for element in elements_str.split("|")
+                widget_types[element] for element in elements_str.split("|")
             )
 
         eid = (eid or "").lstrip("#") or None
@@ -152,7 +151,11 @@ class Selector:
         score = 0
 
         if self.direct_parent is not None:
+
             if isinstance(widget.parent, Application):
+                return 0
+
+            elif widget.parent is None:
                 return 0
 
             score += self.direct_parent.matches(widget.parent)
@@ -480,15 +483,24 @@ class Application(Page):
 
         for item in path.iterdir():
             if item.suffix == ".py":
-                spec = importlib.util.spec_from_file_location(item.stem, item)
-                mod = importlib.util.module_from_spec(spec)
-                sys.modules[item.stem] = mod
-                spec.loader.exec_module(mod)
+                with open(item, "r") as file:
+                    code = compile(file.read(), item.name, "exec")
 
-                page = mod.get(self)
+                package_name = item.parent.parent.stem + "." + item.parent.stem
 
-                page.name = getattr(
-                    mod, "DISPLAY_NAME", item.stem.replace("_", " ").title()
+                globs = globals().copy()
+                globs["__name__"] = f"{package_name}.{item.stem}"
+                globs["__package__"] = package_name
+
+                exec(code, globs)
+
+                if not "get" in globs:
+                    continue
+
+                page = globs["get"](self)
+
+                page.name = globs.get(
+                    "DISPLAY_NAME", item.stem.replace("_", " ").title()
                 )
                 page.route_name = item.stem
 
@@ -497,8 +509,8 @@ class Application(Page):
     def find_all(self, query: str) -> Generator[Widget, None, None]:
         selector = Selector.parse(query)
 
-        for page in self._pages:
-            yield from page.find_all(selector)
+        if self.page is not None:
+            yield from self.page.find_all(selector)
 
         for widget in self._children:
             for child in widget.drawables():
@@ -526,8 +538,11 @@ class Application(Page):
                 f" got {page.name=!r}, {page.route_name=!r}"
             )
 
-        for selector, rule in self._rules:
+        for selector, rule in self._rules.items():
             page.rule(selector, rule)
+
+        for widget in page:
+            self._set_default_rules(widget)
 
         self._pages.append(page)
         self.on_page_added()

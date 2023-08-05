@@ -23,15 +23,14 @@ class Container(Widget):
     }
 
     def __init__(self, *children: Widget, **widget_args: Any) -> None:
-        super().__init__(**widget_args)
-
-        self._should_layout = False
-        self._layout_state: int = -1
-
         self.children = []
         for child in children:
             self.append(child)
 
+        super().__init__(**widget_args)
+
+        self._should_layout = False
+        self._layout_state: int = -1
         self._mouse_target: Widget | None = None
 
     @property
@@ -189,7 +188,7 @@ class Container(Widget):
 
         yield self
 
-        for widget in self.visible_children:
+        for widget in self.children:
             yield from widget.drawables()
 
     def build(self) -> list[tuple[Span, ...]]:

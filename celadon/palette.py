@@ -13,6 +13,8 @@ palette.color_mapping = {
     "ui.panel1": palette.surface1.darken(3),
     "ui.panel2": palette.surface2.darken(3),
     "ui.panel3": palette.surface4.darken(3),
+    "ui.success": palette.success,
+    "ui.warning": palette.warning,
     "ui.error": palette.error,
 }
 

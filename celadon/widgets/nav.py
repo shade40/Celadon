@@ -35,13 +35,12 @@ class Nav(Row):
             self.append(button)
 
     def get_content(self) -> list[str]:
-        if not self._selection_set:
-            for button in self.children:
-                if button.content == self.app.page.name:
-                    button.groups = ("selected",)
-                    break
+        name = self.app.page.name
 
-                if "selected" in button.groups:
-                    button.remove_group("selected")
+        for button in self.children:
+            button.remove_group("selected")
+
+            if name == button.content:
+                button.add_group("selected")
 
         return super().get_content()
