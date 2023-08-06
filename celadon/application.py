@@ -342,9 +342,7 @@ class Page:
     def _init_widget(self, widget: Widget) -> None:
         if type(widget) not in self._encountered_types:
             for child in widget.drawables():
-                for selector, rule in _load_rules(child.rules).items():
-                    self.rule(selector, **rule)
-
+                self.load_rules(child.rules)
                 self._encountered_types.append(type(child))
 
         widget.parent = self
@@ -390,6 +388,10 @@ class Page:
     def update(self, widgets: Iterable[Widget]) -> None:
         self.clear()
         self.extend(widgets)
+
+    def load_rules(self, rules: str, score: int | None = None) -> None:
+        for selector, rule in _load_rules(rules).items():
+            self.rule(selector, **rule, score=score)
 
     # True if anything changed
     def apply_rules(self) -> bool:
@@ -440,7 +442,9 @@ class Page:
 
         return None
 
-    def rule(self, query: str | Selector, base: bool = False, **rules: str) -> Selector:
+    def rule(
+        self, query: str | Selector, score: int | None = None, **rules: str
+    ) -> Selector:
         style_map = {}
         attrs = {}
 
@@ -453,7 +457,7 @@ class Page:
         if isinstance(query, Selector):
             selector = query
         else:
-            selector = Selector.parse(query, forced_score=(1 if base else None))
+            selector = Selector.parse(query, forced_score=score)
 
         if selector not in self._rules:
             self._rules[selector] = (attrs, style_map)
@@ -568,13 +572,13 @@ class Application(Page):
                         f"{key}_style": value
                         for key, value in child.style_map[state].items()
                     },
-                    base=True,
+                    score=1,
                 )
 
             self.rule(
                 child.as_query(),
                 **child.as_config(),
-                base=True,
+                score=1,
             )
 
     @property
@@ -621,17 +625,19 @@ class Application(Page):
                 if selector.matches(child):
                     yield child
 
-    def rule(self, query: str | Selector, base: bool = False, **rules: str) -> Selector:
+    def rule(
+        self, query: str | Selector, score: bool = False, **rules: str
+    ) -> Selector:
         if isinstance(query, Selector):
             selector = query
 
         else:
-            selector = Selector.parse(query, forced_score=1 if base else None)
+            selector = Selector.parse(query, forced_score=1 if score else None)
 
         for page in self._pages:
-            page.rule(selector, base=base, **rules)
+            page.rule(selector, score=score, **rules)
 
-        super().rule(selector, base=base, **rules)
+        super().rule(selector, score=score, **rules)
         return selector
 
     # Make sure to add our rules to the page's, and set our terminal
