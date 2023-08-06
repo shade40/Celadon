@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import Iterable
-from .widget import Widget, _overflows
+from .widget import Widget, _overflows, _compute
 from ..enums import MouseAction
 
 __all__ = [
@@ -262,6 +262,8 @@ class Tower(Container):
                 widget.move_to(x + offset, y)
 
             elif x_alignment == "center":
+                # TODO: I'm not sure why this works
+                offset -= len(self.frame.left)
                 widget.move_to(x + offset // 2, y)
 
             else:
@@ -303,6 +305,8 @@ class Row(Container):
     ```
     """
 
+    gap: int | float | None = None
+
     def arrange(self, x: int, y: int) -> None:
         """Arranges children into a row.
 
@@ -320,16 +324,23 @@ class Row(Container):
 
         # Relative or static widths
         total = 0
+        has_width = 0
+
         for widget in children:
             if widget.is_fill_width():
                 continue
 
             widget.compute_dimensions(width, height)
             total += widget.computed_width
+            has_width += 1
 
         # Fill widths
         autos = len([wdg for wdg in children if wdg.is_fill_width()])
         chunk, extra = divmod(width - total, autos or 1)
+
+        naive_chunk = width // len(children) * (autos == 0)
+
+        gap = _compute(self.gap, int((width - total) / has_width) * (autos == 0))
 
         for widget in children:
             if not widget.is_fill_width():
@@ -342,27 +353,25 @@ class Row(Container):
 
             offset = self.computed_width - widget.computed_width
 
-            if y_alignment == "end":
-                widget.move_to(x, y + offset)
+            d_x = 0
 
-            elif y_alignment == "center":
-                widget.move_to(x, y + offset // 2)
-
-            else:
-                widget.move_to(x, y)
-
-            x += widget.computed_width
-
-        # Aligning the result horizontally
-        total = x
-        offset = self._framed_width - total
-
-        if offset > 0:
-            if x_alignment == "start":
-                offset = 0
+            if x_alignment == "end":
+                d_x = naive_chunk - widget.computed_width
 
             elif x_alignment == "center":
-                offset //= 2
+                d_x = (naive_chunk - widget.computed_width) // 2
 
-            for widget in children:
-                widget.move_by(offset, 0)
+            d_y = 0
+
+            if y_alignment == "end":
+                d_y = offset
+
+            elif y_alignment == "center":
+                d_y = offset // 2
+
+            d_x = max(d_x, 0)
+            d_y = max(d_y, 0)
+
+            widget.move_to(x + d_x, y + d_y)
+
+            x += widget.computed_width + gap
