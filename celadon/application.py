@@ -285,7 +285,7 @@ class Selector:
             widget.state.endswith(state) for state in self.states
         )
 
-        if not (eid_matches and group_matches and state_matches):
+        if not (type_matches and eid_matches and group_matches and state_matches):
             return 0
 
         if self.forced_score is not None:
