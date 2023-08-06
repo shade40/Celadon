@@ -228,6 +228,8 @@ class Widget:  # pylint: disable=too-many-instance-attributes
     )
     """The style map is the lookup table for the widget's styles at certain states."""
 
+    rules = ""
+
     def __init__(
         self,
         eid: str | None = None,

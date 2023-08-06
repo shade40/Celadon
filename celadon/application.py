@@ -8,6 +8,7 @@ from threading import Thread
 from time import perf_counter, sleep
 from typing import Any, Callable
 from pathlib import Path
+from yaml import safe_load
 
 from slate import Terminal, getch, Event, terminal as slt_terminal
 from slate.core import BEGIN_SYNCHRONIZED_UPDATE, END_SYNCHRONIZED_UPDATE
@@ -52,6 +53,96 @@ def _flatten(widget: Widget) -> list[Widget]:
         items.extend(_flatten(child))
 
     return items
+
+
+def _load_rules(source: str) -> dict[Selector, Rulebook]:
+    """Loads a set of rule declarations from YAML.
+
+    Nested get inserted into the parent's key, so:
+
+    ```yaml
+    Button:
+        height: 1
+        frame: lightvertical
+
+        /idle:
+            content_style: primary-1
+    ```
+
+    would become:
+
+    ```json
+    {
+        "Button": {
+            "height": 1,
+            "frame": "lightvertical",
+        },
+        "Button/idle": {
+            "content_style": "primary-1",
+        }
+    }
+    ```
+
+    You can customize where the insertion takes place by marking it with an `&`. For
+    example:
+
+    ```yaml
+    .fill:
+        height: 1
+
+        Progressbar&:
+            height: 3
+    ```
+
+    becomes:
+
+    ```json
+    {
+        ".fill": {
+            "height": 1,
+        },
+        "Progressbar.fill": {
+            "height": 3,
+        }
+    }
+    ```
+
+    Returns:
+        A flattened dictionary of `{selector: {rules...}}`.
+    """
+
+    source_data = safe_load(source)
+
+    if source_data is None:
+        return {}
+
+    outer = {}
+
+    def _flatten(data: dict[str, Any], prefix: str = "") -> dict:
+        inner = {}
+
+        for key, value in data.items():
+            if isinstance(value, dict):
+                if "&" not in key:
+                    key = f"&{key}"
+
+                key = key.replace("&", prefix)
+
+                for part in key.split(","):
+                    outer[part.lstrip()] = _flatten(value, prefix=part)
+
+                continue
+
+            if isinstance(value, list):
+                value = tuple(value)
+
+            inner[key] = value
+
+        return inner
+
+    _flatten(source_data)
+
+    return outer
 
 
 RE_QUERY = re.compile(
@@ -151,7 +242,6 @@ class Selector:
         score = 0
 
         if self.direct_parent is not None:
-
             if isinstance(widget.parent, Application):
                 return 0
 
@@ -231,9 +321,12 @@ class Page:
     ) -> None:
         self.name = name
         self.route_name = route_name
-        self._children = [*children]
+        self._children = []
         self._rules = {}
+        self._encountered_types: list[type] = []
         self._builder = builder
+
+        self.extend(children)
 
     def __iadd__(self, widget: Any) -> Page:
         if not isinstance(widget, Widget):
@@ -245,6 +338,16 @@ class Page:
 
     def __iter__(self) -> Iterable[Widget]:
         return iter(self._children)
+
+    def _init_widget(self, widget: Widget) -> None:
+        if type(widget) not in self._encountered_types:
+            for child in widget.drawables():
+                for selector, rule in _load_rules(child.rules).items():
+                    self.rule(selector, **rule)
+
+                self._encountered_types.append(type(child))
+
+        widget.parent = self
 
     def build(self, *args: Any, **kwargs: Any) -> Page:
         if self._builder is None:
@@ -258,24 +361,25 @@ class Page:
         return self._builder(*args, **kwargs)
 
     def append(self, widget: Widget) -> None:
+        self._init_widget(widget)
         self._children.append(widget)
-        widget.parent = self
 
     def extend(self, widgets: Iterable[Widget]) -> None:
         for widget in widgets:
+            self._init_widget(widget)
             self.append(widget)
 
     def insert(self, index: int, widget: Widget) -> None:
+        self._init_widget(widget)
         self._children.insert(index, widget)
-        widget.parent = self
 
     def remove(self, widget: Widget) -> None:
+        self._init_widget(widget)
         self._children.remove(widget)
-        widget.parent = None
 
     def pop(self, index: int) -> Widget:
+        self._init_widget(widget)
         widget = self._children.pop(index)
-        widget.parent = self
 
         return widget
 

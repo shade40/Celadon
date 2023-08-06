@@ -25,6 +25,7 @@ dependencies = [
     "sh40-slate",
     "sh40-zenith",
     "sh40-carmine",
+    "PyYAML",
 ]
 dynamic = ["version"]
 
