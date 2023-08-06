@@ -694,6 +694,12 @@ class Application(Page):
                         )
 
                     self._mouse_target = widget
+
+                    # After release, send an extra hover event if the widget contains
+                    # the mouse.
+                    if "release" in action.value:
+                        widget.handle_mouse(MouseAction.HOVER, position)
+
                     return True
 
         if self._mouse_target is not None:
