@@ -165,7 +165,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes
                 "CLICKED": "active",
             },
             "active": {
-                "RELEASED": "idle",
+                "RELEASED": "hover",
             },
             "/": {
                 "SUBSTATE_ENTER_SCROLLING_X": "/scrolling_x",
