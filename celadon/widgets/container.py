@@ -35,6 +35,7 @@ class Container(Widget):
         self._should_layout = False
         self._layout_state: int = -1
         self._mouse_target: Widget | None = None
+        self._outer_dimensions = (1, 1)
 
     @property
     def visible_children(self) -> list[Widget]:
@@ -195,12 +196,9 @@ class Container(Widget):
             yield from widget.drawables()
 
     def build(self) -> list[tuple[Span, ...]]:
-        return super().build(
-            virt_width=max(
-                (widget.computed_width for widget in self.children), default=1
-            ),
-            virt_height=sum(widget.computed_height for widget in self.children),
-        )
+        virt_width, virt_height = self._outer_dimensions
+
+        return super().build(virt_width=virt_width, virt_height=virt_height)
 
 
 class Tower(Container):
@@ -223,6 +221,7 @@ class Tower(Container):
     ```
     """
 
+    # TODO: As this and Row's are practically identical, we should probably abstract it.
     def arrange(self, x: int, y: int) -> None:
         """Arranges children into a tower.
 
@@ -289,6 +288,8 @@ class Tower(Container):
 
             child.move_to(x + align_x, y + align_y)
             y += child.computed_height + gap
+
+        self._outer_dimensions = (self.computed_width, y)
 
 
 class Row(Container):
@@ -374,3 +375,5 @@ class Row(Container):
 
             child.move_to(x + align_x, y + align_y)
             x += child.computed_width + gap
+
+        self._outer_dimensions = (x, self.computed_height)
