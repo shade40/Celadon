@@ -22,6 +22,9 @@ class Container(Widget):
         "hover": {"fill": Widget.style_map["idle"]["fill"]},
     }
 
+    gap: int | float | None = None
+    fallback_gap: int | float = 1
+
     def __init__(self, *children: Widget, **widget_args: Any) -> None:
         self.children = []
         for child in children:
@@ -227,6 +230,7 @@ class Tower(Container):
             x: The x position this widget starts at.
             y: The y position this widget starts at.
         """
+
         children = self.visible_children
 
         width = self._framed_width - self.has_scrollbar(1)
@@ -234,56 +238,57 @@ class Tower(Container):
 
         x_alignment, y_alignment = self.alignment[0].value, self.alignment[1].value
 
-        # Relative or static widths
-        total = 0
-        for widget in children:
-            if widget.is_fill_height():
+        # Compute non-fill heights, count fill heights
+        fills = 0
+        non_fills = 0
+        occupied = 0
+
+        for child in children:
+            if child.is_fill_height():
+                fills += 1
                 continue
 
-            widget.compute_dimensions(width, height)
-            total += widget.computed_height
+            child.compute_dimensions(width, height)
+            occupied += child.computed_height
+            non_fills += 1
 
-        # Fill heights
-        autos = len([wdg for wdg in children if wdg.is_fill_height()])
-        chunk, extra = divmod(self._framed_height - total, autos or 1)
+        # Compute gaps
+        remaining = height - occupied
 
-        for widget in children:
-            if not widget.is_fill_height():
-                height = self._framed_height
-            else:
-                height = chunk + extra
+        if self.gap is None and fills != 0:
+            gap = self.fallback_gap
+        else:
+            gap = _compute(self.gap, remaining // non_fills)
+
+        fill_height, extra = divmod(
+            remaining - gap * (fills + non_fills), max(fills, 1)
+        )
+
+        # Arrange children
+        for child in children:
+            if child.is_fill_height():
+                child.compute_dimensions(width, fill_height + extra)
                 extra = 0
 
-            widget.compute_dimensions(width, height)
+            align_x = 0
+            align_width = width - child.computed_width
 
-            offset = self.computed_width - widget.computed_width
+            if x_alignment == "center":
+                align_x = sum(divmod(align_width, 2))
 
-            if x_alignment == "end":
-                widget.move_to(x + offset, y)
+            elif x_alignment == "end":
+                align_x = align_width
 
-            elif x_alignment == "center":
-                # TODO: I'm not sure why this works
-                offset -= len(self.frame.left)
-                widget.move_to(x + offset // 2, y)
+            align_y = 0
 
-            else:
-                widget.move_to(x, y)
+            if y_alignment == "center":
+                align_y = sum(divmod(gap, 2))
 
-            y += widget.computed_height
+            elif y_alignment == "end":
+                align_y = gap
 
-        # Aligning the result horizontally
-        total = y
-        offset = self._framed_height - total
-
-        if offset > 0:
-            if y_alignment == "start":
-                offset = 0
-
-            elif y_alignment == "center":
-                offset //= 2
-
-            for widget in children:
-                widget.move_by(0, offset)
+            child.move_to(x + align_x, y + align_y)
+            y += child.computed_height + gap
 
 
 class Row(Container):
@@ -305,8 +310,6 @@ class Row(Container):
     ```
     """
 
-    gap: int | float | None = None
-
     def arrange(self, x: int, y: int) -> None:
         """Arranges children into a row.
 
@@ -322,56 +325,52 @@ class Row(Container):
 
         x_alignment, y_alignment = self.alignment[0].value, self.alignment[1].value
 
-        # Relative or static widths
-        total = 0
-        has_width = 0
+        # Compute non-fill widths, count fill widths
+        fills = 0
+        non_fills = 0
+        occupied = 0
 
-        for widget in children:
-            if widget.is_fill_width():
+        for child in children:
+            if child.is_fill_width():
+                fills += 1
                 continue
 
-            widget.compute_dimensions(width, height)
-            total += widget.computed_width
-            has_width += 1
+            child.compute_dimensions(width, height)
+            occupied += child.computed_width
+            non_fills += 1
 
-        # Fill widths
-        autos = len([wdg for wdg in children if wdg.is_fill_width()])
-        chunk, extra = divmod(width - total, autos or 1)
+        # Compute gaps
+        remaining = width - occupied
 
-        naive_chunk = width // len(children) * (autos == 0)
+        if self.gap is None and fills != 0:
+            gap = self.fallback_gap
+        else:
+            gap = _compute(self.gap, remaining // non_fills)
 
-        gap = _compute(self.gap, int((width - total) / has_width) * (autos == 0))
+        fill_width, extra = divmod(remaining - gap * (fills + non_fills), max(fills, 1))
 
-        for widget in children:
-            if not widget.is_fill_width():
-                width = self._framed_width
-            else:
-                width = chunk + extra
+        # Arrange children
+        for child in children:
+            if child.is_fill_width():
+                child.compute_dimensions(fill_width + extra, height)
                 extra = 0
 
-            widget.compute_dimensions(width, height)
+            align_y = 0
+            align_height = height - child.computed_height
 
-            offset = self.computed_width - widget.computed_width
+            if y_alignment == "center":
+                align_y = sum(divmod(align_height, 2))
 
-            d_x = 0
+            elif y_alignment == "end":
+                align_y = align_height
 
-            if x_alignment == "end":
-                d_x = naive_chunk - widget.computed_width
+            align_x = 0
 
-            elif x_alignment == "center":
-                d_x = (naive_chunk - widget.computed_width) // 2
+            if x_alignment == "center":
+                align_x = sum(divmod(gap, 2))
 
-            d_y = 0
+            elif x_alignment == "end":
+                align_x = gap
 
-            if y_alignment == "end":
-                d_y = offset
-
-            elif y_alignment == "center":
-                d_y = offset // 2
-
-            d_x = max(d_x, 0)
-            d_y = max(d_y, 0)
-
-            widget.move_to(x + d_x, y + d_y)
-
-            x += widget.computed_width + gap
+            child.move_to(x + align_x, y + align_y)
+            x += child.computed_width + gap
