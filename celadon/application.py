@@ -479,10 +479,6 @@ class Page:
         return selector
 
 
-# Everything currently handling Application._widgets
-# will handle Application.page.children instead.
-#
-# When drawing, we'll draw page.children first, then our children.
 class Application(Page):
     children: list[Widget]  # For constantly visible, overlay-type widgets
 
@@ -712,15 +708,16 @@ class Application(Page):
 
                     return True
 
-        if self._mouse_target is not None:
-            self._mouse_target.handle_mouse(
-                MouseAction.LEFT_RELEASE, self._mouse_target.position
-            )
+            else:
+                if self._mouse_target is not None:
+                    self._mouse_target.handle_mouse(
+                        MouseAction.LEFT_RELEASE, self._mouse_target.position
+                    )
 
-        if len(self._children) == 0:
+        if self._mouse_target is None:
             return False
 
-        return self._children[0].handle_keyboard(inp)
+        self._mouse_target.handle_keyboard(inp)
 
     def run(self) -> None:
         self._is_running = True

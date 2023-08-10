@@ -44,8 +44,6 @@ DimensionSpec = Union[int, float, None]
 AlignmentSetting = Literal["start", "center", "end"]
 OverflowSetting = Literal["hide", "auto", "scroll"]
 
-widget_types: dict[str, Type[Widget]] = {}
-
 
 class Config(TypedDict):
     width: int | float | None
@@ -273,6 +271,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         self._virtual_width = 0
         self._virtual_height = 0
         self._last_query = None
+        self._selected_index: int | None = None
 
         self._clip_start: int | None = None
         self._clip_end: int | None = None
@@ -321,6 +320,15 @@ class Widget:  # pylint: disable=too-many-instance-attributes
             output[key] = _get_style_function(style, fill)
 
         return output
+
+    @property
+    def selected(self) -> Widget | None:
+        """Returns the currently selected widget."""
+
+        if self._selected_index is None:
+            return None
+
+        return self
 
     @property
     def frame(self) -> Frame:
@@ -707,6 +715,28 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         self.add_group(target)
         return True
 
+    def select_offset(self, offset: int) -> bool:
+        """Selects the widget at the given offset to the current selection."""
+
+        if offset == 0:
+            return False
+
+        if self._selected_index is None:
+            self._selected_index = 0
+            self.state_machine.apply_action("SELECTED")
+            return True
+
+        self._selected_index = None
+        self.state_machine.apply_action("UNSELECTED")
+        return False
+
+    def select_widget(self, widget: Widget) -> bool:
+        if widget is not self:
+            return False
+
+        self.select_offset(1)
+        return True
+
     def hide(self) -> None:
         self.add_group("hidden")
 
@@ -878,3 +908,4 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
 
 widget_annotations = Widget.__annotations__
+widget_types: dict[str, Type[Widget]] = {"Widget": Widget}

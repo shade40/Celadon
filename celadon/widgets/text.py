@@ -16,6 +16,9 @@ class Text(Widget):
 
         self.content = content
 
+    def select_offset(self, offset: int) -> bool:
+        return False
+
     def get_content(self) -> list[str]:
         return self.content.splitlines()
 

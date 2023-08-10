@@ -68,6 +68,54 @@ class Container(Widget):
             )
         )
 
+    @property
+    def selected(self) -> Widget | None:
+        """Returns the currently selected widget."""
+
+        if self._selected_index is None:
+            return None
+
+        return self.children[self._selected_index]
+
+    def select_offset(self, offset: int) -> bool:
+        """Selects the widget at the given offset to the current selection."""
+
+        if offset == 0:
+            return False
+
+        if self._selected_index is None:
+            self._selected_index = 0
+
+        current_selected = self.selected
+        children_length = len(self.children)
+        direction = offset // abs(offset)
+
+        offset += direction
+
+        while 0 < abs(offset):
+            if self.selected.select_offset(offset):
+                self.state_machine.apply_action("SELECTED")
+                return True
+
+            offset += -direction
+
+            if not 0 <= self._selected_index + direction < children_length:
+                break
+
+            self._selected_index += direction
+
+        self.state_machine.apply_action("UNSELECTED")
+        return False
+
+    def select_widget(self, widget: Widget) -> bool:
+        for i, child in enumerate(self.children):
+            if child.select_widget(widget):
+                self.select_offset(i)
+                return True
+
+        self.state_machine.apply_action("UNSELECTED")
+        return False
+
     def append(self, widget: Widget) -> None:
         """Adds a new widget setting its parent attribute to self."""
 
@@ -147,19 +195,23 @@ class Container(Widget):
     def handle_keyboard(self, key: str) -> bool:
         # TODO: This is temporary
         if key == "up":
-            self.scroll = self.scroll[0], self.scroll[1] - 1
+            # self.scroll = self.scroll[0], self.scroll[1] - 1
+            self.select_offset(-1)
             return True
 
         if key == "down":
-            self.scroll = self.scroll[0], self.scroll[1] + 1
+            # self.scroll = self.scroll[0], self.scroll[1] + 1
+            self.select_offset(1)
             return True
 
         if key == "left":
-            self.scroll = self.scroll[0] - 1, self.scroll[1]
+            # self.scroll = self.scroll[0] - 1, self.scroll[1]
+            self.select_offset(-1)
             return True
 
         if key == "right":
-            self.scroll = self.scroll[0] + 1, self.scroll[1]
+            self.select_offset(1)
+            # self.scroll = self.scroll[0] + 1, self.scroll[1]
             return True
 
     def handle_mouse(self, action: MouseAction, position: tuple[int, int]) -> bool:
