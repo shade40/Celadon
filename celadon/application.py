@@ -279,11 +279,18 @@ class Selector:
             return score + 100
 
         type_matches = isinstance(widget, self.elements)
-        eid_matches = self.eid is None or self.eid == widget.eid
-        group_matches = all(group in widget.groups for group in self.groups)
-        state_matches = self.states is None or any(
-            widget.state.endswith(state) for state in self.states
-        )
+
+        if isinstance(widget, Page):
+            eid_matches = 0
+            group_matches = 0
+            state_matches = 0
+
+        else:
+            eid_matches = self.eid is None or self.eid == widget.eid
+            group_matches = all(group in widget.groups for group in self.groups)
+            state_matches = self.states is None or any(
+                widget.state.endswith(state) for state in self.states
+            )
 
         if not (type_matches and eid_matches and group_matches and state_matches):
             return 0
@@ -309,6 +316,7 @@ BuilderType = Callable[[Any, ...], "Page"]
 
 
 class Page:
+    parent: "Application"
     children: list[Widget]
     _rules: dict[Selector, Rulebook]
 
@@ -653,6 +661,8 @@ class Application(Page):
 
         for widget in page:
             self._set_default_rules(widget)
+
+        page.parent = self
 
         self._pages.append(page)
         self.on_page_added()
