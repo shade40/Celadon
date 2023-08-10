@@ -233,11 +233,6 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         eid: str | None = None,
         group: str | None = None,
         groups: tuple[str] = tuple(),
-        width: int | float | None = None,
-        height: int | float | None = None,
-        frame: Frame | str = "Frameless",
-        alignment: tuple[str | Alignment, str | Alignment] = ("start", "start"),
-        overflow: tuple[str | Overflow, str | Overflow] = ("hide", "hide"),
     ) -> None:
         """Initializes a Widget.
 
@@ -261,12 +256,12 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         self.state_machine = deepcopy(self.state_machine)
         self.parent = None
 
-        self.width = width
-        self.height = height
+        self.width = None
+        self.height = None
         # These conversions are handled in their properties
-        self.frame = frame  # type: ignore
-        self.alignment = alignment  # type: ignore
-        self.overflow = overflow  # type: ignore
+        self.frame = "Frameless"  # type: ignore
+        self.alignment = ("start", "start")  # type: ignore
+        self.overflow = ("hide", "hide")  # type: ignore
 
         self._virtual_width = 0
         self._virtual_height = 0
