@@ -145,7 +145,7 @@ class Light(Frame):
 class LightVertical(Frame):
     """A frame with a light outline."""
 
-    borders = ("|", "", "|", "")
+    borders = ("│", "", "│", "")
     corners = ("", "", "", "")
 
     scrollbars = ((" ", "▅"), (" ", "█"))

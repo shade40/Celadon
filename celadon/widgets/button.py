@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Callable
 
 from slate import Event, EventCallback
+from zenith.markup import RE_MARKUP
 
 from ..enums import MouseAction, Alignment
 from .widget import Widget
@@ -25,15 +26,26 @@ class Button(Widget):
         self: The instance that sent the event.
     """
 
-    style_map = Widget.style_map | {
-        "hover": {
-            "fill": "@ui.panel1-2",
-        },
-        "active": {
-            "fill": "@ui.primary",
-            "content": "ui.panel1",
-        },
-    }
+    rules = """
+    Button:
+        content_style: ""
+        alignment: [center, center]
+
+        height: 1
+        frame: lightvertical
+
+        /idle:
+            fill_style: '@ui.primary-1'
+
+        /hover:
+            fill_style: '@ui.primary+1'
+
+        /active:
+            fill_style: '@ui.primary+3'
+
+        /selected:
+            fill_style: '@ui.primary+2'
+    """
 
     def __init__(
         self,
@@ -46,6 +58,7 @@ class Button(Widget):
         super().__init__(**widget_args)
 
         self.content = content
+        self.width = widget_args.get("width", len(RE_MARKUP.sub(self.content, "")) + 4)
 
         self.on_submit = Event("Button submitted")
         for callback in on_submit or []:

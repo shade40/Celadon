@@ -6,6 +6,11 @@ from .widget import Widget
 class Text(Widget):
     """A widget that displays some static text."""
 
+    rules = """
+    Text:
+        height: 1
+    """
+
     def __init__(self, content: str, **widget_args: Any) -> None:
         super().__init__(**widget_args)
 
