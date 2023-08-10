@@ -162,7 +162,7 @@ class Selector:
 
     query: str
 
-    elements: tuple[Type[Widget], ...] = (Widget,)
+    elements: tuple[str, ...] = tuple()
     eid: str | None = None
     groups: tuple[str, ...] = tuple()
     states: tuple[str, ...] | None = None
@@ -214,13 +214,7 @@ class Selector:
 
         elements_str, eid, groups_str, states = mtch.groups()
 
-        if elements_str is None:
-            elements = (Widget,)
-        else:
-            elements = tuple(
-                widget_types[element] for element in elements_str.split("|")
-            )
-
+        elements = tuple(elements_str.split("|"))
         eid = (eid or "").lstrip("#") or None
         groups = tuple(groups_str.split(".")[1:])
 
@@ -278,7 +272,9 @@ class Selector:
         if self.query == "*":
             return score + 100
 
-        type_matches = isinstance(widget, self.elements)
+        type_matches = any(
+            type(widget).__name__ == element for element in self.elements
+        )
 
         if isinstance(widget, Page):
             eid_matches = 0
