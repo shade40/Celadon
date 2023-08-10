@@ -307,25 +307,27 @@ class Tower(Container):
         remaining = height - occupied
 
         if self.gap is None and fills != 0:
+            gap_extra = 0
             gap = self.fallback_gap
         else:
-            gap = _compute(self.gap, remaining // max(non_fills, 1))
+            available, gap_extra = divmod(remaining, max(non_fills, 1))
+            gap = _compute(self.gap, available)
 
         fill_height, extra = divmod(
-            remaining - gap * (fills + non_fills), max(fills, 1)
+            remaining - gap * (fills + non_fills) - gap_extra, max(fills, 1)
         )
 
         # Arrange children
         for child in children:
             if child.is_fill_height():
-                child.compute_dimensions(width, fill_height + extra)
-                extra = 0
+                child.compute_dimensions(width, fill_height + (1 if extra > 0 else 0))
+                extra -= 1
 
             align_x = 0
             align_width = width - child.computed_width
 
             if x_alignment == "center":
-                align_x = sum(divmod(align_width, 2))
+                align_x = align_width // 2
 
             elif x_alignment == "end":
                 align_x = align_width
@@ -333,13 +335,15 @@ class Tower(Container):
             align_y = 0
 
             if y_alignment == "center":
-                align_y = sum(divmod(gap, 2))
+                align_y = gap // 2
 
             elif y_alignment == "end":
                 align_y = gap
 
             child.move_to(x + align_x, y + align_y)
-            y += child.computed_height + gap
+            y += child.computed_height + gap + (1 if gap_extra > 0 else 0)
+
+            gap_extra -= 1
 
         self._outer_dimensions = (self.computed_width, y)
 
@@ -409,8 +413,8 @@ class Row(Container):
         # Arrange children
         for child in children:
             if child.is_fill_width():
-                child.compute_dimensions(fill_width + extra, height)
-                extra = 0
+                child.compute_dimensions(fill_width + (1 if extra > 0 else 0), height)
+                extra -= 1
 
             align_y = 0
             align_height = height - child.computed_height
@@ -430,8 +434,8 @@ class Row(Container):
                 align_x = gap + gap_extra
 
             child.move_to(x + align_x, y + align_y)
-            x += child.computed_width + gap + gap_extra
+            x += child.computed_width + gap + (1 if gap_extra > 0 else 0)
 
-            gap_extra = 0
+            gap_extra -= 1
 
         self._outer_dimensions = (x, self.computed_height)
