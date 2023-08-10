@@ -257,7 +257,7 @@ class Tower(Container):
         if self.gap is None and fills != 0:
             gap = self.fallback_gap
         else:
-            gap = _compute(self.gap, remaining // non_fills)
+            gap = _compute(self.gap, remaining // max(non_fills, 1))
 
         fill_height, extra = divmod(
             remaining - gap * (fills + non_fills), max(fills, 1)
@@ -346,7 +346,7 @@ class Row(Container):
         if self.gap is None and fills != 0:
             gap = self.fallback_gap
         else:
-            gap = _compute(self.gap, remaining // non_fills)
+            gap = _compute(self.gap, remaining // max(non_fills, 1))
 
         fill_width, extra = divmod(remaining - gap * (fills + non_fills), max(fills, 1))
 
