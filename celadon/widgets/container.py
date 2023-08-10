@@ -396,11 +396,15 @@ class Row(Container):
         remaining = width - occupied
 
         if self.gap is None and fills != 0:
+            gap_extra = 0
             gap = self.fallback_gap
         else:
-            gap = _compute(self.gap, remaining // max(non_fills, 1))
+            gap_available, gap_extra = divmod(remaining, max(non_fills, 1))
+            gap = _compute(self.gap, gap_available)
 
-        fill_width, extra = divmod(remaining - gap * (fills + non_fills), max(fills, 1))
+        fill_width, extra = divmod(
+            remaining - gap * (fills + non_fills) - gap_extra, max(fills, 1)
+        )
 
         # Arrange children
         for child in children:
@@ -412,7 +416,7 @@ class Row(Container):
             align_height = height - child.computed_height
 
             if y_alignment == "center":
-                align_y = sum(divmod(align_height, 2))
+                align_y = align_height // 2
 
             elif y_alignment == "end":
                 align_y = align_height
@@ -420,12 +424,14 @@ class Row(Container):
             align_x = 0
 
             if x_alignment == "center":
-                align_x = sum(divmod(gap, 2))
+                align_x = (gap + gap_extra) // 2
 
             elif x_alignment == "end":
-                align_x = gap
+                align_x = gap + gap_extra
 
             child.move_to(x + align_x, y + align_y)
-            x += child.computed_width + gap
+            x += child.computed_width + gap + gap_extra
+
+            gap_extra = 0
 
         self._outer_dimensions = (x, self.computed_height)
