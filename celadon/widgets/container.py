@@ -314,7 +314,7 @@ class Tower(Container):
             gap = _compute(self.gap, available)
 
         fill_height, extra = divmod(
-            remaining - gap * (fills + non_fills) - gap_extra, max(fills, 1)
+            remaining - gap * (fills + non_fills - 1), max(fills, 1)
         )
 
         # Arrange children
@@ -333,15 +333,16 @@ class Tower(Container):
                 align_x = align_width
 
             align_y = 0
+            align_extra = 0
 
             if y_alignment == "center":
-                align_y = gap // 2
+                align_y, align_extra = divmod(gap + gap_extra, 2)
 
             elif y_alignment == "end":
-                align_y = gap
+                align_y = gap + gap_extra
 
             child.move_to(x + align_x, y + align_y)
-            y += child.computed_height + gap + (1 if gap_extra > 0 else 0)
+            y += child.computed_height + gap + (1 if gap_extra > 0 else 0) + align_extra
 
             gap_extra -= 1
 
@@ -403,11 +404,11 @@ class Row(Container):
             gap_extra = 0
             gap = self.fallback_gap
         else:
-            gap_available, gap_extra = divmod(remaining, max(non_fills, 1))
-            gap = _compute(self.gap, gap_available)
+            available, gap_extra = divmod(remaining, max(non_fills, 1))
+            gap = _compute(self.gap, available)
 
         fill_width, extra = divmod(
-            remaining - gap * (fills + non_fills) - gap_extra, max(fills, 1)
+            remaining - gap * (fills + non_fills - 1), max(fills, 1)
         )
 
         # Arrange children
@@ -426,16 +427,17 @@ class Row(Container):
                 align_y = align_height
 
             align_x = 0
+            align_extra = 0
 
             if x_alignment == "center":
-                align_x = (gap + gap_extra) // 2
+                align_x, align_extra = divmod(gap + gap_extra, 2)
 
             elif x_alignment == "end":
                 align_x = gap + gap_extra
 
             child.move_to(x + align_x, y + align_y)
-            x += child.computed_width + gap + (1 if gap_extra > 0 else 0)
+            x += child.computed_width + gap + (1 if gap_extra > 0 else 0) + align_extra
 
             gap_extra -= 1
 
-        self._outer_dimensions = (x, self.computed_height)
+        self._outer_dimensions = (x - gap, self.computed_height)
