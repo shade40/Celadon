@@ -4,6 +4,7 @@ import uuid
 import re
 
 from copy import deepcopy
+from dataclasses import dataclass
 from typing import (
     Any,
     Callable,
@@ -38,6 +39,15 @@ class Sized(Protocol):
 
     width_hint: int
     height_hint: int
+
+
+@dataclass
+class BoundStyle:
+    style: str
+    fill: str
+
+    def __call__(self, item: str) -> str:
+        return f"[{self.fill}{self.style}]{item}"
 
 
 DimensionSpec = Union[int, float, None]
@@ -288,12 +298,6 @@ class Widget:  # pylint: disable=too-many-instance-attributes
     def styles(self) -> dict[str, Callable[[str], str]]:
         """Returns a dictionary of style keys to markup callables."""
 
-        def _get_style_function(style: str, fill: str) -> Callable[[str], str]:
-            def _style(item: str) -> str:
-                return f"[{fill}{style}]{item}"
-
-            return _style
-
         styles = self.style_map[self.state.split("/")[0]].copy()
 
         if "/" in self.state:
@@ -312,7 +316,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes
             if key == "fill":
                 continue
 
-            output[key] = _get_style_function(style, fill)
+            output[key] = BoundStyle(style, fill)
 
         return output
 
