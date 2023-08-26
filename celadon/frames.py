@@ -35,6 +35,15 @@ class Frame:
     height: int
     """Height of the top and bottom borders combined."""
 
+    outer_horizontal: bool = False
+    """Use the parent's fill color (instead of our own) when drawing the sides."""
+
+    outer_vertical: bool = False
+    """Use the parent's fill color (instead of our own) when drawing the top & bottom."""
+
+    outer_corner: bool = False
+    """Use the parent's fill color (instead of our own) when drawing the corners."""
+
     def __init__(self) -> None:
         if self.descriptor is not None:
             self.borders, self.corners = self._parse_descriptor()
@@ -42,7 +51,7 @@ class Frame:
         assert self.borders is not None and self.corners is not None
 
         self.width = len(self.borders[0] + self.borders[2])
-        self.height = len(self.borders[1] + self.borders[3])
+        self.height = (self.borders[1] != "") + (self.borders[3] != "")
 
         self.left, self.top, self.right, self.bottom = self.borders
         (
@@ -250,3 +259,37 @@ class Frameless(Frame):
     corners = ("", "", "", "")
 
     scrollbars = ((" ", "▅"), (" ", "█"))
+
+
+@add_frame_preview
+class HorizontalOuter(Frame):
+    """A horizontal McGugan box.
+
+    https://www.willmcgugan.com/blog/tech/post/ceo-just-wants-to-draw-boxes/
+    """
+
+    descriptor = (
+        "▁▁▁▁▁",
+        "▏ x ▕",
+        "▔▔▔▔▔",
+    )
+
+    outer_horizontal = True
+    outer_corner = True
+
+
+@add_frame_preview
+class VerticalOuter(Frame):
+    """A vertical McGugan box.
+
+    https://www.willmcgugan.com/blog/tech/post/ceo-just-wants-to-draw-boxes/
+    """
+
+    descriptor = (
+        "▕▔▔▔▔▔▏",
+        "▕  x  ▏",
+        "▕▁▁▁▁▁▏",
+    )
+
+    outer_vertical = True
+    outer_corner = True

@@ -462,23 +462,45 @@ class Widget:  # pylint: disable=too-many-instance-attributes
     def _apply_frame(self, lines: list[tuple[Span, ...]], width: int) -> None:
         """Adds frame characters around the given lines."""
 
-        def _style(item) -> tuple[Span, ...]:
-            return self._parse_markup(self.styles["frame"](item))
+        def _style(item, outer: bool = False) -> tuple[Span, ...]:
+            style = deepcopy(self.styles["frame"])
+
+            if outer:
+                style.style = self.parent.styles["frame"].fill + " " + style.style
+
+            return self._parse_markup(style(item))
 
         left_top, right_top, right_bottom, left_bottom = self.frame.corners
         left, top, right, bottom = self.frame.borders
 
+        h_outer = self.frame.outer_horizontal
+        v_outer = self.frame.outer_vertical
+        c_outer = self.frame.outer_corner
+
         for i, line in enumerate(lines):
-            lines[i] = (*_style(left), *line, *_style(right))
+            lines[i] = (
+                *_style(left, outer=v_outer),
+                *line,
+                *_style(right, outer=v_outer),
+            )
 
         if left_top + top + right_top != "":
             lines.insert(
-                0, (*_style(left_top), *_style(top * width), *_style(right_top))
+                0,
+                (
+                    *_style(left_top, outer=c_outer),
+                    *_style(top * width, outer=h_outer),
+                    *_style(right_top, outer=c_outer),
+                ),
             )
 
         if left_bottom + bottom + right_bottom != "":
             lines.append(
-                (*_style(left_bottom), *_style(bottom * width), *_style(right_bottom))
+                (
+                    *_style(left_bottom, outer=c_outer),
+                    *_style(bottom * width, outer=h_outer),
+                    *_style(right_bottom, outer=c_outer),
+                )
             )
 
     def _horizontal_align(self, line: tuple[Span, ...], width: int) -> tuple[Span, ...]:
