@@ -270,7 +270,7 @@ class HorizontalOuter(Frame):
 
     descriptor = (
         "▁▁▁▁▁",
-        "▏ x ▕",
+        "▎ x 🮇",
         "▔▔▔▔▔",
     )
 
@@ -286,9 +286,9 @@ class VerticalOuter(Frame):
     """
 
     descriptor = (
-        "▕▔▔▔▔▔▏",
-        "▕  x  ▏",
-        "▕▁▁▁▁▁▏",
+        "🮇▔▔▔▔▔▎",
+        "🮇  x  ▎",
+        "🮇▁▁▁▁▁▎",
     )
 
     outer_vertical = True
