@@ -319,9 +319,10 @@ class Page:
     def __init__(
         self,
         *children: Widget,
-        name: str | None = None,
-        route_name: str | None = None,
+        name: str = "Index",
+        route_name: str = "index",
         builder: BuilderType | None = None,
+        rules: str | None = None,
     ) -> None:
         self.name = name
         self.route_name = route_name
@@ -329,6 +330,9 @@ class Page:
         self._rules = {}
         self._encountered_types: list[type] = []
         self._builder = builder
+
+        if rules is not None:
+            self.load_rules(rules)
 
         self.extend(children)
 
@@ -409,8 +413,8 @@ class Page:
             new_attrs = {}
             new_style_map = StyleMap()
 
-            if not widget.query_changed():
-                continue
+            # if not widget.query_changed():
+            #    continue
 
             applicable_rules = [
                 (sel, sel.matches(widget), rule) for sel, rule in self._rules.items()
@@ -492,7 +496,7 @@ class Application(Page):
         self._pages = []
         self._page = None
         self._mouse_target: Widget | None = None
-        self._framerate = 60
+        self._framerate = framerate
         self._terminal = terminal or slt_terminal
 
         self._is_running = False
@@ -708,6 +712,9 @@ class Application(Page):
                     # the mouse.
                     if "release" in action.value:
                         widget.handle_mouse(MouseAction.HOVER, position)
+
+                    self.apply_rules()
+                    self._page.apply_rules()
 
                     return True
 

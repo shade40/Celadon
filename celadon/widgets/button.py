@@ -28,20 +28,27 @@ class Button(Widget):
 
     rules = """
     Button:
-        content_style: ""
+        content_style: bold
         alignment: [center, center]
 
-        height: 1
-        frame: lightvertical
+        height: 3
+        frame: verticalouter
+
+        .compact:
+            height: 3
+            frame: horizontalouter
 
         /idle:
             fill_style: '@ui.primary-1'
+            frame_style: ui.panel1-2
 
         /hover:
             fill_style: '@ui.primary+1'
+            frame_style: ui.panel1
 
         /active:
             fill_style: '@ui.primary+3'
+            frame_style: ui.panel1+2
 
         /selected:
             fill_style: '@ui.primary+2'
@@ -58,7 +65,7 @@ class Button(Widget):
         super().__init__(**widget_args)
 
         self.content = content
-        self.width = widget_args.get("width", len(RE_MARKUP.sub(self.content, "")) + 4)
+        self.width = len(RE_MARKUP.sub(self.content, "")) + 4
 
         self.on_submit = Event("Button submitted")
         for callback in on_submit or []:

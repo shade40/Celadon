@@ -314,7 +314,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
         for key, style in styles.items():
             if key == "fill":
-                continue
+                key = "_fill"
 
             output[key] = BoundStyle(style, fill)
 

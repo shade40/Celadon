@@ -231,6 +231,7 @@ class Container(Widget):
                 continue
 
             if widget.handle_mouse(action, position):
+                # self.select_widget(widget)
                 if self._mouse_target not in [widget, None]:
                     self._mouse_target.handle_mouse(MouseAction.LEFT_RELEASE, position)
 
