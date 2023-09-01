@@ -330,6 +330,7 @@ class Page:
         self._rules = {}
         self._encountered_types: list[type] = []
         self._builder = builder
+        self._rules_changed = True
 
         if rules is not None:
             self.load_rules(rules)
@@ -409,12 +410,14 @@ class Page:
 
         applicable_rules = None
 
+        rules_changed = self._rules_changed
+
         for widget in drawables:
             new_attrs = {}
             new_style_map = StyleMap()
 
-            # if not widget.query_changed():
-            #    continue
+            if not rules_changed and not widget.query_changed():
+                continue
 
             applicable_rules = [
                 (sel, sel.matches(widget), rule) for sel, rule in self._rules.items()
@@ -430,6 +433,8 @@ class Page:
                 new_style_map |= style_map
 
             widget.update(new_attrs, new_style_map)
+
+        self._rules_changed = False
 
         return applicable_rules is not None
 
@@ -455,6 +460,8 @@ class Page:
     ) -> Selector:
         style_map = {}
         attrs = {}
+
+        self._rules_changed = True
 
         for key, value in rules.copy().items():
             if not key.endswith("_style"):
@@ -546,7 +553,6 @@ class Application(Page):
                 clear()
 
                 self.apply_rules()
-                self._page.apply_rules()
 
                 for widget in [*self._page, *self._children]:
                     widget.compute_dimensions(
@@ -674,6 +680,9 @@ class Application(Page):
     def add_widget(self, widget: Widget) -> None:
         super().append(widget)
 
+    def apply_rules(self) -> bool:
+        return self._page.apply_rules() + super().apply_rules()
+
     def route(self, destination: str) -> None:
         for page in self._pages:
             if page.route_name == destination:
@@ -706,15 +715,14 @@ class Application(Page):
                             MouseAction.LEFT_RELEASE, position
                         )
 
+                    self.apply_rules()
+
                     self._mouse_target = widget
 
                     # After release, send an extra hover event if the widget contains
                     # the mouse.
                     if "release" in action.value:
                         widget.handle_mouse(MouseAction.HOVER, position)
-
-                    self.apply_rules()
-                    self._page.apply_rules()
 
                     return True
 
