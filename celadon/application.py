@@ -533,35 +533,42 @@ class Application(Page):
         draw = self._terminal.draw
         on_frame_drawn = self.on_frame_drawn
 
-        while self._is_running:
-            if self._is_paused:
-                sleep(frametime)
+        try:
+            while self._is_running:
+                if self._is_paused:
+                    sleep(frametime)
 
-            start = perf_counter()
-            clear()
+                start = perf_counter()
+                clear()
 
-            self.apply_rules()
-            self._page.apply_rules()
+                self.apply_rules()
+                self._page.apply_rules()
 
-            for widget in [*self._page, *self._children]:
-                widget.compute_dimensions(self._terminal.width, self._terminal.height)
+                for widget in [*self._page, *self._children]:
+                    widget.compute_dimensions(
+                        self._terminal.width, self._terminal.height
+                    )
 
-                for child in widget.drawables():
-                    origin = child.position
+                    for child in widget.drawables():
+                        origin = child.position
 
-                    for i, line in enumerate(child.build()):
-                        write(line, cursor=(origin[0], origin[1] + i))
+                        for i, line in enumerate(child.build()):
+                            write(line, cursor=(origin[0], origin[1] + i))
 
-            draw()
+                draw()
 
-            if on_frame_drawn:
-                on_frame_drawn()
-                on_frame_drawn.clear()
+                if on_frame_drawn:
+                    on_frame_drawn()
+                    on_frame_drawn.clear()
 
-            elapsed = perf_counter() - start
+                elapsed = perf_counter() - start
 
-            if elapsed < frametime:
-                sleep(frametime)
+                if elapsed < frametime:
+                    sleep(frametime)
+
+        except Exception as exc:
+            self.stop()
+            self._raised = exc
 
     def _set_default_rules(self, widget: Widget) -> None:
         for child in _flatten(widget):
@@ -718,7 +725,7 @@ class Application(Page):
     def run(self) -> None:
         self._is_running = True
 
-        raised: Exception | None = None
+        self._raised: Exception | None = None
 
         for widget in self._children:
             self._set_default_rules(widget)
@@ -747,13 +754,13 @@ class Application(Page):
 
                 except Exception as exc:
                     self.stop()
-                    raised = exc
+                    self._raised = exc
                     break
 
             thread.join()
 
-        if raised is not None:
-            raise raised
+        if self._raised is not None:
+            raise self._raised
 
     # TODO: Expand this to clear screen (wait for frame to finish)
     def pause(self) -> None:
