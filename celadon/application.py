@@ -355,7 +355,7 @@ class Page:
     def _init_widget(self, widget: Widget) -> None:
         if type(widget) not in self._encountered_types:
             for child in widget.drawables():
-                self.load_rules(child.rules, score=1)
+                self.load_rules(child.rules, score=None)
                 self._encountered_types.append(type(child))
 
         widget.parent = self

@@ -35,23 +35,56 @@ class Button(Widget):
         frame: verticalouter
 
         .compact:
-            height: 3
             frame: horizontalouter
 
+        .success:
+            /idle|hover:
+                frame_style: ui.success
+
+            /selected:
+                frame_style: ui.success
+
+            /active:
+                frame_style: ui.panel1-2
+                fill_style: '@ui.success+3'
+
+        .warning:
+            /idle|hover:
+                frame_style: ui.warning
+
+            /selected:
+                frame_style: ui.warning
+
+            /active:
+                frame_style: ui.panel1-2
+                fill_style: '@ui.warning+3'
+
+        .error:
+            /idle|hover:
+                frame_style: ui.error
+
+            /selected:
+                frame_style: ui.error
+
+            /active:
+                frame_style: ui.panel1-2
+                fill_style: '@ui.error+2'
+
         /idle:
-            fill_style: '@ui.primary-1'
-            frame_style: ui.panel1-2
+            fill_style: '@ui.panel1'
+            frame_style: ui.primary+1
 
         /hover:
-            fill_style: '@ui.primary+1'
-            frame_style: ui.panel1
+            fill_style: '@ui.panel1+1'
+            frame_style: ui.primary+1
+
+        /selected:
+            fill_style: '@ui.panel1+2'
+            frame_style: ui.primary+1
 
         /active:
             fill_style: '@ui.primary+3'
-            frame_style: ui.panel1+2
-
-        /selected:
-            fill_style: '@ui.primary+2'
+            frame_style: 'ui.panel1-2'
     """
 
     def __init__(
@@ -65,7 +98,7 @@ class Button(Widget):
         super().__init__(**widget_args)
 
         self.content = content
-        self.width = len(RE_MARKUP.sub(self.content, "")) + 4
+        self.width = len(RE_MARKUP.sub(self.content, "")) + 8
 
         self.on_submit = Event("Button submitted")
         for callback in on_submit or []:
