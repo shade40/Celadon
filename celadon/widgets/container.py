@@ -2,13 +2,30 @@ from __future__ import annotations
 
 from typing import Iterable
 from .widget import Widget, _overflows, _compute
-from ..enums import MouseAction
+from ..enums import MouseAction, Direction, Alignment
 
 __all__ = [
     "Container",
     "Tower",
     "Row",
 ]
+
+
+def _align(alignment: Alignment, available: int) -> tuple[int, int]:
+    """Returns offset & modulo result for alignment in the available space."""
+
+    available = max(available, 0)
+
+    if available == 1:
+        return 0, 0
+
+    if alignment == Alignment.CENTER:
+        return divmod(available, 2)
+
+    if alignment == Alignment.END:
+        return available, 0
+
+    return 0, 0
 
 
 class Container(Widget):
@@ -24,6 +41,8 @@ class Container(Widget):
 
     gap: int | float | None = None
     fallback_gap: int | float = 1
+
+    _direction: Direction = Direction.VERTICAL
 
     def __init__(self, *children: Widget, **widget_args: Any) -> None:
         self.children = []
@@ -41,6 +60,21 @@ class Container(Widget):
     def visible_children(self) -> list[Widget]:
         return [widget for widget in self.children if not "hidden" in widget.groups]
 
+    @property
+    def direction(self) -> Direction:
+        """Returns and sets the current flow direction."""
+
+        return self._direction
+
+    @direction.setter
+    def direction(self, new: Direction | str) -> None:
+        """Sets the direction setting."""
+
+        if isinstance(new, str):
+            new = Direction(new)
+
+        self._direction = new
+
     def __iadd__(self, other: object) -> Container:
         if not isinstance(other, Widget):
             raise TypeError(
@@ -49,6 +83,58 @@ class Container(Widget):
 
         self.append(other)
         return self
+
+    def _is_fill(self, widget: Widget, horizontal: bool) -> bool:
+        """Determines whether the widget is fill on the flow axis.
+
+        Args:
+            widget: The widget to test.
+            horizontal: If set, flow direction is horizontal and we return `widget.is_fill_width()`,
+                instead of `is_fill_height`.
+        """
+
+        if horizontal:
+            return widget.is_fill_width()
+
+        return widget.is_fill_height()
+
+    def _compute_alignment_offsets(
+        self,
+        child: Widget,
+        available_width: int,
+        available_height: int,
+        horizontal: bool,
+    ) -> tuple[int, int, int]:
+        """Computes x & y offsets to align by, based on alignment policies and flow direction.
+
+        Args:
+            child: The widget we are aligning. Used to get `computed_width` and `computed_height`
+                as needed.
+            available_width: The width the widget can be aligned within.
+            available_height: The height the widget can be aligned within.
+            horizontal: Whether flow direction is horizontal (True) or vertical (False).
+
+        Returns:
+            The x offset, y offset and the modulo of the operation that got either x offset or y offset,
+                based on `horizontal`.
+        """
+
+        if horizontal:
+            y, _ = _align(self.alignment[1], available_height - child.computed_height)
+            x, extra = _align(self.alignment[0], available_width)
+
+        else:
+            x, _ = _align(self.alignment[0], available_width - child.computed_width)
+            y, extra = _align(self.alignment[1], available_height)
+
+        return x, y, extra
+
+    def _compute_gap(self, available: int, count: int) -> tuple[int, int]:
+        """Computes a gap based on available // count."""
+
+        per_widget, extra = divmod(available, count)
+
+        return _compute(self.gap, per_widget), extra
 
     def _as_layout_state(self) -> int:
         """Generates an integer that represents the current layout."""
@@ -169,14 +255,91 @@ class Container(Widget):
             child.move_by(x, y)
 
     def arrange(self, x: int, y: int) -> None:
-        """Arranges this widget's contents based on an algorithm.
+        """Arranges the widget's children according to its flow.
 
         Args:
-            x: The x position this widget starts at.
-            y: The y position this widget starts at.
+            x: The origin's horizontal coordinate.
+            y: The origin's vertical coordinate.
         """
 
-        raise NotImplementedError
+        children = self.visible_children
+
+        width = self._framed_width - self.has_scrollbar(1)
+        height = self._framed_height - self.has_scrollbar(0)
+        count = len(children)
+
+        horizontal = self.direction == Direction.HORIZONTAL
+        available = width if horizontal else height
+
+        fills = 0
+
+        for child in children:
+            if self._is_fill(child, horizontal):
+                fills += 1
+                continue
+
+            child.compute_dimensions(width, height)
+
+            if horizontal:
+                available -= child.computed_width
+            else:
+                available -= child.computed_height
+
+        if fills != 0:
+            gap = self.fallback_gap
+            gap_extra = 0
+
+        else:
+            # To avoid div by 0
+            fills = 1
+
+            gap, gap_extra = self._compute_gap(available, count)
+
+            if gap * (count - 1) >= available:
+                gap = self.fallback_gap
+                gap_extra = 0
+
+        available -= gap * (count - 1) + gap_extra
+
+        fill_size, fill_extra = divmod(available, fills)
+
+        for child in children:
+            if self._is_fill(child, horizontal):
+                this_fill = fill_size + (1 if fill_extra > 0 else 0)
+                fill_extra -= 1
+
+                if horizontal:
+                    child.compute_dimensions(this_fill, height)
+
+                else:
+                    child.compute_dimensions(width, this_fill)
+
+            this_gap = gap + (1 if gap_extra > 0 else 0)
+            gap_extra -= 1
+
+            if horizontal:
+                align_x, align_y, align_extra = self._compute_alignment_offsets(
+                    child, this_gap, height, horizontal
+                )
+
+            else:
+                align_x, align_y, align_extra = self._compute_alignment_offsets(
+                    child, width, this_gap, horizontal
+                )
+
+            child.move_to(x + align_x, y + align_y)
+
+            if horizontal:
+                x += child.computed_width + this_gap + align_extra
+                child.move_by(align_extra, 0)
+            else:
+                y += child.computed_height + this_gap + align_extra
+                child.move_by(0, align_extra)
+
+        if horizontal:
+            self._outer_dimensions = (x, self.computed_height - this_gap - align_extra)
+        else:
+            self._outer_dimensions = (self.computed_width - this_gap - align_extra, y)
 
     def get_content(self) -> list[str]:
         """Calls our `arrange` method and returns a single empty line."""
@@ -274,80 +437,7 @@ class Tower(Container):
     ```
     """
 
-    # TODO: As this and Row's are practically identical, we should probably abstract it.
-    def arrange(self, x: int, y: int) -> None:
-        """Arranges children into a tower.
-
-        Args:
-            x: The x position this widget starts at.
-            y: The y position this widget starts at.
-        """
-
-        children = self.visible_children
-
-        width = self._framed_width - self.has_scrollbar(1)
-        height = self._framed_height - self.has_scrollbar(0)
-
-        x_alignment, y_alignment = self.alignment[0].value, self.alignment[1].value
-
-        # Compute non-fill heights, count fill heights
-        fills = 0
-        non_fills = 0
-        occupied = 0
-
-        for child in children:
-            if child.is_fill_height():
-                fills += 1
-                continue
-
-            child.compute_dimensions(width, height)
-            occupied += child.computed_height
-            non_fills += 1
-
-        # Compute gaps
-        remaining = height - occupied
-
-        if self.gap is None and fills != 0:
-            gap_extra = 0
-            gap = self.fallback_gap
-        else:
-            available, gap_extra = divmod(remaining, max(non_fills, 1))
-            gap = _compute(self.gap, available)
-
-        fill_height, extra = divmod(
-            remaining - gap * (fills + non_fills - 1), max(fills, 1)
-        )
-
-        # Arrange children
-        for child in children:
-            if child.is_fill_height():
-                child.compute_dimensions(width, fill_height + (1 if extra > 0 else 0))
-                extra -= 1
-
-            align_x = 0
-            align_width = width - child.computed_width
-
-            if x_alignment == "center":
-                align_x = align_width // 2
-
-            elif x_alignment == "end":
-                align_x = align_width
-
-            align_y = 0
-            align_extra = 0
-
-            if y_alignment == "center":
-                align_y, align_extra = divmod(gap + gap_extra, 2)
-
-            elif y_alignment == "end":
-                align_y = gap + gap_extra
-
-            child.move_to(x + align_x, y + align_y)
-            y += child.computed_height + gap + (1 if gap_extra > 0 else 0) + align_extra
-
-            gap_extra -= 1
-
-        self._outer_dimensions = (self.computed_width, y)
+    direction = Direction.VERTICAL
 
 
 class Row(Container):
@@ -369,76 +459,4 @@ class Row(Container):
     ```
     """
 
-    def arrange(self, x: int, y: int) -> None:
-        """Arranges children into a row.
-
-        Args:
-            x: The x position this widget starts at.
-            y: The y position this widget starts at.
-        """
-
-        children = self.visible_children
-
-        width = self._framed_width - self.has_scrollbar(1)
-        height = self._framed_height - self.has_scrollbar(0)
-
-        x_alignment, y_alignment = self.alignment[0].value, self.alignment[1].value
-
-        # Compute non-fill widths, count fill widths
-        fills = 0
-        non_fills = 0
-        occupied = 0
-
-        for child in children:
-            if child.is_fill_width():
-                fills += 1
-                continue
-
-            child.compute_dimensions(width, height)
-            occupied += child.computed_width
-            non_fills += 1
-
-        # Compute gaps
-        remaining = width - occupied
-
-        if self.gap is None and fills != 0:
-            gap_extra = 0
-            gap = self.fallback_gap
-        else:
-            available, gap_extra = divmod(remaining, max(non_fills, 1))
-            gap = _compute(self.gap, available)
-
-        fill_width, extra = divmod(
-            remaining - gap * (fills + non_fills - 1), max(fills, 1)
-        )
-
-        # Arrange children
-        for child in children:
-            if child.is_fill_width():
-                child.compute_dimensions(fill_width + (1 if extra > 0 else 0), height)
-                extra -= 1
-
-            align_y = 0
-            align_height = height - child.computed_height
-
-            if y_alignment == "center":
-                align_y = align_height // 2
-
-            elif y_alignment == "end":
-                align_y = align_height
-
-            align_x = 0
-            align_extra = 0
-
-            if x_alignment == "center":
-                align_x, align_extra = divmod(gap + gap_extra, 2)
-
-            elif x_alignment == "end":
-                align_x = gap + gap_extra
-
-            child.move_to(x + align_x, y + align_y)
-            x += child.computed_width + gap + (1 if gap_extra > 0 else 0) + align_extra
-
-            gap_extra -= 1
-
-        self._outer_dimensions = (x - gap, self.computed_height)
+    direction = Direction.HORIZONTAL

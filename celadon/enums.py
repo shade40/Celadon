@@ -29,6 +29,14 @@ class Overflow(Enum):
     """Display scrollbar only when there is overflowing content."""
 
 
+class Direction(Enum):
+    HORIZONTAL = "horizontal"
+    """Flow content horizontally."""
+
+    VERTICAL = "vertical"
+    """Flow content vertically."""
+
+
 class MouseAction(Enum):
     LEFT_CLICK = "left_click"
     RIGHT_CLICK = "right_click"
