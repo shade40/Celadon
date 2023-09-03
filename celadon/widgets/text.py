@@ -1,5 +1,7 @@
 from typing import Any
 
+from zenith.markup import RE_MARKUP
+
 from .widget import Widget
 
 
@@ -15,6 +17,7 @@ class Text(Widget):
         super().__init__(**widget_args)
 
         self.content = content
+        self.width = len(RE_MARKUP.sub(self.content, "")) + 4
 
     def select_offset(self, offset: int) -> bool:
         return False
