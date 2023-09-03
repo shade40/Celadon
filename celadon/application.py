@@ -672,7 +672,6 @@ class Application(Page):
         for selector, rule in self._rules.items():
             page.rule(selector, rule)
 
-
         page.parent = self
 
         self._pages.append(page)
@@ -743,7 +742,6 @@ class Application(Page):
         self._is_running = True
 
         self._raised: Exception | None = None
-
 
         if self._page is None:
             self.route("index")
