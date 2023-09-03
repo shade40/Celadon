@@ -466,7 +466,8 @@ class Widget:  # pylint: disable=too-many-instance-attributes
             style = deepcopy(self.styles["frame"])
 
             if outer:
-                style.style = self.parent.styles["frame"].fill + " " + style.style
+                if hasattr(self.parent, "styles"):
+                    style.style = self.parent.styles["frame"].fill + " " + style.style
 
             return self._parse_markup(style(item))
 

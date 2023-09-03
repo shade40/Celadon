@@ -192,16 +192,21 @@ class Selector:
 
         if " > " in query:
             left, right = query.split(" > ")
-            return Selector.parse(right, direct_parent=Selector.parse(left))
+            return Selector.parse(
+                right, direct_parent=Selector.parse(left), forced_score=forced_score
+            )
 
         if " *> " in query:
             left, right = query.split(" *> ")
-            return Selector.parse(right, indirect_parent=Selector.parse(left))
+            return Selector.parse(
+                right, indirect_parent=Selector.parse(left), forced_score=forced_score
+            )
 
         if query == "*":
             return cls(
                 query,
                 (Widget,),
+                forced_score=forced_score,
                 direct_parent=direct_parent,
                 indirect_parent=indirect_parent,
             )
@@ -298,8 +303,7 @@ class Selector:
             (eid_matches - (self.eid is None)) * 1000
             + (group_matches - (len(self.groups) == 0)) * 500
             + ((state_matches - (self.states is None)) * 250)
-            - (self.elements == (Widget,))
-            + type_matches
+            + (1 - (self.elements == (Widget,))) * type_matches * 100
         ) * type_matches
 
         return score
@@ -351,7 +355,7 @@ class Page:
     def _init_widget(self, widget: Widget) -> None:
         if type(widget) not in self._encountered_types:
             for child in widget.drawables():
-                self.load_rules(child.rules)
+                self.load_rules(child.rules, score=1)
                 self._encountered_types.append(type(child))
 
         widget.parent = self
@@ -643,13 +647,13 @@ class Application(Page):
                     yield child
 
     def rule(
-        self, query: str | Selector, score: bool = False, **rules: str
+        self, query: str | Selector, score: int | None = None, **rules: str
     ) -> Selector:
         if isinstance(query, Selector):
             selector = query
 
         else:
-            selector = Selector.parse(query, forced_score=1 if score else None)
+            selector = Selector.parse(query, forced_score=score)
 
         for page in self._pages:
             page.rule(selector, score=score, **rules)
@@ -668,8 +672,6 @@ class Application(Page):
         for selector, rule in self._rules.items():
             page.rule(selector, rule)
 
-        for widget in page:
-            self._set_default_rules(widget)
 
         page.parent = self
 
@@ -742,8 +744,6 @@ class Application(Page):
 
         self._raised: Exception | None = None
 
-        for widget in self._children:
-            self._set_default_rules(widget)
 
         if self._page is None:
             self.route("index")
