@@ -32,7 +32,26 @@ class Button(Widget):
         alignment: [center, center]
 
         height: 1
-        frame: light
+        frame: heavy
+
+        /idle:
+            fill_style: '@ui.panel1'
+            frame_style: ui.primary+1
+
+        /hover:
+            fill_style: '@ui.panel1+1'
+            frame_style: ui.primary+1
+
+        /selected:
+            fill_style: '@ui.panel1+2'
+            frame_style: ui.primary+1
+
+        /active:
+            fill_style: '@ui.primary+3'
+            frame_style: 'ui.panel1-2'
+            frame: frameless
+
+        # Variants
 
         .big:
             height: 3
@@ -69,22 +88,6 @@ class Button(Widget):
             /active:
                 frame_style: ui.panel1-2
                 fill_style: '@ui.error+2'
-
-        /idle:
-            fill_style: '@ui.panel1'
-            frame_style: ui.primary+1
-
-        /hover:
-            fill_style: '@ui.panel1+1'
-            frame_style: ui.primary+1
-
-        /selected:
-            fill_style: '@ui.panel1+2'
-            frame_style: ui.primary+1
-
-        /active:
-            fill_style: '@ui.primary+3'
-            frame_style: 'ui.panel1-2'
     """
 
     def __init__(
