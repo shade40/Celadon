@@ -238,6 +238,10 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
     rules = ""
 
+    prefer_content_over_frame = True
+    """If set, the widget will only show the top frame when its content's first line is
+    visible."""
+
     def __init__(
         self,
         eid: str | None = None,
@@ -487,7 +491,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes
                 *_style(right, outer=v_outer),
             )
 
-        if count + 1 <= self.computed_height:
+        if not self.prefer_content_over_frame or count + 1 <= self.computed_height:
             if left_top + top + right_top != "":
                 lines.insert(
                     0,
@@ -498,15 +502,14 @@ class Widget:  # pylint: disable=too-many-instance-attributes
                     ),
                 )
 
-        if count + 2 <= self.computed_height:
-            if left_bottom + bottom + right_bottom != "":
-                lines.append(
-                    (
-                        *_style(left_bottom, outer=c_outer),
-                        *_style(bottom * width, outer=h_outer),
-                        *_style(right_bottom, outer=c_outer),
-                    )
+        if left_bottom + bottom + right_bottom != "":
+            lines.append(
+                (
+                    *_style(left_bottom, outer=c_outer),
+                    *_style(bottom * width, outer=h_outer),
+                    *_style(right_bottom, outer=c_outer),
                 )
+            )
 
     def _horizontal_align(self, line: tuple[Span, ...], width: int) -> tuple[Span, ...]:
         """Aligns a tuple of spans horizontally, using `self.alignment[0]`."""
