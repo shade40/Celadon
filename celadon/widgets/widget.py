@@ -478,6 +478,8 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         v_outer = self.frame.outer_vertical
         c_outer = self.frame.outer_corner
 
+        count = len(lines)
+
         for i, line in enumerate(lines):
             lines[i] = (
                 *_style(left, outer=v_outer),
@@ -485,24 +487,26 @@ class Widget:  # pylint: disable=too-many-instance-attributes
                 *_style(right, outer=v_outer),
             )
 
-        if left_top + top + right_top != "":
-            lines.insert(
-                0,
-                (
-                    *_style(left_top, outer=c_outer),
-                    *_style(top * width, outer=h_outer),
-                    *_style(right_top, outer=c_outer),
-                ),
-            )
-
-        if left_bottom + bottom + right_bottom != "":
-            lines.append(
-                (
-                    *_style(left_bottom, outer=c_outer),
-                    *_style(bottom * width, outer=h_outer),
-                    *_style(right_bottom, outer=c_outer),
+        if count + 1 <= self.computed_height:
+            if left_top + top + right_top != "":
+                lines.insert(
+                    0,
+                    (
+                        *_style(left_top, outer=c_outer),
+                        *_style(top * width, outer=h_outer),
+                        *_style(right_top, outer=c_outer),
+                    ),
                 )
-            )
+
+        if count + 2 <= self.computed_height:
+            if left_bottom + bottom + right_bottom != "":
+                lines.append(
+                    (
+                        *_style(left_bottom, outer=c_outer),
+                        *_style(bottom * width, outer=h_outer),
+                        *_style(right_bottom, outer=c_outer),
+                    )
+                )
 
     def _horizontal_align(self, line: tuple[Span, ...], width: int) -> tuple[Span, ...]:
         """Aligns a tuple of spans horizontally, using `self.alignment[0]`."""
@@ -892,11 +896,11 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         )
 
         # Clip into vertical size
-        if self._virtual_height > height:
-            lines = lines[self.scroll[1] : self.scroll[1] + height]
+        if self._virtual_height > self.computed_height:
+            lines = lines[self.scroll[1] : self.scroll[1] + self.computed_height]
 
             if len(lines) < height:
-                lines.extend([(Span(""),)] * (height - len(lines)))
+                lines.extend([(Span(""),)] * (self.computed_height - len(lines)))
 
         # Handle alignment
         self._vertical_align(lines, height)

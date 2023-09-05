@@ -28,14 +28,14 @@ class Button(Widget):
 
     rules = """
     Button:
-        content_style: bold
+        content_style: dim
         alignment: [center, center]
 
-        height: 3
-        frame: verticalouter
+        height: 1
+        frame: light
 
-        .compact:
-            frame: horizontalouter
+        .big:
+            height: 3
 
         .success:
             /idle|hover:
