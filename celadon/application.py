@@ -336,8 +336,7 @@ class Page:
         self._builder = builder
         self._rules_changed = True
 
-        if rules is not None:
-            self.load_rules(rules)
+        self._init_rules = rules
 
         self.extend(children)
 
@@ -402,7 +401,19 @@ class Page:
         self.clear()
         self.extend(widgets)
 
-    def load_rules(self, rules: str, score: int | None = None) -> None:
+    def load_rules(
+        self,
+        rules: str | None = None,
+        score: int | None = None,
+        load_init_rules: bool = False,
+    ) -> None:
+
+        if rules is None and not load_init_rules:
+            raise TypeError("must provide rules to load.")
+
+        if load_init_rules:
+            rules = self._init_rules
+
         for selector, rule in _load_rules(rules).items():
             self.rule(selector, **rule, score=score)
 
@@ -675,6 +686,7 @@ class Application(Page):
         page.parent = self
 
         self._pages.append(page)
+        page.load_rules(load_init_rules=True)
         self.on_page_added()
 
     # Maybe something like `pin` makes more sense? See above.
