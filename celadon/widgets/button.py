@@ -25,15 +25,8 @@ SEMANTIC_STYLES = """
 class Button(Widget):
     """A simple, pressable/clickable button."""
 
-    on_submit: Event
+    on_click: Event
     """Called when the Button is clicked/pressed using a primary input (mouse1, return).
-
-    Args:
-        self: The instance that sent the event.
-    """
-
-    on_alt_submit: Event
-    """Called when the Button is clicked/pressed using a primary input (mouse2, opt+ret?).
 
     Args:
         self: The instance that sent the event.
@@ -79,35 +72,45 @@ class Button(Widget):
         self,
         content: str,
         on_submit: list[EventCallback] | None = None,
-        on_alt_submit: list[EventCallback] | None = None,
+        # TODO: This probably shouldn't be here in the future.
         route: str | None = None,
         **widget_args: Any,
-    ):
+    ) -> None:
         super().__init__(**widget_args)
+
+        self._has_timeout = False
 
         self.content = content
         self.width = len(RE_MARKUP.sub(self.content, "")) + 8
 
-        self.on_submit = Event("Button submitted")
+        self.on_submit = Event("button submit")
         for callback in on_submit or []:
             self.on_submit += callback
 
         if route is not None:
             self.on_submit += lambda *_: self.app.route(route)
 
-        self.on_alt_submit = Event("Button alternate submitted")
-        for callback in on_alt_submit or []:
-            self.on_alt_submit += callback
+        self.bind("return", self._visual_submit)
 
-    def on_click(self, action: MouseAction, __: tuple[int, int]) -> None:
-        def _execute(callback: Callable[[Button], None] | Callable[[], None]) -> None:
-            callback(self)
-
-        if "right" in action.value and self.on_alt_submit:
-            _execute(self.on_alt_submit)
+    def _visual_submit(self) -> None:
+        if self._has_timeout:
             return
 
-        _execute(self.on_submit)
+        self.state_machine.apply_action("CLICKED")
+
+        self._has_timeout = True
+        self.app.timeout(
+            150,
+            lambda: (
+                self.state_machine.apply_action("RELEASED_KEYBOARD"),
+                setattr(self, "_has_timeout", False),
+            ),
+        )
+
+        return self.on_submit(self)
+
+    def on_click(self, action: MouseAction, __: tuple[int, int]) -> None:
+        self.on_submit(self)
 
     def get_content(self) -> list[str]:
         return [self.content]

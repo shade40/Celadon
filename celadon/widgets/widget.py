@@ -5,6 +5,7 @@ import re
 
 from copy import deepcopy
 from dataclasses import dataclass
+from functools import cached_property
 from typing import (
     Any,
     Callable,
@@ -174,6 +175,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes
             },
             "active": {
                 "RELEASED": "hover",
+                "RELEASED_KEYBOARD": "selected",
             },
             "/": {
                 "SUBSTATE_ENTER_SCROLLING_X": "/scrolling_x",
@@ -292,6 +294,20 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         self.setup()
 
         widget_types[type(self).__name__] = type(self)
+
+    @cached_property
+    def app(self) -> "Application" | None:
+        from ..application import Application
+
+        parent = self.parent
+
+        while hasattr(parent, "parent"):
+            parent = parent.parent
+
+        if not isinstance(parent, Application):
+            raise ValueError(f"no application assigned to widget {self!r}")
+
+        return parent
 
     @property
     def state(self) -> str:
@@ -673,6 +689,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
             if self.selected_index is not None:
                 self.state_machine.apply_action("SELECTED")
+
             return
 
         if "hover" in value:  # and any("click" in attr for attr in dir(self)):

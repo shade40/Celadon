@@ -165,7 +165,7 @@ class Container(Widget):
         if self._selected_index is None:
             return None
 
-        return self.children[self._selected_index]
+        return self.selectables[self._selected_index][0]
 
     @property
     def selectables(self) -> list[tuple[Widget, int]]:
@@ -381,15 +381,15 @@ class Container(Widget):
         return [""]
 
     def handle_keyboard(self, key: str) -> bool:
-        if any(child.handle_keyboard(key) for child in self.children):
+        if self.selected is not None and self.selected.handle_keyboard(key):
             return True
 
         idx = self.selected_index or 0
 
-        if key in ("left", "up"):
+        if key in ("left", "up", "shift-tab"):
             self.select(idx - 1)
 
-        if key in ("right", "down"):
+        if key in ("right", "down", "tab"):
             self.select(idx + 1)
 
         return super().handle_keyboard(key)

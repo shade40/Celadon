@@ -10,7 +10,7 @@ from typing import Any, Callable
 from pathlib import Path
 from yaml import safe_load
 
-from slate import Terminal, getch, Event, terminal as slt_terminal
+from slate import Terminal, getch, Event, terminal as slt_terminal, EventCallback
 from slate.core import BEGIN_SYNCHRONIZED_UPDATE, END_SYNCHRONIZED_UPDATE
 
 from .widgets import Widget, widget_types
@@ -529,6 +529,7 @@ class Application(Page):
 
         self._is_running = False
         self._is_paused = False
+        self._timeouts: dict[EventCallback, int] = []
 
     def __enter__(self) -> None:
         Widget.app = self
@@ -597,6 +598,22 @@ class Application(Page):
                 if elapsed < frametime:
                     sleep(frametime)
 
+                eliminated = []
+
+                for i, (callback, timeout) in enumerate(self._timeouts):
+                    timeout -= elapsed * 1000
+
+                    if timeout <= 0:
+                        callback()
+
+                        eliminated.append(i)
+                        continue
+
+                    self._timeouts[i] = (callback, timeout)
+
+                for i in eliminated:
+                    self._timeouts.pop(i)
+
         except Exception as exc:
             self.stop()
             self._raised = exc
@@ -626,6 +643,9 @@ class Application(Page):
     @property
     def terminal(self) -> Terminal:
         return self._terminal
+
+    def timeout(self, delay_ms: int, callback: EventCallback) -> None:
+        self._timeouts.append((callback, delay_ms))
 
     def build_from(self, path: str | Path) -> None:
         if not isinstance(path, Path):
@@ -782,7 +802,7 @@ class Application(Page):
                 if self._is_paused:
                     continue
 
-                if inp == chr(3):
+                if inp == "ctrl-c":
                     self.stop()
                     break
 
