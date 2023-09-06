@@ -744,7 +744,8 @@ class Application(Page):
 
                     self.apply_rules()
 
-                    self._mouse_target = widget
+                    if action is not MouseAction.HOVER:
+                        self._mouse_target = widget
 
                     # After release, send an extra hover event if the widget contains
                     # the mouse.
