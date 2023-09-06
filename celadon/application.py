@@ -618,24 +618,6 @@ class Application(Page):
             self.stop()
             self._raised = exc
 
-    def _set_default_rules(self, widget: Widget) -> None:
-        for child in _flatten(widget):
-            for state in child.state_machine.states:
-                self.rule(
-                    child.as_query() + f"/{state}",
-                    **{
-                        f"{key}_style": value
-                        for key, value in child.style_map[state].items()
-                    },
-                    score=1,
-                )
-
-            self.rule(
-                child.as_query(),
-                **child.as_config(),
-                score=1,
-            )
-
     @property
     def page(self) -> Page:
         return self._page

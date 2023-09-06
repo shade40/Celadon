@@ -56,16 +56,6 @@ AlignmentSetting = Literal["start", "center", "end"]
 OverflowSetting = Literal["hide", "auto", "scroll"]
 
 
-class Config(TypedDict):
-    width: int | float | None
-    height: int | float | None
-
-    frame: str
-
-    alignment: tuple[AlignmentSetting, AlignmentSetting]
-    overflow: tuple[OverflowSetting, OverflowSetting]
-
-
 def _compute(spec: int | float | None, hint: int) -> int:
     if isinstance(spec, float):
         return int(spec * hint)
