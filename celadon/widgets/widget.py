@@ -284,6 +284,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
         self._clip_start: int | None = None
         self._clip_end: int | None = None
+        self._bindings: dict[str, Event] = {}
 
         self.computed_width = 1
         self.computed_height = 1
@@ -812,8 +813,23 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
         self.move_to(self.position[0] + x, self.position[1] + y)
 
+    def bind(self, key: str, callback: Callable[[], Any]) -> Event:
+        if key not in self._bindings:
+            self._bindings[key] = Event(f"on key {key}")
+
+        event = self._bindings[key]
+        event += callback
+
+        return event
+
     def handle_keyboard(self, key: str) -> bool:
-        ...
+        result = False
+
+        if key in self._bindings:
+            if self._bindings[key](self):
+                result |= True
+
+        return result
 
     def handle_mouse(self, action: MouseAction, position: tuple[int, int]) -> bool:
         self._apply_mouse_state(action)

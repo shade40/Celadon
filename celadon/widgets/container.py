@@ -93,8 +93,8 @@ class Container(Widget):
 
         Args:
             widget: The widget to test.
-            horizontal: If set, flow direction is horizontal and we return `widget.is_fill_width()`,
-                instead of `is_fill_height`.
+            horizontal: If set, flow direction is horizontal and we return
+                `widget.is_fill_width()`, instead of `is_fill_height`.
         """
 
         if horizontal:
@@ -109,18 +109,18 @@ class Container(Widget):
         available_height: int,
         horizontal: bool,
     ) -> tuple[int, int, int]:
-        """Computes x & y offsets to align by, based on alignment policies and flow direction.
+        """Computes x & y offsets to align by, based on alignment and flow direction.
 
         Args:
-            child: The widget we are aligning. Used to get `computed_width` and `computed_height`
-                as needed.
+            child: The widget we are aligning. Used to get `computed_width` and
+                `computed_height` as needed.
             available_width: The width the widget can be aligned within.
             available_height: The height the widget can be aligned within.
             horizontal: Whether flow direction is horizontal (True) or vertical (False).
 
         Returns:
-            The x offset, y offset and the modulo of the operation that got either x offset or y offset,
-                based on `horizontal`.
+            The x offset, y offset and the modulo of the operation that got either x
+                offset or y offset, based on `horizontal`.
         """
 
         if horizontal:
@@ -381,27 +381,18 @@ class Container(Widget):
         return [""]
 
     def handle_keyboard(self, key: str) -> bool:
-        # TODO: This is temporary
-        ind = self._selected_index or 0
-        if key == "up":
-            # self.scroll = self.scroll[0], self.scroll[1] - 1
-            self.select(ind - 1)
+        if any(child.handle_keyboard(key) for child in self.children):
             return True
 
-        if key == "down":
-            # self.scroll = self.scroll[0], self.scroll[1] + 1
-            self.select(ind + 1)
-            return True
+        idx = self.selected_index or 0
 
-        if key == "left":
-            # self.scroll = self.scroll[0] - 1, self.scroll[1]
-            self.select(ind - 1)
-            return True
+        if key in ("left", "up"):
+            self.select(idx - 1)
 
-        if key == "right":
-            self.select(ind + 1)
-            # self.scroll = self.scroll[0] + 1, self.scroll[1]
-            return True
+        if key in ("right", "down"):
+            self.select(idx + 1)
+
+        return super().handle_keyboard(key)
 
     def handle_mouse(self, action: MouseAction, position: tuple[int, int]) -> bool:
         if self._mouse_target is not None:
