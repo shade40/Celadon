@@ -8,6 +8,19 @@ from zenith.markup import RE_MARKUP
 from ..enums import MouseAction, Alignment
 from .widget import Widget
 
+SEMANTIC_STYLES = """
+        .{base}:
+            /idle|hover:
+                frame_style: ui.{base}
+
+            /selected:
+                frame_style: ui.{base}
+
+            /active:
+                frame_style: ui.panel1-2
+                fill_style: '@ui.{base}+3'
+"""
+
 
 class Button(Widget):
     """A simple, pressable/clickable button."""
@@ -26,7 +39,7 @@ class Button(Widget):
         self: The instance that sent the event.
     """
 
-    rules = """
+    rules = f"""
     Button:
         content_style: dim
         alignment: [center, center]
@@ -56,38 +69,9 @@ class Button(Widget):
         .big:
             height: 3
 
-        .success:
-            /idle|hover:
-                frame_style: ui.success
-
-            /selected:
-                frame_style: ui.success
-
-            /active:
-                frame_style: ui.panel1-2
-                fill_style: '@ui.success+3'
-
-        .warning:
-            /idle|hover:
-                frame_style: ui.warning
-
-            /selected:
-                frame_style: ui.warning
-
-            /active:
-                frame_style: ui.panel1-2
-                fill_style: '@ui.warning+3'
-
-        .error:
-            /idle|hover:
-                frame_style: ui.error
-
-            /selected:
-                frame_style: ui.error
-
-            /active:
-                frame_style: ui.panel1-2
-                fill_style: '@ui.error+2'
+    {SEMANTIC_STYLES.format(base="success")}
+    {SEMANTIC_STYLES.format(base="warning")}
+    {SEMANTIC_STYLES.format(base="error")}
     """
 
     def __init__(
