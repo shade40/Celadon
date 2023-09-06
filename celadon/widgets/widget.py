@@ -326,6 +326,8 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
     @property
     def selected_index(self) -> int | None:
+        """Returns the currently selected child's index."""
+
         return self._selected_index
 
     @property
@@ -339,10 +341,17 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
     @property
     def selectables(self) -> list[tuple[Widget, int]]:
+        """Generates a list of tuples for selecting by the parent.
+
+        See Container's selectables for more info.
+        """
+
         return [(self, 0)]
 
     @property
     def selectable_count(self) -> int:
+        """Returns the amount of selectable objects this widget has within."""
+
         return len(self.selectables)
 
     @property
