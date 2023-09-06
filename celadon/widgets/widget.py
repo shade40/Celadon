@@ -689,23 +689,20 @@ class Widget:  # pylint: disable=too-many-instance-attributes
     def setup(self) -> None:
         """Use this to do simple setup actions without overriding __init__."""
 
-    def as_config(self) -> Config:
-        return Config(
-            width=self.width,
-            height=self.height,
-            frame=self.frame.name,
-            alignment_x=self.alignment[0],
-            alignment_y=self.alignment[1],
-            overflow_x=self.overflow[0],
-            overflow_y=self.overflow[1],
-        )
-
     def update(
         self,
         attrs: dict[str, DimensionSpec | AlignmentSetting | OverflowSetting],
         style_map: dict[str, str],
     ) -> None:
+        keys = dir(self)
+
         for key, value in attrs.items():
+            if key.startswith("_"):
+                raise ValueError(f"cannot set non-public attr {key!r}")
+
+            if key not in keys:
+                raise ValueError(f"cannot set non-existant attr {key!r}")
+
             setattr(self, key, value)
 
         self.style_map = self.style_map | {self.state: style_map}
