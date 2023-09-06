@@ -351,6 +351,12 @@ class Page:
     def __iter__(self) -> Iterable[Widget]:
         return iter(self._children)
 
+    def __len__(self) -> int:
+        return len(self._children)
+
+    def __getitem__(self, item: int | slice) -> Widget | list[Widget]:
+        return self._children[item]
+
     def _init_widget(self, widget: Widget) -> None:
         if type(widget) not in self._encountered_types:
             for child in widget.drawables():
@@ -617,6 +623,10 @@ class Application(Page):
     def page(self) -> Page:
         return self._page
 
+    @property
+    def terminal(self) -> Terminal:
+        return self._terminal
+
     def build_from(self, path: str | Path) -> None:
         if not isinstance(path, Path):
             path = Path(path)
@@ -672,7 +682,6 @@ class Application(Page):
         super().rule(selector, score=score, **rules)
         return selector
 
-    # Make sure to add our rules to the page's, and set our terminal
     def append(self, page: Page) -> None:
         if page.name is None or page.route_name is None:
             raise ValueError(
@@ -688,6 +697,9 @@ class Application(Page):
         self._pages.append(page)
         page.load_rules(load_init_rules=True)
         self.on_page_added()
+
+        if self._mouse_target is None and len(page) > 0:
+            self._mouse_target = page[0]
 
     # Maybe something like `pin` makes more sense? See above.
     def add_widget(self, widget: Widget) -> None:
