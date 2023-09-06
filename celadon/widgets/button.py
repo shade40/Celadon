@@ -56,7 +56,8 @@ class Button(Widget):
             frame_style: ui.primary+1
 
         /selected:
-            fill_style: '@ui.panel1+2'
+            content_style: dim bold
+            fill_style: '@ui.panel1+1'
             frame_style: ui.primary+1
 
         /active:

@@ -325,13 +325,25 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         return output
 
     @property
+    def selected_index(self) -> int | None:
+        return self._selected_index
+
+    @property
     def selected(self) -> Widget | None:
         """Returns the currently selected widget."""
 
-        if self._selected_index is None:
+        if self.selected_index is None:
             return None
 
         return self
+
+    @property
+    def selectables(self) -> list[tuple[Widget, int]]:
+        return [(self, 0)]
+
+    @property
+    def selectable_count(self) -> int:
+        return len(self.selectables)
 
     @property
     def frame(self) -> Frame:
@@ -648,6 +660,9 @@ class Widget:  # pylint: disable=too-many-instance-attributes
             self.state_machine.apply_action("RELEASED")
             self.state_machine.apply_action("SUBSTATE_EXIT_SCROLLING_X")
             self.state_machine.apply_action("SUBSTATE_EXIT_SCROLLING_Y")
+
+            if self.selected_index is not None:
+                self.state_machine.apply_action("SELECTED")
             return
 
         if "hover" in value:  # and any("click" in attr for attr in dir(self)):
@@ -744,27 +759,21 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         self.add_group(target)
         return True
 
-    def select_offset(self, offset: int) -> bool:
-        """Selects the widget at the given offset to the current selection."""
+    def select(self, index: int | None = None) -> None:
+        """Selects a part of this Widget.
 
-        if offset == 0:
-            return False
+        Args:
+            index: The index to select.
 
-        if self._selected_index is None:
-            self._selected_index = 0
-            self.state_machine.apply_action("SELECTED")
-            return True
+        Raises:
+            TypeError: This widget has no selectables, i.e. widget.is_selectable == False.
+        """
 
-        self._selected_index = None
-        self.state_machine.apply_action("UNSELECTED")
-        return False
+        if index is not None:
+            index = min(max(0, index), self.selectable_count - 1)
 
-    def select_widget(self, widget: Widget) -> bool:
-        if widget is not self:
-            return False
-
-        self.select_offset(1)
-        return True
+        self._selected_index = index
+        self.state_machine.apply_action(("UN" if index is None else "") + "SELECTED")
 
     def hide(self) -> None:
         self.add_group("hidden")

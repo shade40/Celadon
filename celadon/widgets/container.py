@@ -75,6 +75,10 @@ class Container(Widget):
 
         self._direction = new
 
+    @property
+    def selectable_count(self) -> int:
+        return sum(child.selectable_count for child in self.children)
+
     def __iadd__(self, other: object) -> Container:
         if not isinstance(other, Widget):
             raise TypeError(
@@ -163,44 +167,65 @@ class Container(Widget):
 
         return self.children[self._selected_index]
 
-    def select_offset(self, offset: int) -> bool:
-        """Selects the widget at the given offset to the current selection."""
+    @property
+    def selectables(self) -> list[tuple[Widget, int]]:
+        """Gets all selectable widgets and their inner indices.
 
-        if offset == 0:
-            return False
+        This is used in order to have a constant reference to all selectable indices
+        within this widget.
 
-        if self._selected_index is None:
-            self._selected_index = 0
+        Returns:
+            A list of tuples containing a widget and an integer each. For each widget
+            that is withing this one, it is added to this list as many times as it has
+            selectables. Each of the integers correspond to a selectable_index within
+            the widget.
 
-        current_selected = self.selected
-        children_length = len(self.children)
-        direction = offset // abs(offset)
+            For example, a Container with a Button, InputField and an inner Container
+            containing 3 selectables might return something like this:
 
-        offset += direction
+            ```
+            [
+                (Button(...), 0),
+                (InputField(...), 0),
+                (Container(...), 0),
+                (Container(...), 1),
+                (Container(...), 2),
+            ]
+            ```
+        """
 
-        while 0 < abs(offset):
-            if self.selected.select_offset(offset):
-                self.state_machine.apply_action("SELECTED")
-                return True
+        _selectables: list[tuple[Widget, int]] = []
 
-            offset += -direction
+        for widget in self.children:
+            if widget.selectable_count == 0:
+                continue
 
-            if not 0 <= self._selected_index + direction < children_length:
-                break
+            for i, (inner, _) in enumerate(widget.selectables):
+                _selectables.append((inner, i))
 
-            self._selected_index += direction
+        return _selectables
 
-        self.state_machine.apply_action("UNSELECTED")
-        return False
+    def select(self, index: int | None = None) -> None:
+        """Selects inner subwidget.
 
-    def select_widget(self, widget: Widget) -> bool:
-        for i, child in enumerate(self.children):
-            if child.select_widget(widget):
-                self.select_offset(i)
-                return True
+        Args:
+            index: The index to select.
 
-        self.state_machine.apply_action("UNSELECTED")
-        return False
+        Raises:
+            IndexError: The index provided was beyond len(self.selectables).
+        """
+
+        # Unselect all sub-elements
+        for other in self.children:
+            if other.selectable_count > 0:
+                other.select(None)
+
+        if index is not None:
+            index = max(0, min(index, len(self.selectables) - 1))
+            widget, inner_index = self.selectables[index]
+            widget.select(inner_index)
+
+        super().select(index)
 
     def append(self, widget: Widget) -> None:
         """Adds a new widget setting its parent attribute to self."""
@@ -357,23 +382,24 @@ class Container(Widget):
 
     def handle_keyboard(self, key: str) -> bool:
         # TODO: This is temporary
+        ind = self._selected_index or 0
         if key == "up":
             # self.scroll = self.scroll[0], self.scroll[1] - 1
-            self.select_offset(-1)
+            self.select(ind - 1)
             return True
 
         if key == "down":
             # self.scroll = self.scroll[0], self.scroll[1] + 1
-            self.select_offset(1)
+            self.select(ind + 1)
             return True
 
         if key == "left":
             # self.scroll = self.scroll[0] - 1, self.scroll[1]
-            self.select_offset(-1)
+            self.select(ind - 1)
             return True
 
         if key == "right":
-            self.select_offset(1)
+            self.select(ind + 1)
             # self.scroll = self.scroll[0] + 1, self.scroll[1]
             return True
 
@@ -389,17 +415,26 @@ class Container(Widget):
             ):
                 self._mouse_target.handle_mouse(MouseAction.LEFT_RELEASE, position)
 
+        selectables_index = 0
+
         for widget in self.visible_children:
             if not widget.contains(position):
+                selectables_index += widget.selectable_count
                 continue
 
             if widget.handle_mouse(action, position):
-                # self.select_widget(widget)
+                selectables_index += widget.selected_index or 0
+
+                if action is not MouseAction.HOVER:
+                    self.select(selectables_index)
+
                 if self._mouse_target not in [widget, None]:
                     self._mouse_target.handle_mouse(MouseAction.LEFT_RELEASE, position)
 
                 self._mouse_target = widget
                 return True
+
+            selectables_index += widget.selectable_count
 
         return super().handle_mouse(action, position)
 
