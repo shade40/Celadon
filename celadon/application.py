@@ -6,7 +6,8 @@ import importlib.util
 from dataclasses import dataclass, field
 from threading import Thread
 from time import perf_counter, sleep
-from typing import Any, Callable
+from typing import Any, Callable, Iterator, Iterable, Type, overload
+from types import TracebackType
 from pathlib import Path
 from yaml import safe_load
 
@@ -55,7 +56,7 @@ def _flatten(widget: Widget) -> list[Widget]:
     return items
 
 
-def _load_rules(source: str) -> dict[Selector, Rulebook]:
+def _load_rules(source: str) -> dict[str, dict[str, Any]]:
     """Loads a set of rule declarations from YAML.
 
     Nested get inserted into the parent's key, so:
@@ -118,7 +119,7 @@ def _load_rules(source: str) -> dict[Selector, Rulebook]:
 
     outer = {}
 
-    def _flatten(data: dict[str, Any], prefix: str = "") -> dict:
+    def _flatten(data: dict[str, Any], prefix: str = "") -> dict[str, Any]:
         inner = {}
 
         for key, value in data.items():
@@ -222,7 +223,6 @@ class Selector:
         Returns:
             The obtained selector.
         """
-
         # TODO: Add support for multi-hierarchy
         if " > " in query:
             left, right = query.split(" > ")
@@ -239,7 +239,7 @@ class Selector:
         if query == "*":
             return cls(
                 query,
-                (Widget,),
+                ("Widget",),
                 forced_score=forced_score,
                 direct_parent=direct_parent,
                 indirect_parent=indirect_parent,
@@ -272,7 +272,7 @@ class Selector:
             forced_score=forced_score,
         )
 
-    def matches(self, widget: Widget) -> int:
+    def matches(self, widget: Widget | "Page") -> int:
         """Determines how well this selector matches the widget.
 
         Returns:
@@ -315,6 +315,9 @@ class Selector:
                 parent = item.parent
 
                 if isinstance(parent, Application):
+                    return 0
+
+                if parent is None:
                     return 0
 
                 score += self.indirect_parent.matches(parent)
@@ -360,7 +363,7 @@ class Selector:
         return score
 
 
-BuilderType = Callable[[Any, ...], "Page"]
+BuilderType = Callable[..., "Page"]
 
 
 class Page:
@@ -371,7 +374,7 @@ class Page:
 
     parent: "Application"
     children: list[Widget]
-    _rules: dict[Selector, dict[str, Any]]
+    _rules: dict[Selector, tuple[dict[str, Any], dict[str, Any]]]
 
     def __init__(
         self,
@@ -383,7 +386,7 @@ class Page:
     ) -> None:
         self.name = name
         self.route_name = route_name
-        self._children = []
+        self._children: list[Widget] = []
         self._rules = {}
         self._encountered_types: list[type] = []
         self._builder = builder
@@ -403,7 +406,7 @@ class Page:
 
         return self
 
-    def __iter__(self) -> Iterable[Widget]:
+    def __iter__(self) -> Iterator[Widget]:
         """Shorthand for `iter(._children)`."""
 
         return iter(self._children)
@@ -413,7 +416,15 @@ class Page:
 
         return len(self._children)
 
-    def __getitem__(self, item: int | slice) -> Widget | list[Widget]:
+    @overload
+    def __getitem__(self, item: int) -> Widget:
+        ...
+
+    @overload
+    def __getitem__(self, item: slice) -> list[Widget]:
+        ...
+
+    def __getitem__(self, item):
         """Shorthand for `._children[item]`."""
 
         return self._children[item]
@@ -444,7 +455,7 @@ class Page:
                     f"Page {self!r} takes no arguments, got {args=!r}, {kwargs!r}."
                 )
 
-                return self
+            return self
 
         return self._builder(*args, **kwargs)
 
@@ -491,7 +502,6 @@ class Page:
         Analogous to `list.pop`.
         """
 
-        self._init_widget(widget)
         widget = self._children.pop(index)
 
         return widget
@@ -538,6 +548,8 @@ class Page:
         if load_init_rules:
             rules = self._init_rules
 
+        assert rules is not None
+
         for selector, rule in _load_rules(rules).items():
             self.rule(selector, **rule, score=score)
 
@@ -548,7 +560,8 @@ class Page:
             Whether any rules were applied, e.g. whether there was any change.
         """
 
-        drawables = []
+        drawables: list[Widget] = []
+
         for widget in self._children:
             drawables.extend(widget.drawables())
 
@@ -557,7 +570,7 @@ class Page:
         rules_changed = self._rules_changed
 
         for widget in drawables:
-            new_attrs = {}
+            new_attrs: dict[str, Any] = {}
             new_style_map = StyleMap()
 
             if not rules_changed and not widget.query_changed():
@@ -582,8 +595,10 @@ class Page:
 
         return applicable_rules is not None
 
-    def find_all(self, query: str) -> Generator[Widget, None, None]:
+    def find_all(self, query: str | Selector) -> Iterator[Widget]:
         """Finds all widgets in the page matching the given query."""
+
+        selector: Selector
 
         if isinstance(query, Selector):
             selector = query
@@ -595,7 +610,7 @@ class Page:
                 if selector.matches(child):
                     yield child
 
-    def find(self, query: str) -> Widget | None:
+    def find(self, query: str | Selector) -> Widget | None:
         """Finds the first widget in the page matching the given query."""
 
         for widget in self.find_all(query):
@@ -617,6 +632,8 @@ class Page:
         Returns:
             The selector used for matching.
         """
+
+        print(query)
 
         style_map = {}
         attrs = {}
@@ -685,9 +702,10 @@ class Application(Page):
 
         self._is_running = False
         self._is_paused = False
-        self._timeouts: dict[EventCallback, int] = []
+        self._raised: Exception | None = None
+        self._timeouts: list[tuple[Callable[[], Any], int | float]] = []
 
-    def __enter__(self) -> None:
+    def __enter__(self) -> Application:
         Widget.app = self
 
         return self
@@ -707,13 +725,13 @@ class Application(Page):
         """Shorthand for `.append(page)`."""
 
         if not isinstance(page, Page):
-            raise TypeError(f"Can only add pages (not {widget!r}) to App")
+            raise TypeError(f"Can only add pages (not {page!r}) to App")
 
         self.append(page)
 
         return self
 
-    def __iter__(self) -> Iterable[Widget]:
+    def __iter__(self) -> Iterator[Page]:  # type: ignore
         """Shorthand for `iter(._pages)`."""
 
         return iter(self._pages)
@@ -738,7 +756,7 @@ class Application(Page):
 
                 self.apply_rules()
 
-                for widget in [*self._page, *self._children]:
+                for widget in [*self._page, *self._children]:  # type: ignore
                     widget.compute_dimensions(
                         self._terminal.width, self._terminal.height
                     )
@@ -781,7 +799,7 @@ class Application(Page):
             self._raised = exc
 
     @property
-    def page(self) -> Page:
+    def page(self) -> Page | None:
         """Returns the current page."""
 
         return self._page
@@ -792,7 +810,7 @@ class Application(Page):
 
         return self._terminal
 
-    def timeout(self, delay_ms: int, callback: EventCallback) -> None:
+    def timeout(self, delay_ms: int, callback: Callable[[], Any]) -> None:
         """Sets up a non-blocking timeout.
 
         Args:
@@ -836,8 +854,13 @@ class Application(Page):
 
                 self.append(page)
 
-    def find_all(self, query: str) -> Generator[Widget, None, None]:
-        selector = Selector.parse(query)
+    def find_all(self, query: str | Selector) -> Iterator[Widget]:
+        selector = query
+
+        if isinstance(query, str):
+            selector = Selector.parse(query)
+
+        assert isinstance(selector, Selector)
 
         if self.page is not None:
             yield from self.page.find_all(selector)
@@ -862,7 +885,7 @@ class Application(Page):
         super().rule(selector, score=score, **rules)
         return selector
 
-    def append(self, page: Page) -> None:
+    def append(self, page: Page) -> None:  # type: ignore
         """Adds a page."""
 
         if page.name is None or page.route_name is None:
@@ -871,8 +894,23 @@ class Application(Page):
                 f" got {page.name=!r}, {page.route_name=!r}"
             )
 
-        for selector, rule in self._rules.items():
-            page.rule(selector, rule)
+        rules: dict[str, Any] = {}
+
+        # God compelled me to right this,,,
+        # May he compel me to clean  it up.
+        #
+        for key, value in self._rules.items():
+            rules.update(
+                **{
+                    key.query: {
+                        **{sel: val for sel, val in value[0].items()},
+                        **{sel + "_style": val for sel, val in value[1].items()},
+                    }
+                }
+            )
+
+        for selector, rule in rules.items():
+            page.rule(selector, **rule)
 
         page.parent = self
 
@@ -895,7 +933,12 @@ class Application(Page):
         super().append(widget)
 
     def apply_rules(self) -> bool:
-        return self._page.apply_rules() + super().apply_rules()
+        page_applied = False
+
+        if self._page is not None:
+            page_applied |= self._page.apply_rules()
+
+        return page_applied | super().apply_rules()
 
     def route(self, destination: str) -> None:
         """Routes to a new page."""
@@ -927,13 +970,13 @@ class Application(Page):
             ):
                 self._mouse_target.handle_mouse(MouseAction.LEFT_RELEASE, position)
 
-            for widget in reversed([*self._page, *self._children]):
+            for widget in reversed([*self._page, *self._children]):  # type: ignore
                 if not widget.contains(position):
                     continue
 
                 if widget.handle_mouse(action, position):
                     if self._mouse_target not in [widget, None]:
-                        self._mouse_target.handle_mouse(
+                        self._mouse_target.handle_mouse(  # type: ignore
                             MouseAction.LEFT_RELEASE, position
                         )
 
@@ -967,8 +1010,6 @@ class Application(Page):
         """
 
         self._is_running = True
-
-        self._raised: Exception | None = None
 
         if self._page is None:
             self.route("index")

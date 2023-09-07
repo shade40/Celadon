@@ -82,11 +82,11 @@ class Checkbox(Widget):
 
         self.bind("return", self._visual_submit)
 
-    def _visual_submit(self) -> None:
+    def _visual_submit(self) -> bool:
         """Animates the active state when the button is submitted using a keyboard."""
 
         if self._has_timeout:
-            return
+            return False
 
         self.checked = not self.checked
         self.state_machine.apply_action("CLICKED")
@@ -96,7 +96,7 @@ class Checkbox(Widget):
             150,
             lambda: (
                 self.state_machine.apply_action("RELEASED_KEYBOARD"),
-                setattr(self, "_has_timeout", False),
+                setattr(self, "_has_timeout", False),  # type: ignore
             ),
         )
 
@@ -108,7 +108,7 @@ class Checkbox(Widget):
         self.checked = not self.checked
         self.on_change(self.checked)
 
-    def get_content(self) -> None:
+    def get_content(self) -> list[str]:
         indicator = self.styles["indicator"](self.indicators[self.checked]) + "[/]"
 
         return [f" {indicator} {self.content} "]

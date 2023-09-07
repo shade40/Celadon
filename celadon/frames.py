@@ -239,19 +239,6 @@ class Padded(Frame):
 
 
 @add_frame_preview
-class Padded(Frame):
-    """A frame of spaces."""
-
-    descriptor = (
-        "   ",
-        "   ",
-        "   ",
-    )
-
-    scrollbars = ((" ", "▅"), (" ", "█"))
-
-
-@add_frame_preview
 class Frameless(Frame):
     """A frame of nothing."""
 

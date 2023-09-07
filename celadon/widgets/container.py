@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Iterable
+from typing import Iterator, Iterable, Any
+from slate import Span
 from .widget import Widget, _overflows, _compute
 from ..enums import MouseAction, Direction, Alignment
 
@@ -40,7 +41,7 @@ class Container(Widget):
     }
 
     gap: int | float | None = None
-    fallback_gap: int | float = 1
+    fallback_gap: int = 1
 
     _direction: Direction = Direction.VERTICAL
 
@@ -51,7 +52,7 @@ class Container(Widget):
             *children: The children this widget should start with.
         """
 
-        self.children = []
+        self.children: list[Widget] = []
         self.extend(children)
 
         super().__init__(**widget_args)
@@ -152,6 +153,7 @@ class Container(Widget):
 
         return _compute(self.gap, per_widget), extra
 
+    '''
     def _as_layout_state(self) -> int:
         """Generates an integer that represents the current layout."""
 
@@ -169,6 +171,7 @@ class Container(Widget):
                 for widget in self.visible_children
             )
         )
+    '''
 
     @property
     def selected(self) -> Widget | None:
@@ -277,7 +280,7 @@ class Container(Widget):
             The widget that was just removed.
         """
 
-        widget = self.children[i]
+        widget = self.children[index]
         self.remove(widget)
 
         return widget
@@ -449,8 +452,12 @@ class Container(Widget):
                 if action is not MouseAction.HOVER:
                     self.select(selectables_index)
 
+                # The only way this would fail is if a widget defined `__eq__` to return
+                # True for None, which is dumb.
                 if self._mouse_target not in [widget, None]:
-                    self._mouse_target.handle_mouse(MouseAction.LEFT_RELEASE, position)
+                    self._mouse_target.handle_mouse(  # type: ignore
+                        MouseAction.LEFT_RELEASE, position
+                    )
 
                 self._mouse_target = widget
                 return True
@@ -467,10 +474,12 @@ class Container(Widget):
         for widget in self.children:
             yield from widget.drawables()
 
-    def build(self) -> list[tuple[Span, ...]]:
-        virt_width, virt_height = self._outer_dimensions
+    def build(
+        self, *, virt_width: int | None = None, virt_height: int | None = None
+    ) -> list[tuple[Span, ...]]:
+        my_virt_width, my_virt_height = self._outer_dimensions
 
-        return super().build(virt_width=virt_width, virt_height=virt_height)
+        return super().build(virt_width=my_virt_width, virt_height=my_virt_height)
 
 
 class Tower(Container):

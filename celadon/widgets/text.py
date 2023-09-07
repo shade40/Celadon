@@ -21,7 +21,7 @@ class Text(Widget):
 
     @property
     def selectables(self) -> list[tuple[Widget, int]]:
-        return tuple()
+        return []
 
     def get_content(self) -> list[str]:
         return self.content.splitlines()

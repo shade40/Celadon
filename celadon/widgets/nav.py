@@ -37,9 +37,14 @@ class Nav(Row):
             self.append(button)
 
     def get_content(self) -> list[str]:
-        name = self.app.page.name
+        if self.app.page is None:
+            name = "No page"
+        else:
+            name = self.app.page.name
 
         for button in self.children:
+            assert isinstance(button, Button)
+
             button.remove_group("selected")
 
             if name == button.content:

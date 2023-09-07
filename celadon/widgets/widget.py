@@ -28,7 +28,7 @@ from ..style_map import StyleMap
 from ..state_machine import StateMachine
 
 if TYPE_CHECKING:
-    from ..application import Application
+    from ..application import Application, Page
 
 __all__ = ["Widget", "widget_types"]
 
@@ -218,7 +218,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         self,
         eid: str | None = None,
         group: str | None = None,
-        groups: tuple[str] = tuple(),
+        groups: tuple[str, ...] = tuple(),
     ) -> None:
         """Initializes a Widget.
 
@@ -235,10 +235,10 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         self.scroll = (0, 0)
         self.position = (0, 0)
         self.state_machine = deepcopy(self.state_machine)
-        self.parent = None
+        self.parent: Widget | "Page" | None = None
 
-        self.width = None
-        self.height = None
+        self.width: int | float | None = None
+        self.height: int | float | None = None
         # These conversions are handled in their properties
         self.frame = "Frameless"  # type: ignore
         self.alignment = ("start", "start")  # type: ignore
@@ -246,7 +246,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
         self._virtual_width = 0
         self._virtual_height = 0
-        self._last_query = None
+        self._last_query: str | None = None
         self._selected_index: int | None = None
 
         self._clip_start: int | None = None
@@ -476,7 +476,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes
             style = deepcopy(self.styles["frame"])
 
             if outer:
-                if hasattr(self.parent, "styles"):
+                if self.parent is not None and hasattr(self.parent, "styles"):
                     style.style = self.parent.styles["frame"].fill + " " + style.style
 
             return self._parse_markup(style(item))
@@ -633,9 +633,9 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         occupied = sum(len(span) for span in line_list)
 
         if occupied < width:
-            end = line_list[-1]
+            suffix = line_list[-1]
 
-            line_list[-1] = end.mutate(text=end.text + (width - occupied) * " ")
+            line_list[-1] = suffix.mutate(text=suffix.text + (width - occupied) * " ")
 
         return tuple(line_list)
 
@@ -774,7 +774,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes
     def toggle_group(self, target: str) -> bool:
         """Toggles a group in the widget's groups."""
 
-        if group in self.groups:
+        if target in self.groups:
             self.remove_group(target)
             return False
 
@@ -956,7 +956,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         width = self._framed_width
         height = self._framed_height
 
-        def _clamp_scrolls() -> int:
+        def _clamp_scrolls() -> tuple[int, int]:
             x_bar = _overflows(width, self._virtual_width)
             y_bar = _overflows(height, self._virtual_height)
 

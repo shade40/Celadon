@@ -30,9 +30,9 @@ dependencies = [
 dynamic = ["version"]
 
 [project.urls]
-Documentation = "https://github.com/unknown/celadon#readme"
-Issues = "https://github.com/unknown/celadon/issues"
-Source = "https://github.com/unknown/celadon"
+Documentation = "https://github.com/shade40/celadon#readme"
+Issues = "https://github.com/shade40/celadon/issues"
+Source = "https://github.com/shade40/celadon"
 
 [project.scripts]
 celadon = "celadon.__main__:main"
@@ -43,6 +43,7 @@ path = "celadon/__about__.py"
 [tool.hatch.build]
 include = [
   "celadon/*.py",
+  "celadon/py.typed",
   "/tests",
 ]
 
@@ -50,6 +51,20 @@ include = [
 dependencies = [
   "pytest",
   "pytest-cov",
+  "sh40-slate",
+  "sh40-zenith",
+  "sh40-carmine",
+  "PyYAML",
+]
+
+[tool.hatch.envs.test]
+dependencies = [
+  "pytest",
+  "pytest-cov",
+  "sh40-slate",
+  "sh40-zenith",
+  "sh40-carmine",
+  "PyYAML",
 ]
 
 [tool.hatch.envs.default.scripts]

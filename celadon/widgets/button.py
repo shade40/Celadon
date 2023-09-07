@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Callable
+from typing import Callable, Any
 
 from slate import Event, EventCallback
 from zenith.markup import RE_MARKUP
@@ -25,7 +25,7 @@ SEMANTIC_STYLES = """
 class Button(Widget):
     """A pressable/clickable button."""
 
-    on_click: Event
+    on_submit: Event
     """Called when the Button is clicked/pressed using a primary input (mouse1, return).
 
     Args:
@@ -101,11 +101,11 @@ class Button(Widget):
 
         self.bind("return", self._visual_submit)
 
-    def _visual_submit(self) -> None:
+    def _visual_submit(self) -> bool:
         """Animates the active state when the button is submitted using a keyboard."""
 
         if self._has_timeout:
-            return
+            return False
 
         self.state_machine.apply_action("CLICKED")
 
@@ -114,7 +114,7 @@ class Button(Widget):
             150,
             lambda: (
                 self.state_machine.apply_action("RELEASED_KEYBOARD"),
-                setattr(self, "_has_timeout", False),
+                setattr(self, "_has_timeout", False),  # type: ignore
             ),
         )
 
