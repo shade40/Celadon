@@ -19,7 +19,7 @@ from typing import (
     TYPE_CHECKING,
 )
 
-from slate import Event, Span
+from slate import Event, Span, Terminal
 from zenith.markup import zml_pre_process, zml_get_spans, FULL_RESET
 
 from ..enums import Alignment, Overflow, MouseAction
@@ -33,13 +33,6 @@ if TYPE_CHECKING:
 __all__ = ["Widget", "widget_types"]
 
 RE_FULL_UNSETTER = re.compile(r"\/(?=\]| )")
-
-
-class Sized(Protocol):
-    """An object that has size attributes."""
-
-    width_hint: int
-    height_hint: int
 
 
 @dataclass
@@ -266,6 +259,15 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         self.setup()
 
         widget_types[type(self).__name__] = type(self)
+
+    @property
+    def terminal(self) -> Terminal | None:
+        """Returns the app's terminal."""
+
+        if self.app is None:
+            return None
+
+        return self.app.terminal
 
     @property
     def state(self) -> str:
