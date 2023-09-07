@@ -111,6 +111,9 @@ def _overflows(real: int, virt: int) -> bool:
 class Widget:  # pylint: disable=too-many-instance-attributes
     """This is a docstring."""
 
+    app: "Application"
+    """The most recently run Application instance."""
+
     width: int | float | None
     """The hint used by the widget to calculate it's width. See dimension hints."""
 
@@ -263,26 +266,6 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         self.setup()
 
         widget_types[type(self).__name__] = type(self)
-
-    @cached_property
-    def app(self) -> "Application" | None:
-        """Returns the Application instance.
-
-        Be careful to clear this cache if using a second Application within
-        the same runtime.
-        """
-
-        from ..application import Application
-
-        parent = self.parent
-
-        while hasattr(parent, "parent"):
-            parent = parent.parent
-
-        if not isinstance(parent, Application):
-            raise ValueError(f"no application assigned to widget {self!r}")
-
-        return parent
 
     @property
     def state(self) -> str:

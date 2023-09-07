@@ -10,7 +10,7 @@ from typing import Any, Callable
 from pathlib import Path
 from yaml import safe_load
 
-from slate import Terminal, getch, Event, terminal as slt_terminal, EventCallback
+from slate import Terminal, getch, Event, terminal as slt_terminal, EventCallback, feed
 from slate.core import BEGIN_SYNCHRONIZED_UPDATE, END_SYNCHRONIZED_UPDATE
 
 from .widgets import Widget, widget_types
@@ -123,6 +123,9 @@ def _load_rules(source: str) -> dict[Selector, Rulebook]:
 
         for key, value in data.items():
             if isinstance(value, dict):
+                if key.startswith((">", "*>")):
+                    key = " " + key
+
                 if "&" not in key:
                     key = f"&{key}"
 
@@ -152,12 +155,29 @@ RE_QUERY = re.compile(
 
 @dataclass(frozen=True)
 class Selector:
-    """
-    Element#<id>.<variant1>.<variant2>/<substate>
+    """The object used to query widgets.
 
-    Button#logo.inactive/hover
+    Basic syntax is:
 
-    #logo.inactive/hover
+        WidgetType#id.group1.group2/state1|state2
+
+    ...where `WidgetType` is necessary if an id is given, everything else is optional.
+
+    You can also test for hierarchy, e.g.:
+
+        # Direct hierarchy (ParentType > WidgetType.class1)
+        ParentType > WidgetType.class1
+
+        # Indirect hierarchy (ParentType > OtherParent > WidgetType.class1)
+        ParentType *> WidgetType.class1
+
+    Finally, you can use `*` to indicate 'any' in hierarchal matches:
+
+        # WidgetType#id that is the child of any widget (all of them, so don't do this)
+        * > WidgetType#id
+
+        # Any widget whos direct parent is WidgetType#id
+        WidgetType#id > *
     """
 
     query: str
@@ -188,8 +208,22 @@ class Selector:
         indirect_parent: Selector | None = None,
         forced_score: int | None = None,
     ) -> Selector:
-        """Parses a query into a selector."""
+        """Parses a query into a selector.
 
+        Args:
+            query: The query to parse.
+            direct_parent: Direct parent to test for, obtained by parsing
+                `direct_parent > query`.
+            indirect_parent: Direct parent to test for, obtained by parsing
+                `indirect_parent *> query`.
+            forced_score:A score to use when a selector matches the rule, instead of the
+                score the selector calculates.
+
+        Returns:
+            The obtained selector.
+        """
+
+        # TODO: Add support for multi-hierarchy
         if " > " in query:
             left, right = query.split(" > ")
             return Selector.parse(
@@ -214,8 +248,9 @@ class Selector:
         mtch = RE_QUERY.match(query)
 
         if mtch is None:
-            # TODO: Add pretty errors
-            raise ValueError(f"Wtf is {query}???")
+            raise ValueError(
+                f"incorrect syntax {query!r}, use 'WidgetType#id.class/type'"
+            )
 
         elements_str, eid, groups_str, states = mtch.groups()
 
@@ -238,6 +273,22 @@ class Selector:
         )
 
     def matches(self, widget: Widget) -> int:
+        """Determines how well this selector matches the widget.
+
+        Returns:
+            A score calculated as:
+
+                (
+                    (eid_matches * 1000)
+                    + (group_matches * 500)
+                    + (state_matches * 250)
+                    + (type_matches * 100)
+                )
+
+            When optional parts are ommitted (like groups), they are excluded from the
+            calculation.
+        """
+
         score = 0
 
         if self.direct_parent is not None:
@@ -309,16 +360,18 @@ class Selector:
         return score
 
 
-# TODO
-Rulebook = Any
-
 BuilderType = Callable[[Any, ...], "Page"]
 
 
 class Page:
+    """A Page of an application.
+
+    It contains some children, and a set of rules it applies to them.
+    """
+
     parent: "Application"
     children: list[Widget]
-    _rules: dict[Selector, Rulebook]
+    _rules: dict[Selector, dict[str, Any]]
 
     def __init__(
         self,
@@ -341,6 +394,8 @@ class Page:
         self.extend(children)
 
     def __iadd__(self, widget: Any) -> Page:
+        """Shorthand for `.append(widget)`."""
+
         if not isinstance(widget, Widget):
             raise TypeError(f"Can only add Widgets (not {widget!r}) to Page")
 
@@ -349,15 +404,27 @@ class Page:
         return self
 
     def __iter__(self) -> Iterable[Widget]:
+        """Shorthand for `iter(._children)`."""
+
         return iter(self._children)
 
     def __len__(self) -> int:
+        """Shorthand for `len(._children)`."""
+
         return len(self._children)
 
     def __getitem__(self, item: int | slice) -> Widget | list[Widget]:
+        """Shorthand for `._children[item]`."""
+
         return self._children[item]
 
     def _init_widget(self, widget: Widget) -> None:
+        """Initializes a widget.
+
+        This loads the widget's rules if it hasn't encountered the same type before,
+        and sets its parent to self.
+        """
+
         if type(widget) not in self._encountered_types:
             for child in widget.drawables():
                 self.load_rules(child.rules, score=None)
@@ -366,6 +433,11 @@ class Page:
         widget.parent = self
 
     def build(self, *args: Any, **kwargs: Any) -> Page:
+        """Applies the builder function.
+
+        Might be removed in the future.
+        """
+
         if self._builder is None:
             if len(args) + len(kwargs):
                 raise ValueError(
@@ -377,33 +449,68 @@ class Page:
         return self._builder(*args, **kwargs)
 
     def append(self, widget: Widget) -> None:
+        """Initializes & adds a widget to the Page.
+
+        Analogous to `list.append`.
+        """
+
         self._init_widget(widget)
         self._children.append(widget)
 
     def extend(self, widgets: Iterable[Widget]) -> None:
+        """Extends the page by the given widgets.
+
+        Analogous to `list.extend`.
+        """
+
         for widget in widgets:
             self._init_widget(widget)
             self.append(widget)
 
     def insert(self, index: int, widget: Widget) -> None:
+        """Inserts a widget into the page.
+
+        Analogous to `list.insert`.
+        """
+
         self._init_widget(widget)
         self._children.insert(index, widget)
 
     def remove(self, widget: Widget) -> None:
+        """Removes a widget from the page.
+
+        Analogous to `list.remove`.
+        """
+
         self._init_widget(widget)
         self._children.remove(widget)
 
     def pop(self, index: int) -> Widget:
+        """Pops a widget from the page.
+
+        Analogous to `list.pop`.
+        """
+
         self._init_widget(widget)
         widget = self._children.pop(index)
 
         return widget
 
     def clear(self) -> None:
+        """Removes all widgets.
+
+        Analogous to `list.clear`.
+        """
+
         for widget in self._children:
             self.remove(widget)
 
     def update(self, widgets: Iterable[Widget]) -> None:
+        """Clears all widgets then adds everything given.
+
+        Analogous to `list.update`.
+        """
+
         self.clear()
         self.extend(widgets)
 
@@ -413,6 +520,17 @@ class Page:
         score: int | None = None,
         load_init_rules: bool = False,
     ) -> None:
+        """Loads the given YAML rules.
+
+        Args:
+            rules: The YAML to load.
+            score: A score to use when a selector matches the rule, instead of the score
+                the selector calculates.
+            load_init_rules: If set, will ignore rules and use the rules passed in
+                during `__init__`.
+
+        Either `rules` or `load_init_rules` must be set.
+        """
 
         if rules is None and not load_init_rules:
             raise TypeError("must provide rules to load.")
@@ -423,8 +541,13 @@ class Page:
         for selector, rule in _load_rules(rules).items():
             self.rule(selector, **rule, score=score)
 
-    # True if anything changed
     def apply_rules(self) -> bool:
+        """Applies the page's rules to the widgets.
+
+        Returns:
+            Whether any rules were applied, e.g. whether there was any change.
+        """
+
         drawables = []
         for widget in self._children:
             drawables.extend(widget.drawables())
@@ -460,6 +583,8 @@ class Page:
         return applicable_rules is not None
 
     def find_all(self, query: str) -> Generator[Widget, None, None]:
+        """Finds all widgets in the page matching the given query."""
+
         if isinstance(query, Selector):
             selector = query
         else:
@@ -471,6 +596,8 @@ class Page:
                     yield child
 
     def find(self, query: str) -> Widget | None:
+        """Finds the first widget in the page matching the given query."""
+
         for widget in self.find_all(query):
             return widget
 
@@ -479,6 +606,18 @@ class Page:
     def rule(
         self, query: str | Selector, score: int | None = None, **rules: str
     ) -> Selector:
+        """Creates a new rule that matches query, and applies rules on matches.
+
+        Args:
+            query: The query that will be matched against.
+            score: A score to use when a selector matches the rule, instead of the score
+                the selector calculates.
+            rules: The rules to apply to every matching widget.
+
+        Returns:
+            The selector used for matching.
+        """
+
         style_map = {}
         attrs = {}
 
@@ -508,6 +647,14 @@ class Page:
 
 
 class Application(Page):
+    """A page to rule them all.
+
+    The primary interface to run Celadon applications. It maintains a list of pages,
+    between which it can navigate using routing. Only one page can be displayed at a
+    time, but it is possible to create constant overlays by adding widgets directly to
+    the Application instance, instead of a page.
+    """
+
     children: list[Widget]  # For constantly visible, overlay-type widgets
 
     _pages: list[Page]
@@ -516,10 +663,19 @@ class Application(Page):
     def __init__(
         self, name: str, framerate: int = 60, terminal: Terminal | None = None
     ) -> None:
+        """Initializes the Application.
+
+        Args:
+            name: The name of the app. Used for the terminal's title bar.
+            framerate: The target framerate. Note that this isn't very closely
+                maintained.
+            terminal: A terminal instance to use.
+        """
+
         super().__init__(name=name, route_name="/")
 
-        self.on_frame_drawn = Event("Frame Drawn")
-        self.on_page_added = Event("Page Added")
+        self.on_frame_drawn = Event("frame drawn")
+        self.on_page_added = Event("page added")
 
         self._pages = []
         self._page = None
@@ -548,6 +704,8 @@ class Application(Page):
         self.run()
 
     def __iadd__(self, page: Any) -> Application:
+        """Shorthand for `.append(page)`."""
+
         if not isinstance(page, Page):
             raise TypeError(f"Can only add pages (not {widget!r}) to App")
 
@@ -556,9 +714,13 @@ class Application(Page):
         return self
 
     def __iter__(self) -> Iterable[Widget]:
+        """Shorthand for `iter(._pages)`."""
+
         return iter(self._pages)
 
     def _draw_loop(self) -> None:
+        """The display & timing loop of the Application, run as a thread."""
+
         frametime = 1 / self._framerate
 
         clear = self._terminal.clear
@@ -620,16 +782,32 @@ class Application(Page):
 
     @property
     def page(self) -> Page:
+        """Returns the current page."""
+
         return self._page
 
     @property
     def terminal(self) -> Terminal:
+        """Returns the in-use terminal instance."""
+
         return self._terminal
 
     def timeout(self, delay_ms: int, callback: EventCallback) -> None:
+        """Sets up a non-blocking timeout.
+
+        Args:
+            delay_ms: The delay (in milliseconds) before the callback is executed.
+            callback: The callback to execute when the delay is up.
+        """
+
         self._timeouts.append((callback, delay_ms))
 
     def build_from(self, path: str | Path) -> None:
+        """Builds an application from a given path.
+
+        Likely removed in the future.
+        """
+
         if not isinstance(path, Path):
             path = Path(path)
 
@@ -685,6 +863,8 @@ class Application(Page):
         return selector
 
     def append(self, page: Page) -> None:
+        """Adds a page."""
+
         if page.name is None or page.route_name is None:
             raise ValueError(
                 "Pages must have both `name` and `route_name`,"
@@ -703,14 +883,23 @@ class Application(Page):
         if self._mouse_target is None and len(page) > 0:
             self._mouse_target = page[0]
 
-    # Maybe something like `pin` makes more sense? See above.
-    def add_widget(self, widget: Widget) -> None:
+    def pin(self, widget: Widget) -> None:
+        """Pins a widget to the application.
+
+        Pinning means the app will always be displayed & on top, regardless of the
+        current page.
+
+        Analogous to `Page.append(self, widget)`.
+        """
+
         super().append(widget)
 
     def apply_rules(self) -> bool:
         return self._page.apply_rules() + super().apply_rules()
 
     def route(self, destination: str) -> None:
+        """Routes to a new page."""
+
         for page in self._pages:
             if page.route_name == destination:
                 break
@@ -722,6 +911,12 @@ class Application(Page):
         self._terminal.set_title(f"{self.name} - {page.name}")
 
     def process_input(self, inp: str) -> bool:
+        """Processes input.
+
+        Returns:
+            Whether the input could be handled.
+        """
+
         if (event := _parse_mouse_input(inp)) is not None:
             action, position = event
 
@@ -763,9 +958,14 @@ class Application(Page):
         if self._mouse_target is None:
             return False
 
-        self._mouse_target.handle_keyboard(inp)
+        return self._mouse_target.handle_keyboard(inp)
 
     def run(self) -> None:
+        """Runs the application.
+
+        This function will block until the application halts.
+        """
+
         self._is_running = True
 
         self._raised: Exception | None = None
@@ -804,11 +1004,17 @@ class Application(Page):
 
     # TODO: Expand this to clear screen (wait for frame to finish)
     def pause(self) -> None:
+        """Pauses the app."""
+
         self._is_paused = True
 
     def resume(self) -> None:
+        """Resumes the app."""
+
         self._is_paused = False
 
-    # Look into piping into stdin / force quitting blocking read early
     def stop(self) -> None:
+        """Stops the application."""
+
+        feed(chr(3))
         self._is_running = False
