@@ -633,8 +633,6 @@ class Page:
             The selector used for matching.
         """
 
-        print(query)
-
         style_map = {}
         attrs = {}
 
