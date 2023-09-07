@@ -54,7 +54,6 @@ dependencies = [
 
 [tool.hatch.envs.default.scripts]
 test = "pytest --cov-report=term-missing --cov-config=pyproject.toml --cov=celadon --cov=tests && coverage html"
-lint = "pylint celadon"
 type = "mypy celadon"
 upload = "hatch build && twine upload dist/* && hatch clean"
 
