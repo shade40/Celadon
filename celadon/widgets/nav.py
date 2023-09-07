@@ -1,3 +1,5 @@
+# NOTE: This will likely be removed in the near future.
+
 from typing import Callable, TYPE_CHECKING
 
 if TYPE_CHECKING:

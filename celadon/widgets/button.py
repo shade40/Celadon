@@ -23,7 +23,7 @@ SEMANTIC_STYLES = """
 
 
 class Button(Widget):
-    """A simple, pressable/clickable button."""
+    """A pressable/clickable button."""
 
     on_click: Event
     """Called when the Button is clicked/pressed using a primary input (mouse1, return).
@@ -76,6 +76,15 @@ class Button(Widget):
         route: str | None = None,
         **widget_args: Any,
     ) -> None:
+        """Initializes the button.
+
+        Args:
+            content: The content the button should display.
+            on_submit: A list of event callbacks to fire when the button submits.
+            route: On click, it routes the application to a new page. Likely removed
+                in the future.
+        """
+
         super().__init__(**widget_args)
 
         self._has_timeout = False
@@ -93,6 +102,8 @@ class Button(Widget):
         self.bind("return", self._visual_submit)
 
     def _visual_submit(self) -> None:
+        """Animates the active state when the button is submitted using a keyboard."""
+
         if self._has_timeout:
             return
 
@@ -110,6 +121,8 @@ class Button(Widget):
         return self.on_submit(self)
 
     def on_click(self, action: MouseAction, __: tuple[int, int]) -> None:
+        """Emits the submit event."""
+
         self.on_submit(self)
 
     def get_content(self) -> list[str]:

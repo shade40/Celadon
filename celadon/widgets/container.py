@@ -45,9 +45,14 @@ class Container(Widget):
     _direction: Direction = Direction.VERTICAL
 
     def __init__(self, *children: Widget, **widget_args: Any) -> None:
+        """Initializes a container.
+
+        Args:
+            *children: The children this widget should start with.
+        """
+
         self.children = []
-        for child in children:
-            self.append(child)
+        self.extend(children)
 
         super().__init__(**widget_args)
 
@@ -58,6 +63,8 @@ class Container(Widget):
 
     @property
     def visible_children(self) -> list[Widget]:
+        """Returns all children without the 'hidden' group set."""
+
         return [widget for widget in self.children if not "hidden" in widget.groups]
 
     @property
@@ -80,6 +87,11 @@ class Container(Widget):
         return sum(child.selectable_count for child in self.children)
 
     def __iadd__(self, other: object) -> Container:
+        """Adds a widget to the Container.
+
+        Analogous to `.append(other)`.
+        """
+
         if not isinstance(other, Widget):
             raise TypeError(
                 f"Can only append widgets to containers, not {type(other)!r}."
@@ -228,20 +240,29 @@ class Container(Widget):
         super().select(index)
 
     def append(self, widget: Widget) -> None:
-        """Adds a new widget setting its parent attribute to self."""
+        """Adds a new widget setting its parent attribute to self.
+
+        Analogous to `list.append`.
+        """
 
         self.children.append(widget)
         widget.parent = self
         self._should_layout = True
 
     def extend(self, widgets: Iterable[Widget]) -> None:
-        """Extends our children by the given iterable."""
+        """Extends our children by the given iterable.
+
+        Analogous to `list.extend`.
+        """
 
         for widget in widgets:
             self.append(widget)
 
     def remove(self, widget: Widget) -> None:
-        """Removes a widget from self, resetting its parent attribute to None."""
+        """Removes a widget from self, resetting its parent attribute to None.
+
+        Analogous to `list.remove`.
+        """
 
         self.children.remove(widget)
         widget.parent = None
@@ -249,6 +270,8 @@ class Container(Widget):
 
     def pop(self, index: int) -> Widget:
         """Pops a widget from our children.
+
+        Analogous to `list.pop`.
 
         Returns:
             The widget that was just removed.
@@ -260,13 +283,20 @@ class Container(Widget):
         return widget
 
     def clear(self) -> None:
-        """Removes all widgets."""
+        """Removes all widgets.
+
+        Analogous to `list.clear`.
+        """
 
         for widget in self.children:
             self.remove(widget)
 
     def update_children(self, widgets: Iterable[Widget]) -> None:
-        """Updates our children to the given iterable."""
+        """Updates our children to the given iterable.
+
+        Analogous to `list.update`, doesn't use `update` because it is already a widget
+        method.
+        """
 
         self.clear()
         self.extend(widgets)

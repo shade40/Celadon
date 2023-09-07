@@ -19,12 +19,15 @@ class Text(Widget):
         self.content = content
         self.width = len(RE_MARKUP.sub(self.content, "")) + 4
 
-    def select_offset(self, offset: int) -> bool:
-        return False
+    @property
+    def selectables(self) -> list[tuple[Widget, int]]:
+        return tuple()
 
     def get_content(self) -> list[str]:
         return self.content.splitlines()
 
+    # Proper linebreaking prototype
+    #
     # lines = []
     # usable_width = self.width - self.frame.width - 1
     #
