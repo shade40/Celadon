@@ -51,11 +51,6 @@ class BoundStyle:
         return f"[{self.fill}{self.style}]{item}"
 
 
-DimensionSpec = Union[int, float, None]
-AlignmentSetting = Literal["start", "center", "end"]
-OverflowSetting = Literal["hide", "auto", "scroll"]
-
-
 def _compute(spec: int | float | None, hint: int) -> int:
     if isinstance(spec, float):
         return int(spec * hint)
@@ -116,29 +111,17 @@ def _overflows(real: int, virt: int) -> bool:
 class Widget:  # pylint: disable=too-many-instance-attributes
     """This is a docstring."""
 
-    on_state_change: Event
-    """Called when the widget's state changes.
+    width: int | float | None
+    """The hint used by the widget to calculate it's width. See dimension hints."""
 
-    Args:
-        state: The new state.
-    """
+    height: int | float | None
+    """The hint used by the widget to calculate it's height. See dimension hints."""
 
-    parent: Sized | None
-    """The parent of this widget.
+    computed_width: int
+    """The current width of the widget, calculated from `width`'s hint."""
 
-    An application instance if the widget is at the root, another widget otherwise.
-    """
-
-    app: Application | None = None
-    """A reference to the current (latest-started) application instance."""
-
-    # TODO: Update these!
-    width_hint: int
-    """The hint the widget uses to calculate its width. See dimension hint"""
-    # TODO: Add dimension hint docs
-
-    height_hint: int
-    """The hint the widget uses to calculate its height. See dimension hint"""
+    computed_height: int
+    """The current height of the widget, calculated from `height`'s hint."""
 
     scroll: tuple[int, int]
     """The widget's (horizontal, vertical) scrolling offset."""
@@ -229,6 +212,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes
     """The style map is the lookup table for the widget's styles at certain states."""
 
     rules = ""
+    """YAML rules for this widget, applied only when added part of an Application."""
 
     prefer_content_over_frame = True
     """If set, the widget will only show the top frame when its content's first line is
@@ -246,11 +230,6 @@ class Widget:  # pylint: disable=too-many-instance-attributes
             eid: The id for this widget. Defaults to a UUID.
             group: If set, `groups` is overwritten as `(group,)`.
             groups: The initial groups this widget will belong to.
-            width: The width hint.
-            height: The height hint.
-            frame: The frame this widget will be put into.
-            alignment: How our content gets aligned, (horizontal, vertical) axes.
-            overflow: The strategy to use for content that extends beyond our size.
         """
 
         self.eid = eid or str(uuid.uuid4())
@@ -287,6 +266,12 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
     @cached_property
     def app(self) -> "Application" | None:
+        """Returns the Application instance.
+
+        Be careful to clear this cache if using a second Application within
+        the same runtime.
+        """
+
         from ..application import Application
 
         parent = self.parent
@@ -306,8 +291,13 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         return self.state_machine()
 
     @property
-    def styles(self) -> dict[str, Callable[[str], str]]:
-        """Returns a dictionary of style keys to markup callables."""
+    def styles(self) -> dict[str, BoundStyle]:
+        """Returns a dictionary of current state's style keys to bound styles.
+
+        Note that the `fill` style is inserted into every other style, and is
+        stored under the `_fill` key for special circumstances where you may
+        need to reference it.
+        """
 
         styles = self.style_map[self.state.split("/")[0]].copy()
 
@@ -369,6 +359,8 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
     @frame.setter
     def frame(self, new: str | Type[Frame]) -> None:
+        """Sets the frame setting."""
+
         if isinstance(new, str):
             new = get_frame(new)
 
@@ -432,10 +424,11 @@ class Widget:  # pylint: disable=too-many-instance-attributes
     def _parse_markup(self, markup: str) -> tuple[Span, ...]:
         """Parses some markup into a span of tuples.
 
-        This also handles (ignores) zenith's FULL_RESET spans.
+        This also handles (ignores) zenith's FULL_RESET spans, and replaces `/`
+        unsetters with `/ {fill_style} {content_style}`.
         """
 
-        content_style = self.styles["content"]("")[1:-1]
+        content_style = self.styles["_fill"].style + " " + self.styles["content"].style
 
         # Replace full unsetters with full unsetter + content style
         markup = RE_FULL_UNSETTER.sub("/ " + content_style, markup)
@@ -682,7 +675,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
             return
 
-        if "hover" in value:  # and any("click" in attr for attr in dir(self)):
+        if "hover" in value:
             self.state_machine.apply_action("HOVERED")
             return
 
@@ -691,9 +684,19 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
     def update(
         self,
-        attrs: dict[str, DimensionSpec | AlignmentSetting | OverflowSetting],
+        attrs: dict[str, Any],
         style_map: dict[str, str],
     ) -> None:
+        """Updates a widget with new setttings.
+
+        Args:
+            attrs: A dictionary of the widget's fields to values. Fields starting with
+                `_` are disallowed, as are fields the widget doesn't already have.
+            style_map: A dictionary of style keys to markup that gets merged onto our
+                `style_map`'s current state, i.e.:
+
+                    `self.style_map | {self.state: style_map}`
+        """
         keys = dir(self)
 
         for key, value in attrs.items():
@@ -708,6 +711,12 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         self.style_map = self.style_map | {self.state: style_map}
 
     def as_query(self, state: bool = False) -> str:
+        """Returns the widget as the most specific selectable query.
+
+        Args:
+            state: Include state suffix onto the query.
+        """
+
         query = type(self).__name__
 
         if self.eid is not None:
@@ -722,6 +731,8 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         return query
 
     def query_changed(self) -> bool:
+        """Returns whether the result of `as_query` has changed since last call."""
+
         query = self.as_query(state=True)
         value = query != self._last_query
 
@@ -729,9 +740,13 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         return value
 
     def is_fill_width(self) -> bool:
+        """Shorthand for `width is None`"""
+
         return self.width is None
 
     def is_fill_height(self) -> bool:
+        """Shorthand for `height is None`"""
+
         return self.height is None
 
     def has_scrollbar(self, index: Literal[0, 1]) -> bool:
@@ -756,16 +771,24 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         yield self
 
     def clip_height(self, start: int | None, end: int | None) -> None:
+        """Sets the clipping rectangle's coordinates."""
+
         self._clip_start = start
         self._clip_end = end
 
     def add_group(self, target: str) -> None:
+        """Adds a group to the widget's groups."""
+
         self.groups = tuple(list(self.groups) + [target])
 
     def remove_group(self, target: str) -> None:
+        """Removes a group from the widget's groups."""
+
         self.groups = tuple(group for group in self.groups if group != target)
 
     def toggle_group(self, target: str) -> bool:
+        """Toggles a group in the widget's groups."""
+
         if group in self.groups:
             self.remove_group(target)
             return False
@@ -790,9 +813,13 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         self.state_machine.apply_action(("UN" if index is None else "") + "SELECTED")
 
     def hide(self) -> None:
+        """Adds the `hidden` group onto the widget."""
+
         self.add_group("hidden")
 
     def show(self) -> None:
+        """Remove the `hidden` group from the widget."""
+
         self.remove_group("hidden")
 
     def contains(self, position: tuple[int, int]) -> bool:
@@ -818,6 +845,11 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         self.move_to(self.position[0] + x, self.position[1] + y)
 
     def bind(self, key: str, callback: Callable[[], Any]) -> Event:
+        """Binds a key to the given callback.
+
+        If a binding already exists, the given callback is added to the Event.
+        """
+
         if key not in self._bindings:
             self._bindings[key] = Event(f"on key {key}")
 
@@ -826,7 +858,25 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
         return event
 
+    def unbind(self, key: str) -> Event:
+        """Removes all bindings for a given key."""
+
+        if key not in self._bindings:
+            raise ValueError(f"can't remove non-existant binding for key {key!r}.")
+
+        event = self._bindings[key]
+        del self._bindings[key]
+
+        return event
+
     def handle_keyboard(self, key: str) -> bool:
+        """Handles a keyboard event.
+
+        Returns:
+            Whether the event should continue to bubble upwards. Return `True` if the
+            event was already handled.
+        """
+
         result = False
 
         if key in self._bindings:
@@ -836,6 +886,13 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         return result
 
     def handle_mouse(self, action: MouseAction, position: tuple[int, int]) -> bool:
+        """Handles a mouse event.
+
+        Returns:
+            Whether the event should continue to bubble upwards. Return `True` if the
+            event was already handled.
+        """
+
         self._apply_mouse_state(action)
 
         if "scroll" in action.value:
@@ -896,7 +953,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         return action is MouseAction.HOVER
 
     def compute_dimensions(self, available_width: int, available_height: int) -> None:
-        """Computes width & height based on our specifications and the parent's hint."""
+        """Computes width & height based on our specifications and the given space."""
 
         self.computed_width = _compute(self.width, available_width)
         self.computed_height = _compute(self.height, available_height)
