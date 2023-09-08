@@ -82,6 +82,31 @@ class Frame:
 
         return type(self).__name__
 
+    @classmethod
+    def compose(cls, sides: tuple[Frame, Frame, Frame, Frame]) -> Frame:
+        """Creates a frame object with borders coming from other frames.
+
+        Args:
+            sides: Sides to source from, read in the order left, top, right, bottom.
+
+        Returns:
+            A plain Frame object (so no custom name or documentation preview) with the
+            given sides.
+        """
+
+        borders = []
+
+        frame = cls()
+
+        for i, side in enumerate(sides):
+            borders.append(side().borders[i])
+
+        frame.borders = tuple(borders)
+
+        frame.__init__()
+
+        return frame
+
 
 def get_frame(name: str) -> Type[Frame]:
     """Gets a frame by its name.
@@ -95,6 +120,9 @@ def get_frame(name: str) -> Type[Frame]:
     Raises:
         ValueError: No frame found with the given name.
     """
+
+    if name is None:
+        return Frameless
 
     frame = {key.lower(): value for key, value in globals().items()}.get(name.lower())
 

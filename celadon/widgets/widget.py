@@ -210,10 +210,6 @@ class Widget:  # pylint: disable=too-many-instance-attributes
     rules = ""
     """YAML rules for this widget, applied only when added part of an Application."""
 
-    prefer_content_over_frame = False
-    """If set, the widget will only show the top frame when its content's first line is
-    visible."""
-
     def __init__(
         self,
         eid: str | None = None,
@@ -343,8 +339,13 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         return self._frame
 
     @frame.setter
-    def frame(self, new: str | Type[Frame]) -> None:
+    def frame(self, new: str | list[str] | Type[Frame]) -> None:
         """Sets the frame setting."""
+
+        if isinstance(new, tuple):
+            sides = tuple(get_frame(side) for side in new)
+            self._frame = Frame.compose(sides)
+            return
 
         if isinstance(new, str):
             new = get_frame(new)
@@ -497,16 +498,15 @@ class Widget:  # pylint: disable=too-many-instance-attributes
                 *_style(right, outer=v_outer),
             )
 
-        if not self.prefer_content_over_frame or count + 1 <= self.computed_height:
-            if left_top + top + right_top != "":
-                lines.insert(
-                    0,
-                    (
-                        *_style(left_top, outer=c_outer),
-                        *_style(top * width, outer=h_outer),
-                        *_style(right_top, outer=c_outer),
-                    ),
-                )
+        if left_top + top + right_top != "":
+            lines.insert(
+                0,
+                (
+                    *_style(left_top, outer=c_outer),
+                    *_style(top * width, outer=h_outer),
+                    *_style(right_top, outer=c_outer),
+                ),
+            )
 
         if left_bottom + bottom + right_bottom != "":
             lines.append(
