@@ -48,7 +48,14 @@ def _as_spans(text: list[tuple[str]]) -> list[tuple[Span]]:
 
 def apply_rules(widget: Widget, rules: str | None = None) -> Widget:
     with Application("Test Runner", terminal=SizedTerminal()) as app:
-        app.rule("*", content_style="", frame_style="", fill_style="")
+        app.rule(
+            "*",
+            content_style="",
+            frame_style="",
+            fill_style="",
+            scrollbar_x_style="",
+            scrollbar_y_style="",
+        )
 
         app += Page(Tower(widget), rules=(rules or ""))
 
@@ -61,12 +68,12 @@ def test_widget_alignment() -> None:
     w = apply_rules(
         Text("hello"),
         """
-        Text:
-            width: 20
-            height: 5
+    Text:
+        width: 20
+        height: 5
 
-            frame: ascii_x
-        """,
+        frame: ascii_x
+    """,
     )
 
     w.alignment = ["start", "start"]
@@ -101,6 +108,71 @@ def test_widget_alignment() -> None:
             ("|", "                  ", "|"),
             ("|", "                  ", "|"),
             ("|", "hello             ", "|"),
+            ("X", "------------------", "X"),
+        ]
+    ), _format_lines(output)
+
+
+def test_widget_scrolling() -> None:
+    w = apply_rules(
+        Text(
+            "\n".join("".join(map(lambda i: str(i % 10), range(20))) for _ in range(20))
+        ),
+        """
+        Text:
+            width: 20
+            height: 10
+            overflow: [scroll, scroll]
+
+            frame: ascii_x
+        """,
+    )
+
+    assert (output := w.build()) == _as_spans(
+        [
+            ("X", "------------------", "X"),
+            ("|", "01234567890123456", "#", "|"),
+            ("|", "01234567890123456", "#", "|"),
+            ("|", "01234567890123456", "#", "|"),
+            ("|", "01234567890123456", "|", "|"),
+            ("|", "01234567890123456", "|", "|"),
+            ("|", "01234567890123456", "|", "|"),
+            ("|", "01234567890123456", "|", "|"),
+            ("|", "################- ", "|"),
+            ("X", "------------------", "X"),
+        ]
+    ), _format_lines(output)
+
+    w.scroll_to(y=-1)
+
+    assert (output := w.build()) == _as_spans(
+        [
+            ("X", "------------------", "X"),
+            ("|", "01234567890123456", "|", "|"),
+            ("|", "01234567890123456", "|", "|"),
+            ("|", "01234567890123456", "|", "|"),
+            ("|", "01234567890123456", "|", "|"),
+            ("|", "01234567890123456", "|", "|"),
+            ("|", "01234567890123456", "#", "|"),
+            ("|", "01234567890123456", "#", "|"),
+            ("|", "################- ", "|"),
+            ("X", "------------------", "X"),
+        ]
+    ), _format_lines(output)
+
+    w.scroll_to(x=5, y=7)
+
+    assert (output := w.build()) == _as_spans(
+        [
+            ("X", "------------------", "X"),
+            ("|", "34567890123456789", "|", "|"),
+            ("|", "34567890123456789", "|", "|"),
+            ("|", "34567890123456789", "#", "|"),
+            ("|", "34567890123456789", "#", "|"),
+            ("|", "34567890123456789", "#", "|"),
+            ("|", "34567890123456789", "|", "|"),
+            ("|", "34567890123456789", "|", "|"),
+            ("|", "-################ ", "|"),
             ("X", "------------------", "X"),
         ]
     ), _format_lines(output)
