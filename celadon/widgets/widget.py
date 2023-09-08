@@ -210,7 +210,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes
     rules = ""
     """YAML rules for this widget, applied only when added part of an Application."""
 
-    prefer_content_over_frame = True
+    prefer_content_over_frame = False
     """If set, the widget will only show the top frame when its content's first line is
     visible."""
 
@@ -463,7 +463,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
                 span = line[-1]
 
-                lines[i] = (  # type: ignore
+                lines[i] = (
                     *line[:-1],
                     span.mutate(text=span.text[:-1]),
                     *(self._parse_markup(self.styles["scrollbar_y"](chars[i]))),
@@ -734,6 +734,33 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
         return self.height is None
 
+    def scroll_to(self, x: int | None = None, y: int | None = None) -> None:
+        """Scrolls the widget.
+
+        Both arguments may be given in one of four forms:
+
+        - `0`: scroll to the start of the widget on the given axis
+        - `-1`: scroll to the end of the widget on the given axis
+        - `0<` : scroll to the offset on the given axis
+        - `None`: do nothing for the given axis.
+
+        Args:
+            x: The x scroll value.
+            y: The y scroll value.
+        """
+
+        new_x = x if x is not None else self.scroll[0]
+
+        if new_x == -1:
+            new_x = self._virtual_width
+
+        new_y = y if y is not None else self.scroll[1]
+
+        if new_y == -1:
+            new_y = self._virtual_height
+
+        self.scroll = (new_x, new_y)
+
     def has_scrollbar(self, index: Literal[0, 1]) -> bool:
         """Returns whether the given dimension should display a scrollbar.
 
@@ -979,11 +1006,11 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         )
 
         # Clip into vertical size
-        if self._virtual_height > self.computed_height:
-            lines = lines[self.scroll[1] : self.scroll[1] + self.computed_height]
+        if self._virtual_height > height:
+            lines = lines[self.scroll[1] : self.scroll[1] + height]
 
             if len(lines) < height:
-                lines.extend([(Span(""),)] * (self.computed_height - len(lines)))
+                lines.extend([(Span(""),)] * (height - len(lines)))
 
         # Handle alignment
         self._vertical_align(lines, height)

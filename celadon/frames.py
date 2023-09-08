@@ -261,6 +261,8 @@ class HorizontalOuter(Frame):
         "▔▔▔▔▔",
     )
 
+    scrollbars = ((" ", "▅"), (" ", "█"))
+
     outer_horizontal = True
     outer_corner = True
 
@@ -277,6 +279,8 @@ class VerticalOuter(Frame):
         "🮇  x  ▎",
         "🮇▁▁▁▁▁▎",
     )
+
+    scrollbars = ((" ", "▅"), (" ", "█"))
 
     outer_vertical = True
     outer_corner = True

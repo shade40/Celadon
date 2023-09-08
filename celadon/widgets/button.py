@@ -38,7 +38,9 @@ class Button(Widget):
         alignment: [center, center]
 
         height: 1
+
         frame: heavy
+        prefer_content_over_frame: true
 
         /idle:
             fill_style: '@ui.panel1'
