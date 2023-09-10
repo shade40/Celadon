@@ -43,7 +43,9 @@ of widget _state_, controlled by a state machine internal to all widgets.
 ```yaml
 Button:
   fill_style: '@ui.primary'
-  content_style: '' # Automatically use either white or black, based on the W3C contrast guidelines
+  # Automatically use either white or black, based on the W3C contrast
+  # guidelines
+  content_style: '' 
 
   # On hover, become a bit brighter
   /hover: # Equivalent to 'Button/hover'
@@ -53,7 +55,9 @@ Button:
   .big:
     height: 3
 
-  # If part of a Row in the 'button-row' group, fill available width
+  # If part of a Row in the 'button-row' group, fill available width.
+  # '&' stands for the selector in the previous nesting layer, `Button`
+  # in this case.
   Row.button-row > &:
     width: null
 ```
@@ -79,7 +83,7 @@ A dimension can be one of three types:
 
 **Exhibit A: Traditional 'web' Header-Body-Footer layout**
 
-```py
+```python
 page = Page(
   Tower(
     Row(Text("I mimick the web"), Text("For it cannot mimick me"), eid="header"),
@@ -103,7 +107,7 @@ width.
 By making use of the `fill` dimension type, we can create responsive grids
 that work regardless of the amount of widgets we have in each column / row.
 
-```py
+```python
 grid = Tower(eid="grid")
 
 for _ in range(rows):
@@ -118,4 +122,9 @@ page = Page(
 """
 )
 ```
-    
+
+#### Documentation
+
+Once the library gets to a settled state (near 1.0), documentation will be
+hosted both online and as a `celx` application. Until then peep the `examples`
+folder, or check out some of the widget references by using `python3 -m pydoc <name>`.
