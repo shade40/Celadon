@@ -123,8 +123,21 @@ page = Page(
 )
 ```
 
+![rule](https://singlecolorimage.com/get/afe1af/1600x3)
+
 ### Documentation
 
 Once the library gets to a settled state (near 1.0), documentation will be
 hosted both online and as a `celx` application. Until then peep the `examples`
 folder, or check out some of the widget references by using `python3 -m pydoc <name>`.
+
+![rule](https://singlecolorimage.com/get/afe1af/1600x3)
+
+### See also
+
+- [Slate](https://github.com/shade40/slate): The terminal interfacing library that
+  forms much of `Celadon`'s backend.
+- [Zenith](https://github.com/shade40/zenith): The markup language used for styling
+  content in `Celadon`.
+- [celx](https://github.com/shade40/celx): A hypermedia-driven TUI application framework
+  written on top of `Celadon`.
