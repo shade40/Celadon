@@ -27,6 +27,8 @@ place to allow for more generalized testing.
 UIs in the terminal. While it _is_ possible to use standalone,
 you generally wanna use it through a _framework_ like [celx]().
 
+![rule](https://singlecolorimage.com/get/afe1af/1600x3)
+
 ### Feature highlights
 
 #### YAML Styling
