@@ -3,15 +3,22 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "celadon"
-description = 'A state-driven UI library for the terminal.'
+name = "sh40-celadon"
+description = "A modern TUI library taking the right lessons from the web."
 readme = "README.md"
 requires-python = ">=3.8"
+license = "MIT"
 keywords = []
 authors = [
   { name = "bczsalba", email = "bczsalba@gmail.com" },
 ]
 classifiers = [
+  "Environment :: Console",
+  "Framework :: IPython",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: MacOS",
+  "Operating System :: POSIX :: Linux",
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3.8",
@@ -20,6 +27,10 @@ classifiers = [
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
+  "Typing :: Typed",
+  "Topic :: Software Development :: Libraries",
+  "Topic :: Terminals",
+  "Topic :: Text Processing :: Markup",
 ]
 dependencies = [
     "sh40-slate",
@@ -33,9 +44,6 @@ dynamic = ["version"]
 Documentation = "https://github.com/shade40/celadon#readme"
 Issues = "https://github.com/shade40/celadon/issues"
 Source = "https://github.com/shade40/celadon"
-
-[project.scripts]
-celadon = "celadon.__main__:main"
 
 [tool.hatch.version]
 path = "celadon/__about__.py"
