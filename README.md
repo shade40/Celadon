@@ -123,7 +123,7 @@ page = Page(
 )
 ```
 
-#### Documentation
+### Documentation
 
 Once the library gets to a settled state (near 1.0), documentation will be
 hosted both online and as a `celx` application. Until then peep the `examples`
