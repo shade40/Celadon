@@ -136,8 +136,8 @@ folder, or check out some of the widget references by using `python3 -m pydoc <n
 ### See also
 
 - [Slate](https://github.com/shade40/slate): The terminal interfacing library that
-  forms much of `Celadon`'s backend.
-- [Zenith](https://github.com/shade40/zenith): The markup language used for styling
-  content in `Celadon`.
+    forms much of `Celadon`'s backend.
+- [Zenith](https://github.com/shade40/zenith): The markup language & palette generator used
+    for styling content in `Celadon`.
 - [celx](https://github.com/shade40/celx): A hypermedia-driven TUI application framework
-  written on top of `Celadon`.
+    written on top of `Celadon`.
