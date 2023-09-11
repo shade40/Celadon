@@ -104,9 +104,6 @@ def _overflows(real: int, virt: int) -> bool:
 class Widget:  # pylint: disable=too-many-instance-attributes
     """This is a docstring."""
 
-    app: "Application"
-    """The most recently run Application instance."""
-
     width: int | float | None
     """The hint used by the widget to calculate it's width. See dimension hints."""
 
@@ -124,6 +121,11 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
     position: tuple[int, int]
     """The widget's (horizontal, vertical) position."""
+
+    app: "Application"
+    """The most recently run Application instance."""
+
+    scroll_step: int = 1
 
     state_machine = StateMachine(
         states=("idle", "hover", "selected", "active"),
@@ -208,7 +210,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes
     """The style map is the lookup table for the widget's styles at certain states."""
 
     rules = ""
-    """YAML rules for this widget, applied only when added part of an Application."""
+    """YAML rules for this widget, applied only when added as part of an Application."""
 
     def __init__(
         self,
@@ -347,7 +349,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes
             self._frame = Frame.compose(sides)
             return
 
-        if isinstance(new, str):
+        if isinstance(new, str) or new is None:
             new = get_frame(new)
 
         assert not isinstance(new, str)
@@ -914,20 +916,20 @@ class Widget:  # pylint: disable=too-many-instance-attributes
                 and action is MouseAction.SCROLL_LEFT
                 or action is MouseAction.SHIFT_SCROLL_UP
             ):
-                self.scroll = (self.scroll[0] - 1, self.scroll[1])
+                self.scroll = (self.scroll[0] - self.scroll_step, self.scroll[1])
 
             elif (
                 can_scroll_x
                 and action is MouseAction.SCROLL_RIGHT
                 or action is MouseAction.SHIFT_SCROLL_DOWN
             ):
-                self.scroll = (self.scroll[0] + 1, self.scroll[1])
+                self.scroll = (self.scroll[0] + self.scroll_step, self.scroll[1])
 
             elif can_scroll_y and action is MouseAction.SCROLL_UP:
-                self.scroll = (self.scroll[0], self.scroll[1] - 1)
+                self.scroll = (self.scroll[0], self.scroll[1] - self.scroll_step)
 
             elif can_scroll_y and action is MouseAction.SCROLL_DOWN:
-                self.scroll = (self.scroll[0], self.scroll[1] + 1)
+                self.scroll = (self.scroll[0], self.scroll[1] + self.scroll_step)
 
         def _get_names(action: MouseAction) -> tuple[str, ...]:
             if action.value in ["hover", "release"]:

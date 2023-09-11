@@ -149,7 +149,7 @@ class Container(Widget):
     def _compute_gap(self, available: int, count: int) -> tuple[int, int]:
         """Computes a gap based on available // count."""
 
-        per_widget, extra = divmod(available, count)
+        per_widget, extra = divmod(available, count or 1)
 
         return _compute(self.gap, per_widget), extra
 
@@ -360,6 +360,9 @@ class Container(Widget):
         available -= gap * (count - 1) + gap_extra
 
         fill_size, fill_extra = divmod(available, fills)
+
+        this_gap = 0
+        align_extra = 0
 
         for child in children:
             if self._is_fill(child, horizontal):

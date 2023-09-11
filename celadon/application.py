@@ -26,6 +26,30 @@ __all__ = [
     "Page",
 ]
 
+DEFAULT_RULES = """
+.fill:
+    width: null
+    height: null
+
+.fill-width:
+    width: null
+
+.fill-height:
+    height: null
+
+.center:
+    alignment: [center, center]
+
+.overflow-scroll:
+    overflow: [scroll, scroll]
+
+.overflow-auto:
+    overflow: [auto, auto]
+
+.overflow-hide:
+    overflow: [hide, hide]
+"""
+
 
 def _parse_mouse_input(inp: str) -> tuple[MouseAction, tuple[int, int]] | None:
     if not inp.startswith("mouse:"):
@@ -253,6 +277,7 @@ class Selector:
             )
 
         elements_str, eid, groups_str, states = mtch.groups()
+        elements_str = elements_str or ""
 
         elements = tuple(elements_str.split("|"))
         eid = (eid or "").lstrip("#") or None
@@ -331,7 +356,7 @@ class Selector:
         if self.query == "*":
             return score + 100
 
-        type_matches = any(
+        type_matches = self.elements == ("",) or any(
             type(widget).__name__ == element for element in self.elements
         )
 
@@ -382,7 +407,7 @@ class Page:
         name: str = "Index",
         route_name: str = "index",
         builder: BuilderType | None = None,
-        rules: str | None = None,
+        rules: str = "",
     ) -> None:
         self.name = name
         self.route_name = route_name
@@ -1012,6 +1037,7 @@ class Application(Page):
         if self._page is None:
             self.route("index")
 
+        self.load_rules(DEFAULT_RULES)
         terminal = self._terminal
 
         with terminal.report_mouse(), terminal.no_echo(), terminal.alt_buffer():

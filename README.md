@@ -86,16 +86,28 @@ A dimension can be one of three types:
 **Exhibit A: Traditional 'web' Header-Body-Footer layout**
 
 ```python
-page = Page(
-  Tower(
-    Row(Text("I mimick the web"), Text("For it cannot mimick me"), eid="header"),
-    Tower(eid="body"),
-    Row(Button("Ctrl-C : Quit"), Button("F12 : Screenshot"), eid="footer")
-  ),
-  rules="""
-  Row#header, Tower#footer:
-    height: 10
-"""
+app += Page(
+    Tower(
+        Row(
+            Text("I mimick the web"),
+            Text("For it cannot mimick me"),
+            eid="header",
+        ),
+        Tower(Text.lorem(), eid="body", group="center"),
+        Row(
+            Button("Ctrl-C : Quit"),
+            Button("F12 : Screenshot"),
+            eid="footer",
+        ),
+    ),
+    rules="""
+    Tower#body:
+        frame: [null, heavy, null, heavy]
+
+    Row#header, Row#footer:
+        alignment: [center, start]
+        height: 1
+""",
 )
 ```
 
@@ -110,18 +122,19 @@ By making use of the `fill` dimension type, we can create responsive grids
 that work regardless of the amount of widgets we have in each column / row.
 
 ```python
+rows, cols = [10] * 2
 grid = Tower(eid="grid")
 
 for _ in range(rows):
-  grid += Row(*[Button("Grid Item") for _ in range(cols)])
+    grid += Row(*[Button("Grid Item") for _ in range(cols)])
 
-page = Page(
-  grid,
-  rules="""
-  Tower#grid *> Button:
-    width: null
-    height: null  
-"""
+app += Page(
+    grid,
+    rules="""
+    Tower#grid *> Button:
+        # You can set a widget's groups from YAML
+        groups: [fill]
+""",
 )
 ```
 
