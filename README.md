@@ -44,24 +44,24 @@ of widget _state_, controlled by a state machine internal to all widgets.
 
 ```yaml
 Button:
-  fill_style: '@ui.primary'
-  # Automatically use either white or black, based on the W3C contrast
-  # guidelines
-  content_style: '' 
+    fill_style: '@ui.primary'
+    # Automatically use either white or black, based on the W3C contrast
+    # guidelines
+    content_style: ''
 
-  # On hover, become a bit brighter
-  /hover: # Equivalent to 'Button/hover'
-    fill_style: '@ui.primary+1'
+    # On hover, become a bit brighter
+    /hover: # Equivalent to 'Button/hover'
+        fill_style: '@ui.primary+1'
 
-  # Become a bit taller if in the 'big' group
-  .big:
-    height: 3
+    # Become a bit taller if in the 'big' group
+    .big:
+        height: 3
 
-  # If part of a Row in the 'button-row' group, fill available width.
-  # '&' stands for the selector in the previous nesting layer, `Button`
-  # in this case.
-  Row.button-row > &:
-    width: null
+    # If part of a Row in the 'button-row' group, fill available width.
+    # '&' stands for the selector in the previous nesting layer, `Button`
+    # in this case.
+    Row.button-row > &:
+        width: null
 ```
 
 #### A great layout system
@@ -132,7 +132,10 @@ app += Page(
     grid,
     rules="""
     Tower#grid *> Button:
-        # You can set a widget's groups from YAML
+        width: null
+        height: null
+
+        # ...or, you could apply the pre-defined `fill` group to the widget
         groups: [fill]
 """,
 )
