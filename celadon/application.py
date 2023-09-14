@@ -1,9 +1,9 @@
+# pylint: disable=too-many-lines
+
 from __future__ import annotations
 
 import re
-import sys
-import importlib.util
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from threading import Thread
 from time import perf_counter, sleep
 from typing import Any, Callable, Iterator, Iterable, Type, overload
@@ -11,14 +11,12 @@ from types import TracebackType
 from pathlib import Path
 from yaml import safe_load
 
-from slate import Terminal, getch, Event, terminal as slt_terminal, EventCallback, feed
-from slate.core import BEGIN_SYNCHRONIZED_UPDATE, END_SYNCHRONIZED_UPDATE
+from slate import Terminal, getch, Event, terminal as slt_terminal, feed, Key
 
-from .widgets import Widget, widget_types
+from .widgets import Widget
 from .enums import MouseAction
 from .state_machine import deep_merge
 from .style_map import StyleMap
-from .widgets import Widget
 
 __all__ = [
     "Selector",
@@ -51,13 +49,15 @@ DEFAULT_RULES = """
 """
 
 
-def _parse_mouse_input(inp: str) -> tuple[MouseAction, tuple[int, int]] | None:
+def _parse_mouse_input(key: Key) -> tuple[MouseAction, tuple[int, int]] | None:
+    inp = str(key)
+
     if not inp.startswith("mouse:"):
         return None
 
     # TODO: This ignores stacked events and only handles the last one. Shouldn't be an
     # issue, but look out.
-    inp = inp.split("mouse:")[-1]
+    inp = inp.rsplit("mouse:", maxsplit=1)[-1]
 
     action, position = inp.split("@")
     parts = position.split(";")
@@ -179,7 +179,7 @@ RE_QUERY = re.compile(
 
 
 @dataclass(frozen=True)
-class Selector:
+class Selector:  # pylint: disable=too-many-instance-attributes
     """The object used to query widgets.
 
     Basic syntax is:
@@ -297,7 +297,9 @@ class Selector:
             forced_score=forced_score,
         )
 
-    def matches(self, widget: Widget | "Page") -> int:
+    def matches(  # pylint: disable=too-many-return-statements, too-many-branches
+        self, widget: Widget | "Page"
+    ) -> int:
         """Determines how well this selector matches the widget.
 
         Returns:
@@ -320,7 +322,7 @@ class Selector:
             if isinstance(widget.parent, Application):
                 return 0
 
-            elif widget.parent is None:
+            if widget.parent is None:
                 return 0
 
             score += self.direct_parent.matches(widget.parent)
@@ -391,7 +393,7 @@ class Selector:
 BuilderType = Callable[..., "Page"]
 
 
-class Page:
+class Page:  # pylint: disable=too-many-instance-attributes
     """A Page of an application.
 
     It contains some children, and a set of rules it applies to them.
@@ -686,7 +688,7 @@ class Page:
         return selector
 
 
-class Application(Page):
+class Application(Page):  # pylint: disable=too-many-instance-attributes
     """A page to rule them all.
 
     The primary interface to run Celadon applications. It maintains a list of pages,
@@ -728,6 +730,9 @@ class Application(Page):
         self._raised: Exception | None = None
         self._timeouts: list[tuple[Callable[[], Any], int | float]] = []
 
+        _ = self.terminal.foreground_color
+        _ = self.terminal.background_color
+
     def __enter__(self) -> Application:
         Widget.app = self
 
@@ -759,7 +764,7 @@ class Application(Page):
 
         return iter(self._pages)
 
-    def _draw_loop(self) -> None:
+    def _draw_loop(self) -> None:  # pylint: disable=too-many-locals
         """The display & timing loop of the Application, run as a thread."""
 
         frametime = 1 / self._framerate
@@ -817,7 +822,7 @@ class Application(Page):
                 for i in eliminated:
                     self._timeouts.pop(i)
 
-        except Exception as exc:
+        except Exception as exc:  # pylint: disable=broad-exception-caught
             self.stop()
             self._raised = exc
 
@@ -854,7 +859,7 @@ class Application(Page):
 
         for item in path.iterdir():
             if item.suffix == ".py":
-                with open(item, "r") as file:
+                with open(item, "r", encoding="utf-8") as file:
                     code = compile(file.read(), item.name, "exec")
 
                 package_name = item.parent.parent.stem + "." + item.parent.stem
@@ -863,7 +868,7 @@ class Application(Page):
                 globs["__name__"] = f"{package_name}.{item.stem}"
                 globs["__package__"] = package_name
 
-                exec(code, globs)
+                exec(code, globs)  # pylint: disable=exec-used
 
                 if not "get" in globs:
                     continue
@@ -908,7 +913,7 @@ class Application(Page):
         super().rule(selector, score=score, **rules)
         return selector
 
-    def append(self, page: Page) -> None:  # type: ignore
+    def append(self, page: Page) -> None:  # type: ignore # pylint: disable=arguments-renamed
         """Adds a page."""
 
         if page.name is None or page.route_name is None:
@@ -926,7 +931,7 @@ class Application(Page):
             rules.update(
                 **{
                     key.query: {
-                        **{sel: val for sel, val in value[0].items()},
+                        **value[0],
                         **{sel + "_style": val for sel, val in value[1].items()},
                     }
                 }
@@ -976,7 +981,7 @@ class Application(Page):
         self._page = page
         self._terminal.set_title(f"{self.name} - {page.name}")
 
-    def process_input(self, inp: str) -> bool:
+    def process_input(self, inp: Key) -> bool:
         """Processes input.
 
         Returns:
@@ -1015,11 +1020,10 @@ class Application(Page):
 
                     return True
 
-            else:
-                if self._mouse_target is not None:
-                    self._mouse_target.handle_mouse(
-                        MouseAction.LEFT_RELEASE, self._mouse_target.position
-                    )
+            if self._mouse_target is not None:
+                self._mouse_target.handle_mouse(
+                    MouseAction.LEFT_RELEASE, self._mouse_target.position
+                )
 
         if self._mouse_target is None:
             return False
@@ -1057,12 +1061,14 @@ class Application(Page):
                 try:
                     self.process_input(inp)
 
-                except Exception as exc:
+                except Exception as exc:  # pylint: disable=broad-exception-caught
                     self.stop()
                     self._raised = exc
                     break
 
             thread.join()
+
+        self._terminal.set_title(None)
 
         if self._raised is not None:
             raise self._raised

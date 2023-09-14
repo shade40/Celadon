@@ -13,7 +13,9 @@ __all__ = [
 CharTuple = tuple[str, str, str, str]
 
 
-class Frame:
+class Frame:  # pylint: disable=too-many-instance-attributes
+    """A set of characters to wrap a widget by."""
+
     descriptor: tuple[str, str, str] | None = None
     """A list of strings that describes the frame's borders & corners."""
 
@@ -65,7 +67,7 @@ class Frame:
         """Parses the descriptor into tuples of chartuples."""
 
         assert self.descriptor is not None
-        top, middle, bottom = self.descriptor
+        top, middle, bottom = self.descriptor  # pylint: disable=unpacking-non-sequence
 
         left_top, top, *_, right_top = list(top)
         left, *_, right = list(middle)
@@ -83,7 +85,9 @@ class Frame:
         return type(self).__name__
 
     @classmethod
-    def compose(cls, sides: tuple[Frame, Frame, Frame, Frame]) -> Frame:
+    def compose(
+        cls, sides: tuple[Type[Frame], Type[Frame], Type[Frame], Type[Frame]]
+    ) -> Frame:
         """Creates a frame object with borders coming from other frames.
 
         Args:
@@ -101,9 +105,8 @@ class Frame:
         for i, side in enumerate(sides):
             borders.append(side().borders[i])
 
-        frame.borders = tuple(borders)
-
-        frame.__init__()
+        frame.borders = tuple(borders)  # type: ignore
+        frame.__init__()  # type: ignore # pylint: disable=unnecessary-dunder-call
 
         return frame
 
@@ -133,6 +136,8 @@ def get_frame(name: str) -> Type[Frame]:
 
 
 def add_frame_preview(cls: Type[Frame]):
+    """Adds a documentation preview to the given class."""
+
     if cls.descriptor is None:
         return cls
 

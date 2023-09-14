@@ -76,11 +76,17 @@ dependencies = [
 
 [tool.hatch.envs.default.scripts]
 test = "pytest --cov-report=term-missing --cov-config=pyproject.toml --cov=celadon --cov=tests && coverage html"
+lint = "pylint celadon"
 type = "mypy celadon"
 upload = "hatch build && twine upload dist/* && hatch clean"
 
 [[tool.hatch.envs.test.matrix]]
 python = ["38", "39", "310", "311"]
+
+[tool.pylint]
+fail-under = 9.9
+disable = "fixme, missing-module-docstring, no-member"
+good-names = ["i", "j", "k", "ex", "Run", "_", "x" ,"y", "fd"]
 
 [tool.coverage.run]
 branch = true

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from functools import reduce
 from typing import Any
 
 from slate import Event
@@ -42,6 +41,8 @@ def deep_merge(
 
 
 class StateMachine:
+    """A state manager to manage widget state."""
+
     on_change: Event
     """Called when the state changes.
 

@@ -1,3 +1,4 @@
+# pylint: disable=too-many-lines
 from __future__ import annotations
 
 import uuid
@@ -5,21 +6,9 @@ import re
 
 from copy import deepcopy
 from dataclasses import dataclass
-from functools import cached_property
-from typing import (
-    Any,
-    Callable,
-    Generator,
-    Type,
-    Iterable,
-    Literal,
-    Union,
-    Protocol,
-    TypedDict,
-    TYPE_CHECKING,
-)
+from typing import Any, Callable, Generator, Type, Iterable, Literal, TYPE_CHECKING
 
-from slate import Event, Span, Terminal
+from slate import Event, Span, Terminal, Key
 from zenith.markup import zml_pre_process, zml_get_spans, FULL_RESET
 
 from ..enums import Alignment, Overflow, MouseAction
@@ -37,6 +26,8 @@ RE_FULL_UNSETTER = re.compile(r"\/(?=\]| )")
 
 @dataclass
 class BoundStyle:
+    """A callable object containing both style and fill markup."""
+
     style: str
     fill: str
 
@@ -101,7 +92,7 @@ def _overflows(real: int, virt: int) -> bool:
     return real / max(virt, 1) <= 1.0
 
 
-class Widget:  # pylint: disable=too-many-instance-attributes
+class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-methods
     """This is a docstring."""
 
     width: int | float | None
@@ -212,6 +203,8 @@ class Widget:  # pylint: disable=too-many-instance-attributes
     rules = ""
     """YAML rules for this widget, applied only when added as part of an Application."""
 
+    _frame: Frame
+
     def __init__(
         self,
         eid: str | None = None,
@@ -238,7 +231,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         self.width: int | float | None = None
         self.height: int | float | None = None
         # These conversions are handled in their properties
-        self.frame = "Frameless"  # type: ignore
+        self.frame = get_frame(None)  # type: ignore
         self.alignment = ("start", "start")  # type: ignore
         self.overflow = ("hide", "hide")  # type: ignore
 
@@ -341,18 +334,17 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         return self._frame
 
     @frame.setter
-    def frame(self, new: str | list[str] | Type[Frame]) -> None:
+    def frame(self, new: str | tuple[str, str, str, str] | Type[Frame]) -> None:
         """Sets the frame setting."""
 
         if isinstance(new, tuple):
             sides = tuple(get_frame(side) for side in new)
-            self._frame = Frame.compose(sides)
+            self._frame = Frame.compose(sides)  # type: ignore
             return
 
         if isinstance(new, str) or new is None:
             new = get_frame(new)
 
-        assert not isinstance(new, str)
         self._frame = new()
 
     @property
@@ -472,7 +464,9 @@ class Widget:  # pylint: disable=too-many-instance-attributes
                     *(self._parse_markup(self.styles["scrollbar_y"](chars[i]))),
                 )
 
-    def _apply_frame(self, lines: list[tuple[Span, ...]], width: int) -> None:
+    def _apply_frame(  # pylint: disable=too-many-locals
+        self, lines: list[tuple[Span, ...]], width: int
+    ) -> None:
         """Adds frame characters around the given lines."""
 
         def _style(item, outer: bool = False) -> tuple[Span, ...]:
@@ -490,8 +484,6 @@ class Widget:  # pylint: disable=too-many-instance-attributes
         h_outer = self.frame.outer_horizontal
         v_outer = self.frame.outer_vertical
         c_outer = self.frame.outer_corner
-
-        count = len(lines)
 
         for i, line in enumerate(lines):
             lines[i] = (
@@ -883,7 +875,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
         return event
 
-    def handle_keyboard(self, key: str) -> bool:
+    def handle_keyboard(self, key: Key) -> bool:
         """Handles a keyboard event.
 
         Returns:
@@ -893,9 +885,13 @@ class Widget:  # pylint: disable=too-many-instance-attributes
 
         result = False
 
-        if key in self._bindings:
-            if self._bindings[key](self):
-                result |= True
+        for value in key:
+            if value in self._bindings:
+                if self._bindings[value](self):
+                    result |= True
+
+            if result:
+                break
 
         return result
 

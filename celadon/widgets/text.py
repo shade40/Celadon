@@ -28,6 +28,7 @@ class Text(Widget):
         """Returns a Text object filled with Lorem Ipsum."""
 
         return Text(
+            **widget_args,
             groups=("fill-height", "overflow-auto"),
             content="""\
             Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum in metus

@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from typing import Callable, Any
+from typing import Any
 
 from slate import Event, EventCallback
 from zenith.markup import RE_MARKUP
 
-from ..enums import MouseAction, Alignment
+from ..enums import MouseAction
 from .widget import Widget
 
 SEMANTIC_STYLES = """
@@ -120,7 +120,7 @@ class Button(Widget):
 
         return self.on_submit(self)
 
-    def on_click(self, action: MouseAction, __: tuple[int, int]) -> None:
+    def on_click(self, _: MouseAction, __: tuple[int, int]) -> None:
         """Emits the submit event."""
 
         self.on_submit(self)

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from typing import Iterator, Iterable, Any
-from slate import Span
-from .widget import Widget, _overflows, _compute
+from slate import Span, Key
+from .widget import Widget, _compute
 from ..enums import MouseAction, Direction, Alignment
 
 __all__ = [
@@ -153,26 +153,6 @@ class Container(Widget):
 
         return _compute(self.gap, per_widget), extra
 
-    '''
-    def _as_layout_state(self) -> int:
-        """Generates an integer that represents the current layout."""
-
-        if any(w.eid == "sidebar" for w in self.visible_children):
-            print(
-                " ".join(
-                    f"{widget.position[0]};{widget.position[1]}-{widget.width_hint}x{widget.height_hint}"
-                    for widget in self.visible_children
-                )
-            )
-
-        return hash(
-            " ".join(
-                f"{widget.position[0]};{widget.position[1]}-{widget.width_hint}x{widget.height_hint}"
-                for widget in self.visible_children
-            )
-        )
-    '''
-
     @property
     def selected(self) -> Widget | None:
         """Returns the currently selected widget."""
@@ -312,7 +292,9 @@ class Container(Widget):
         for child in self.children:
             child.move_by(x, y)
 
-    def arrange(self, x: int, y: int) -> None:
+    def arrange(  # pylint: disable=too-many-locals,too-many-statements,too-many-branches
+        self, x: int, y: int
+    ) -> None:
         """Arranges the widget's children according to its flow.
 
         Args:
@@ -416,7 +398,7 @@ class Container(Widget):
 
         return [""]
 
-    def handle_keyboard(self, key: str) -> bool:
+    def handle_keyboard(self, key: Key) -> bool:
         if self.selected is not None and self.selected.handle_keyboard(key):
             return True
 

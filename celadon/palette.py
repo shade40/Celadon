@@ -1,5 +1,3 @@
-from dataclasses import dataclass
-
 from slate import Color
 from zenith import Palette
 

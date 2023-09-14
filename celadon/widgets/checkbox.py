@@ -36,6 +36,7 @@ class Checkbox(Widget):
         },
     }
 
+    # TODO: Add a form of inheritance to YAML styling
     rules = """
     Checkbox:
         content_style: dim
@@ -102,7 +103,7 @@ class Checkbox(Widget):
 
         return self.on_change(self)
 
-    def on_click(self, action: MouseAction, __: tuple[int, int]) -> None:
+    def on_click(self, _: MouseAction, __: tuple[int, int]) -> None:
         """Toggles checked & emits the change event."""
 
         self.checked = not self.checked
