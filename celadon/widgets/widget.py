@@ -19,7 +19,7 @@ from ..state_machine import StateMachine
 if TYPE_CHECKING:
     from ..application import Application, Page
 
-__all__ = ["Widget", "widget_types"]
+__all__ = ["Widget", "widget_types", "handle_mouse_on_children"]
 
 RE_FULL_UNSETTER = re.compile(r"\/(?=\]| )")
 
@@ -956,11 +956,9 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                     handle(position)
                     return True
 
-                handle(action, position)
-                return True
+                return handle(action, position)
 
-        # Always return True for hover, even if no specific handler is found
-        return action is MouseAction.HOVER
+        return False
 
     def compute_dimensions(self, available_width: int, available_height: int) -> None:
         """Computes width & height based on our specifications and the given space."""
@@ -1043,3 +1041,85 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
 
 widget_annotations = Widget.__annotations__
 widget_types: dict[str, Type[Widget]] = {"Widget": Widget}
+
+
+def handle_mouse_on_children(
+    action: MouseAction,
+    position: tuple[int, int],
+    mouse_target: Widget | None,
+    hover_target: Widget | None,
+    children: Iterable[Widget],
+) -> tuple[bool, int | None, Widget | None, Widget | None]:
+    """Handles the given mouse event on an iterable of widgets.
+
+    This can be used by 'container' type widgets (like `Container`), or meta-level
+    management objects (like `Application`) for consistent mouse handling behaviour.
+
+    Args:
+        action: The action associated with the event.
+        position: The position associated with the event.
+        mouse_target: The caller's current mouse target.
+        hover_target: The caller's current hover target.
+        children: The widgets to execute upon.
+
+    Returns:
+        A tuple of:
+
+            (success, selection_index, mouse_target, hover_target)
+
+        Since this function doesn't have access to the caller, the caller has to set
+        its mouse & hover targets to the returned values. `selection_index` is only set
+        when a new widget handled the event & is selectable, so should be ignored when
+        set to None.
+    """
+
+    if action is MouseAction.LEFT_RELEASE:
+        if mouse_target is not None:
+            mouse_target.handle_mouse(action, position)
+            mouse_target = None
+
+        if hover_target is not None:
+            hover_target.handle_mouse(action, position)
+            hover_target = None
+
+        return True, None, mouse_target, hover_target
+
+    is_hover = action is MouseAction.HOVER
+    release = MouseAction.LEFT_RELEASE, position
+
+    if mouse_target is not None and mouse_target.handle_mouse(action, position):
+        return True, None, mouse_target, hover_target
+
+    if is_hover and hover_target is not None and not hover_target.contains(position):
+        hover_target.handle_mouse(*release)
+        hover_target = None
+
+    selection = 0
+
+    for child in children:
+        selection += child.selectable_count
+
+        if not child.contains(position):
+            continue
+
+        if is_hover:
+            if hover_target is not None and hover_target is not child:
+                hover_target.handle_mouse(*release)
+
+            hover_target = child
+
+        if child.handle_mouse(action, position):
+            selection -= child.selectable_count - (child.selected_index or 0)
+
+            if mouse_target is not None and mouse_target is not child:
+                mouse_target.handle_mouse(*release)
+
+            # After release, send an extra hover event if the widget contains the mouse.
+            if "release" in action.value:
+                child.handle_mouse(MouseAction.HOVER, position)
+
+            mouse_target = child
+
+            return True, selection, mouse_target, hover_target
+
+    return False, None, mouse_target, hover_target

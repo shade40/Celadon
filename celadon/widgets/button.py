@@ -125,5 +125,7 @@ class Button(Widget):
 
         self.on_submit(self)
 
+        return True
+
     def get_content(self) -> list[str]:
         return [self.content]

@@ -13,7 +13,7 @@ from yaml import safe_load
 
 from slate import Terminal, getch, Event, terminal as slt_terminal, feed, Key
 
-from .widgets import Widget
+from .widgets import Widget, handle_mouse_on_children
 from .enums import MouseAction
 from .state_machine import deep_merge
 from .style_map import StyleMap
@@ -722,6 +722,7 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
         self._pages = []
         self._page = None
         self._mouse_target: Widget | None = None
+        self._hover_target: Widget | None = None
         self._framerate = framerate
         self._terminal = terminal or slt_terminal
 
@@ -988,47 +989,28 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
             Whether the input could be handled.
         """
 
-        if (event := _parse_mouse_input(inp)) is not None:
-            action, position = event
+        event = _parse_mouse_input(inp)
 
-            if (
-                self._mouse_target is not None
-                and action is MouseAction.HOVER
-                and not self._mouse_target.contains(position)
-            ):
-                self._mouse_target.handle_mouse(MouseAction.LEFT_RELEASE, position)
-
-            for widget in reversed([*self._page, *self._children]):  # type: ignore
-                if not widget.contains(position):
-                    continue
-
-                if widget.handle_mouse(action, position):
-                    if self._mouse_target not in [widget, None]:
-                        self._mouse_target.handle_mouse(  # type: ignore
-                            MouseAction.LEFT_RELEASE, position
-                        )
-
-                    self.apply_rules()
-
-                    if action is not MouseAction.HOVER:
-                        self._mouse_target = widget
-
-                    # After release, send an extra hover event if the widget contains
-                    # the mouse.
-                    if "release" in action.value:
-                        widget.handle_mouse(MouseAction.HOVER, position)
-
-                    return True
-
+        if event is None:
             if self._mouse_target is not None:
-                self._mouse_target.handle_mouse(
-                    MouseAction.LEFT_RELEASE, self._mouse_target.position
-                )
+                return self._mouse_target.handle_keyboard(inp)
 
-        if self._mouse_target is None:
             return False
 
-        return self._mouse_target.handle_keyboard(inp)
+        result, _, mouse_target, hover_target = handle_mouse_on_children(
+            *event,
+            self._mouse_target,
+            self._hover_target,
+            reversed([*self._page, *self._children]),
+        )
+
+        # We need to keep `_mouse_target` to handle keyboard inputs
+        self._hover_target = hover_target
+
+        if result:
+            return True
+
+        return False
 
     def run(self) -> None:
         """Runs the application.

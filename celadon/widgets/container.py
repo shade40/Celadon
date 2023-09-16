@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Iterator, Iterable, Any
 from slate import Span, Key
-from .widget import Widget, _compute
+from .widget import Widget, _compute, handle_mouse_on_children
 from ..enums import MouseAction, Direction, Alignment
 
 __all__ = [
@@ -60,6 +60,7 @@ class Container(Widget):
         self._should_layout = False
         self._layout_state: int = -1
         self._mouse_target: Widget | None = None
+        self._hover_target: Widget | None = None
         self._outer_dimensions = (1, 1)
 
     @property
@@ -251,6 +252,14 @@ class Container(Widget):
         widget.parent = None
         self._should_layout = True
 
+    def insert(self, index: int, item: Widget) -> None:
+        """Inserts a widget.
+
+        Analogous to `list.insert`.
+        """
+
+        self.children.insert(0, item)
+
     def pop(self, index: int) -> Widget:
         """Pops a widget from our children.
 
@@ -413,41 +422,21 @@ class Container(Widget):
         return super().handle_keyboard(key)
 
     def handle_mouse(self, action: MouseAction, position: tuple[int, int]) -> bool:
-        if self._mouse_target is not None:
-            if action is MouseAction.LEFT_RELEASE:
-                self._mouse_target.handle_mouse(action, position)
-                self._mouse_target = None
-                return True
+        result, selection, mouse_target, hover_target = handle_mouse_on_children(
+            action,
+            position,
+            self._mouse_target,
+            self._hover_target,
+            self.visible_children,
+        )
 
-            if action is MouseAction.HOVER and not self._mouse_target.contains(
-                position
-            ):
-                self._mouse_target.handle_mouse(MouseAction.LEFT_RELEASE, position)
+        self._mouse_target = mouse_target
+        self._hover_target = hover_target
 
-        selectables_index = 0
-
-        for widget in self.visible_children:
-            if not widget.contains(position):
-                selectables_index += widget.selectable_count
-                continue
-
-            if widget.handle_mouse(action, position):
-                selectables_index += widget.selected_index or 0
-
-                if action is not MouseAction.HOVER:
-                    self.select(selectables_index)
-
-                # The only way this would fail is if a widget defined `__eq__` to return
-                # True for None, which is dumb.
-                if self._mouse_target not in [widget, None]:
-                    self._mouse_target.handle_mouse(  # type: ignore
-                        MouseAction.LEFT_RELEASE, position
-                    )
-
-                self._mouse_target = widget
-                return True
-
-            selectables_index += widget.selectable_count
+        if result:
+            if selection is not None:
+                self.select(selection)
+            return True
 
         return super().handle_mouse(action, position)
 
