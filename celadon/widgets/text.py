@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from zenith.markup import RE_MARKUP
 
 from .widget import Widget
+
+RE_HYPERLINK_MARKUP = re.compile(r"~([^ \]\[]+)")
 
 
 class Text(Widget):
@@ -134,6 +137,20 @@ class Text(Widget):
     @property
     def selectables(self) -> list[tuple[Widget, int]]:
         return []
+
+    def on_click(self, _: MouseAction, __: tuple[int, int]) -> bool:
+        """Clicks the first hyperlink within the text's content."""
+
+        if self.app is None:
+            return False
+
+        if (mtch := RE_HYPERLINK_MARKUP.search(self.content)) is not None:
+            value = mtch[1]
+
+            self.app.route(value.lstrip("/"))
+
+        # Never return True, as we don't want the parent to select a widget
+        return False
 
     def get_content(self) -> list[str]:
         return self.content.splitlines()
