@@ -1083,7 +1083,11 @@ def handle_mouse_on_children(
     is_hover = action is MouseAction.HOVER
     release = MouseAction.LEFT_RELEASE, position
 
-    if mouse_target is not None and mouse_target.handle_mouse(action, position):
+    if (
+        mouse_target is not None
+        and mouse_target.handle_mouse(action, position)
+        and "click" not in action.value  # Clicks cannot be done outside of the widget
+    ):
         return True, None, mouse_target, hover_target
 
     if is_hover and hover_target is not None and not hover_target.contains(position):
@@ -1113,5 +1117,7 @@ def handle_mouse_on_children(
             mouse_target = child
 
             return True, selection, mouse_target, hover_target
+
+        break
 
     return False, None, mouse_target, hover_target
