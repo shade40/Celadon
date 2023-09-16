@@ -1110,10 +1110,6 @@ def handle_mouse_on_children(
             if mouse_target is not None and mouse_target is not child:
                 mouse_target.handle_mouse(*release)
 
-            # After release, send an extra hover event if the widget contains the mouse.
-            if "release" in action.value:
-                child.handle_mouse(MouseAction.HOVER, position)
-
             mouse_target = child
 
             return True, selection, mouse_target, hover_target

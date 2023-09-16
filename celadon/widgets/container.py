@@ -438,6 +438,11 @@ class Container(Widget):
                 self.select(selection)
             return True
 
+        # There was a click, but it didn't get handled; likely clicked on a
+        # non-selectable, or empty space.
+        if "click" in action.value:
+            self.select(None)
+
         return super().handle_mouse(action, position)
 
     def drawables(self) -> Iterator[Widget]:
