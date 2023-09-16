@@ -928,23 +928,19 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 self.scroll = (self.scroll[0], self.scroll[1] + self.scroll_step)
 
         def _get_names(action: MouseAction) -> tuple[str, ...]:
-            if action.value in ["hover", "release"]:
+            if action.value == "hover":
                 return (action.value,)
 
             parts = action.value.split("_")
 
-            # left click & right click or drag
-            if parts[0] in ["left", "right"]:
-                return (action.value, parts[1])
+            full = action.value
+            alt_key = "_".join(parts[-2:])
+            event = parts[-1]
 
-            if parts[0] == "shift":
-                return (action.value, f"shift_{parts[1]}", parts[1])
+            if alt_key in ["left", "right"]:
+                return (full, alt_key, event)
 
-            if parts[0] == "ctrl":
-                return (action.value, f"ctrl_{parts[1]}", parts[1])
-
-            # scrolling
-            return (action.value, parts[0])
+            return (full, event)
 
         possible_names = _get_names(action)
 
