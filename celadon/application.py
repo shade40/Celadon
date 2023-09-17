@@ -8,7 +8,6 @@ from threading import Thread
 from time import perf_counter, sleep
 from typing import Any, Callable, Iterator, Iterable, Type, overload
 from types import TracebackType
-from pathlib import Path
 from yaml import safe_load
 
 from slate import Terminal, getch, Event, terminal as slt_terminal, feed, Key
@@ -221,7 +220,7 @@ class Selector:  # pylint: disable=too-many-instance-attributes
             return f"{self.direct_parent} > {self.query}"
 
         if self.indirect_parent is not None:
-            return f"{self.indirect_parent} > {self.query}"
+            return f"{self.indirect_parent} *> {self.query}"
 
         return self.query
 
@@ -250,12 +249,14 @@ class Selector:  # pylint: disable=too-many-instance-attributes
         # TODO: Add support for multi-hierarchy
         if " > " in query:
             left, right = query.split(" > ")
+
             return Selector.parse(
                 right, direct_parent=Selector.parse(left), forced_score=forced_score
             )
 
         if " *> " in query:
             left, right = query.split(" *> ")
+
             return Selector.parse(
                 right, indirect_parent=Selector.parse(left), forced_score=forced_score
             )
@@ -297,6 +298,32 @@ class Selector:  # pylint: disable=too-many-instance-attributes
             forced_score=forced_score,
         )
 
+    def _match_parent(self, widget: Widget | "Page", direct: bool = True) -> int:
+        """Walks up the widget's parent tree and tries to match each.
+
+        Args:
+            widget: The widget whos parents we are looking at.
+            direct: If set, we will only walk up for one node, and use `direct_parent`
+                instead of `indirect_parent`.
+        """
+
+        if widget.parent is None:
+            return 0
+
+        parent = widget.parent
+
+        while parent.parent is not None:
+            if direct:
+                # Both are checked to be non-null at call site.
+                return self.direct_parent.matches(parent)  # type: ignore
+
+            if score := self.indirect_parent.matches(parent):  # type: ignore
+                return score
+
+            parent = widget.parent
+
+        return 0
+
     def matches(  # pylint: disable=too-many-return-statements, too-many-branches
         self, widget: Widget | "Page"
     ) -> int:
@@ -313,79 +340,53 @@ class Selector:  # pylint: disable=too-many-instance-attributes
                 )
 
             When optional parts are ommitted (like groups), they are excluded from the
-            calculation.
+            calculation. However, when these are provided the widget _must_ have
+            matching attributes, otherwise the function will return 0.
         """
 
-        score = 0
-
-        if self.direct_parent is not None:
-            if isinstance(widget.parent, Application):
-                return 0
-
-            if widget.parent is None:
-                return 0
-
-            score += self.direct_parent.matches(widget.parent)
-
-            if score == 0:
-                return 0
-
-        if self.indirect_parent is not None:
-            if isinstance(widget.parent, Application):
-                return 0
-
-            item = widget
-            count = 0
-
-            while True:
-                count += 1
-                parent = item.parent
-
-                if isinstance(parent, Application):
-                    return 0
-
-                if parent is None:
-                    return 0
-
-                score += self.indirect_parent.matches(parent)
-
-                if score != 0:
-                    score -= count * 10
-                    break
-
-                item = parent
-
         if self.query == "*":
-            return score + 100
+            return 10
 
-        type_matches = self.elements == ("",) or any(
-            type(widget).__name__ == element for element in self.elements
-        )
-
-        if isinstance(widget, Page):
-            eid_matches = 0
-            group_matches = 0
-            state_matches = 0
-
-        else:
-            eid_matches = self.eid is None or self.eid == widget.eid
-            group_matches = all(group in widget.groups for group in self.groups)
-            state_matches = self.states is None or any(
-                widget.state.endswith(state) for state in self.states
-            )
-
-        if not (type_matches and eid_matches and group_matches and state_matches):
+        if type(widget).__name__ not in self.elements and self.elements != ("",):
             return 0
 
         if self.forced_score is not None:
             return self.forced_score
 
-        score = (
-            (eid_matches - (self.eid is None)) * 1000
-            + (group_matches - (len(self.groups) == 0)) * 500
-            + ((state_matches - (self.states is None)) * 250)
-            + (1 - (self.elements == (Widget,))) * type_matches * 100
-        ) * type_matches
+        score = 100
+
+        if self.direct_parent is not None:
+            if (scr := self._match_parent(widget)) == 0:
+                return 0
+
+            score += scr
+
+        elif self.indirect_parent is not None:
+            if (scr := self._match_parent(widget, direct=False)) == 0:
+                return 0
+
+            score += scr
+
+        if isinstance(widget, Widget) and widget.eid == self.eid:
+            score += 1000
+
+        if self.groups:
+            if isinstance(widget, Widget) and all(
+                group in widget.groups for group in self.groups
+            ):
+                score += 500
+
+            else:
+                return 0
+
+        if self.states is not None:
+            if isinstance(widget, Widget) and any(
+                widget.state.endswith(state) for state in self.states
+            ):
+                score += 250
+
+            else:
+                return 0
 
         return score
 
@@ -406,12 +407,15 @@ class Page:  # pylint: disable=too-many-instance-attributes
     def __init__(
         self,
         *children: Widget,
-        name: str = "Index",
-        route_name: str = "index",
+        title: str = "",
+        route_name: str = "/",
         builder: BuilderType | None = None,
         rules: str = "",
     ) -> None:
-        self.name = name
+        if not route_name.startswith("/"):
+            raise ValueError(f"route names must start with a slash, got {route_name!r}")
+
+        self.title = title
         self.route_name = route_name
         self._children: list[Widget] = []
         self._rules = {}
@@ -604,15 +608,14 @@ class Page:  # pylint: disable=too-many-instance-attributes
                 continue
 
             applicable_rules = [
-                (sel, sel.matches(widget), rule) for sel, rule in self._rules.items()
+                (sel, score, rule)
+                for sel, rule in self._rules.items()
+                if (score := sel.matches(widget)) != 0
             ]
 
             for sel, score, (attrs, style_map) in sorted(
                 applicable_rules, key=lambda item: item[1]
             ):
-                if score == 0:
-                    continue
-
                 new_attrs.update(**attrs)
                 new_style_map |= style_map
 
@@ -703,7 +706,7 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
     _page: Page | None
 
     def __init__(
-        self, name: str, framerate: int = 60, terminal: Terminal | None = None
+        self, title: str, framerate: int = 60, terminal: Terminal | None = None
     ) -> None:
         """Initializes the Application.
 
@@ -714,7 +717,7 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
             terminal: A terminal instance to use.
         """
 
-        super().__init__(name=name, route_name="/")
+        super().__init__(title=title, route_name="/")
 
         self.on_frame_drawn = Event("frame drawn")
         self.on_page_added = Event("page added")
@@ -849,40 +852,6 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
 
         self._timeouts.append((callback, delay_ms))
 
-    def build_from(self, path: str | Path) -> None:
-        """Builds an application from a given path.
-
-        Likely removed in the future.
-        """
-
-        if not isinstance(path, Path):
-            path = Path(path)
-
-        for item in path.iterdir():
-            if item.suffix == ".py":
-                with open(item, "r", encoding="utf-8") as file:
-                    code = compile(file.read(), item.name, "exec")
-
-                package_name = item.parent.parent.stem + "." + item.parent.stem
-
-                globs = globals().copy()
-                globs["__name__"] = f"{package_name}.{item.stem}"
-                globs["__package__"] = package_name
-
-                exec(code, globs)  # pylint: disable=exec-used
-
-                if not "get" in globs:
-                    continue
-
-                page = globs["get"](self)
-
-                page.name = globs.get(
-                    "DISPLAY_NAME", item.stem.replace("_", " ").title()
-                )
-                page.route_name = item.stem
-
-                self.append(page)
-
     def find_all(self, query: str | Selector) -> Iterator[Widget]:
         selector = query
 
@@ -912,15 +881,16 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
             page.rule(selector, score=score, **rules)
 
         super().rule(selector, score=score, **rules)
+
         return selector
 
     def append(self, page: Page) -> None:  # type: ignore # pylint: disable=arguments-renamed
         """Adds a page."""
 
-        if page.name is None or page.route_name is None:
+        if page.title is None or page.route_name is None:
             raise ValueError(
-                "Pages must have both `name` and `route_name`,"
-                f" got {page.name=!r}, {page.route_name=!r}"
+                "Pages must have both `title` and `route_name`,"
+                f" got {page.title=!r}, {page.route_name=!r}"
             )
 
         rules: dict[str, Any] = {}
@@ -931,7 +901,7 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
         for key, value in self._rules.items():
             rules.update(
                 **{
-                    key.query: {
+                    str(key): {
                         **value[0],
                         **{sel + "_style": val for sel, val in value[1].items()},
                     }
@@ -980,7 +950,12 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
             raise ValueError(f"No page with route {destination!r}.")
 
         self._page = page
-        self._terminal.set_title(f"{self.name} - {page.name}")
+
+        if page.route_name == "/":
+            self._terminal.set_title(f"{self.title}")
+
+        else:
+            self._terminal.set_title(f"{self.title} - {page.title}")
 
     def process_input(self, inp: Key) -> bool:
         """Processes input.
@@ -997,11 +972,11 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
 
             return False
 
-        result, _, mouse_target, hover_target = handle_mouse_on_children(
+        result, *_, hover_target = handle_mouse_on_children(
             *event,
             self._mouse_target,
             self._hover_target,
-            reversed([*self._page, *self._children]),
+            reversed([*self._page, *self._children]),  # type: ignore
         )
 
         # We need to keep `_mouse_target` to handle keyboard inputs
@@ -1021,13 +996,13 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
         self._is_running = True
 
         if self._page is None:
-            self.route("index")
+            self.route("/")
 
         self.load_rules(DEFAULT_RULES)
         terminal = self._terminal
 
         with terminal.report_mouse(), terminal.no_echo(), terminal.alt_buffer():
-            thread = Thread(name=f"{self.name} draw", target=self._draw_loop)
+            thread = Thread(name=f"{self.title}.draw", target=self._draw_loop)
             thread.start()
 
             while self._is_running:
