@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Type
+from typing import Type, Tuple
 
 __all__ = [
     "Frame",
@@ -10,7 +10,7 @@ __all__ = [
     "get_frame",
 ]
 
-CharTuple = tuple[str, str, str, str]
+CharTuple = Tuple[str, str, str, str]
 
 
 class Frame:  # pylint: disable=too-many-instance-attributes

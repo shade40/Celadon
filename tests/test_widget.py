@@ -1,12 +1,11 @@
+from __future__ import annotations
+
 from io import StringIO
 from contextlib import contextmanager
 
 from celadon import Application, Page, Tower, Row, Text, Widget
 
 from slate import Span, Terminal
-
-RULES = """
-"""
 
 
 class SizedTerminal(Terminal):

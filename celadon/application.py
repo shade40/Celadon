@@ -672,7 +672,7 @@ class Page:  # pylint: disable=too-many-instance-attributes
             if not key.endswith("_style"):
                 attrs[key] = value
             else:
-                style_map[key.removesuffix("_style")] = value
+                style_map[key[: -len("_style")]] = value
 
         if isinstance(query, Selector):
             selector = query
