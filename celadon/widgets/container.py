@@ -258,7 +258,7 @@ class Container(Widget):
         Analogous to `list.insert`.
         """
 
-        self.children.insert(0, item)
+        self.children.insert(index, item)
 
     def pop(self, index: int) -> Widget:
         """Pops a widget from our children.

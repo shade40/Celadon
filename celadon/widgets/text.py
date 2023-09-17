@@ -6,6 +6,7 @@ from typing import Any
 from zenith.markup import RE_MARKUP
 
 from .widget import Widget
+from ..enums import MouseAction
 
 RE_HYPERLINK_MARKUP = re.compile(r"~([^ \]\[]+)")
 

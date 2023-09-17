@@ -72,8 +72,6 @@ class Button(Widget):
         self,
         content: str,
         on_submit: list[EventCallback] | None = None,
-        # TODO: This probably shouldn't be here in the future.
-        route: str | None = None,
         **widget_args: Any,
     ) -> None:
         """Initializes the button.
@@ -96,9 +94,6 @@ class Button(Widget):
         for callback in on_submit or []:
             self.on_submit += callback
 
-        if route is not None:
-            self.on_submit += lambda *_: self.app.route(route)
-
         self.bind("return", self._visual_submit)
 
     def _visual_submit(self) -> bool:
@@ -120,7 +115,7 @@ class Button(Widget):
 
         return self.on_submit(self)
 
-    def on_click(self, _: MouseAction, __: tuple[int, int]) -> None:
+    def on_click(self, _: MouseAction, __: tuple[int, int]) -> bool:
         """Emits the submit event."""
 
         self.on_submit(self)
