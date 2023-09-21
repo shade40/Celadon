@@ -18,6 +18,7 @@ from .state_machine import deep_merge
 from .style_map import StyleMap
 
 __all__ = [
+    "load_rules",
     "Selector",
     "Application",
     "Page",
@@ -79,7 +80,7 @@ def _flatten(widget: Widget) -> list[Widget]:
     return items
 
 
-def _load_rules(source: str) -> dict[str, dict[str, Any]]:
+def load_rules(source: str) -> dict[str, dict[str, Any]]:
     """Loads a set of rule declarations from YAML.
 
     Nested get inserted into the parent's key, so:
@@ -334,7 +335,7 @@ class Selector:  # pylint: disable=too-many-instance-attributes
 
                 (
                     (eid_matches * 1000)
-                    + (group_matches * 500)
+                    + (group_matches * 500 + len(groups) * 100)
                     + (state_matches * 250)
                     + (type_matches * 100)
                 )
@@ -367,14 +368,18 @@ class Selector:  # pylint: disable=too-many-instance-attributes
 
             score += scr
 
-        if isinstance(widget, Widget) and widget.eid == self.eid:
-            score += 1000
+        if self.eid is not None:
+            if isinstance(widget, Widget) and widget.eid == self.eid:
+                score += 1000
+
+            else:
+                return 0
 
         if self.groups:
             if isinstance(widget, Widget) and all(
                 group in widget.groups for group in self.groups
             ):
-                score += 500
+                score += 500 + 100 * len(self.groups)
 
             else:
                 return 0
@@ -581,7 +586,7 @@ class Page:  # pylint: disable=too-many-instance-attributes
 
         assert rules is not None
 
-        for selector, rule in _load_rules(rules).items():
+        for selector, rule in load_rules(rules).items():
             self.rule(selector, **rule, score=score)
 
     def apply_rules(self) -> bool:
@@ -956,6 +961,8 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
 
         else:
             self._terminal.set_title(f"{self.title} - {page.title}")
+
+        self.apply_rules()
 
     def process_input(self, inp: Key) -> bool:
         """Processes input.
