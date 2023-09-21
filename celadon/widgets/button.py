@@ -88,7 +88,7 @@ class Button(Widget):
         self._has_timeout = False
 
         self.content = content
-        self.width = len(RE_MARKUP.sub(self.content, "")) + 8
+        self.width = sum(len(span) for span in self._parse_markup(self.content)) + 4
 
         self.on_submit = Event("button submit")
         for callback in on_submit or []:

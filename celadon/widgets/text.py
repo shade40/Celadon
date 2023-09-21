@@ -23,8 +23,10 @@ class Text(Widget):
         super().__init__(**widget_args)
 
         self.content = content
-        self.width = (
-            max(len(RE_MARKUP.sub(line, "")) for line in content.splitlines()) + 4
+
+        self.width = max(
+            [len(span) for span in self._parse_markup(content.splitlines()[0])],
+            default=0,
         )
 
     @classmethod
@@ -148,7 +150,7 @@ class Text(Widget):
         if (mtch := RE_HYPERLINK_MARKUP.search(self.content)) is not None:
             value = mtch[1]
 
-            self.app.route(value.lstrip("/"))
+            self.app.route(value)
 
         # Never return True, as we don't want the parent to select a widget
         return False

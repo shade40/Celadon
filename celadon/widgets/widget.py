@@ -676,6 +676,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
 
                     `self.style_map | {self.state: style_map}`
         """
+
         keys = dir(self)
 
         for key, value in attrs.items():

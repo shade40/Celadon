@@ -41,7 +41,7 @@ class Container(Widget):
     }
 
     gap: int | float | None = None
-    fallback_gap: int = 1
+    fallback_gap: int = 0
 
     _direction: Direction = Direction.VERTICAL
 
