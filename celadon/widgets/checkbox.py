@@ -113,7 +113,7 @@ class Checkbox(Widget):
         return True
 
     def serialize(self) -> dict[str, str]:
-        return {serialize_name(self.content): self.checked}
+        return {serialize_name(self.content): "true" if self.checked else "false"}
 
     def get_content(self) -> list[str]:
         indicator = self.styles["indicator"](self.indicators[self.checked]) + "[/]"

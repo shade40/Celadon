@@ -3,8 +3,6 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from zenith.markup import RE_MARKUP
-
 from .widget import Widget
 from ..enums import MouseAction
 
@@ -25,7 +23,7 @@ class Text(Widget):
         self.content = content
 
         self.width = max(
-            [len(span) for span in self._parse_markup(content.splitlines()[0])],
+            (len(span) for span in self._parse_markup(content.splitlines()[0])),
             default=0,
         )
 

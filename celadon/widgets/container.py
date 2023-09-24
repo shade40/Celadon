@@ -29,7 +29,7 @@ def _align(alignment: Alignment, available: int) -> tuple[int, int]:
     return 0, 0
 
 
-class Container(Widget):
+class Container(Widget):  # pylint: disable=too-many-public-methods
     """A widget that displays others based on some arrangement algorithm.
 
     See `Tower` and `Splitter` for the implementations you should use.
@@ -224,7 +224,7 @@ class Container(Widget):
         super().select(index)
 
     def serialize(self) -> dict[str, str]:
-        data = {}
+        data: dict[str, str] = {}
 
         for child in self.children:
             data.update(**child.serialize())
