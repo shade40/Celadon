@@ -29,22 +29,28 @@ DEFAULT_RULES = """
     width: null
     height: null
 
-.fill-width:
+.w-fill:
     width: null
 
-.fill-height:
+.h-fill:
     height: null
+
+.start:
+    alignment: [start, start]
 
 .center:
     alignment: [center, center]
 
-.overflow-scroll:
+.end:
+    alignment: [end, end]
+
+.of-scroll:
     overflow: [scroll, scroll]
 
-.overflow-auto:
+.of-auto:
     overflow: [auto, auto]
 
-.overflow-hide:
+.of-hide:
     overflow: [hide, hide]
 """
 
@@ -781,6 +787,7 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
         clear = self._terminal.clear
         write = self._terminal.write
         draw = self._terminal.draw
+
         on_frame_drawn = self.on_frame_drawn
 
         try:
@@ -986,7 +993,7 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
             reversed([*self._page, *self._children]),  # type: ignore
         )
 
-        # We need to keep `_mouse_target` to handle keyboard inputs
+        # We need to keep (not update) `_mouse_target` to handle keyboard inputs
         self._hover_target = hover_target
 
         if result:

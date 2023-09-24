@@ -223,6 +223,14 @@ class Container(Widget):
 
         super().select(index)
 
+    def serialize(self) -> dict[str, str]:
+        data = {}
+
+        for child in self.children:
+            data.update(**child.serialize())
+
+        return data
+
     def append(self, widget: Widget) -> None:
         """Adds a new widget setting its parent attribute to self.
 
@@ -292,6 +300,14 @@ class Container(Widget):
 
         self.clear()
         self.extend(widgets)
+
+    def replace(self, current: Widget, new: Widget, *, offset: int = 0) -> None:
+        """Replaces `current` in children to `new`."""
+
+        index = self.children.index(current)
+
+        self.children[index + offset] = new
+        new.parent = self
 
     def move_by(self, x: int, y: int) -> None:
         """Moves the widget (and all its children) to the given position."""

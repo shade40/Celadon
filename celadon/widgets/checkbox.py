@@ -6,7 +6,7 @@ from slate import Event, EventCallback
 
 from ..enums import MouseAction
 from .button import Button
-from .widget import Widget
+from .widget import Widget, serialize_name
 
 
 class Checkbox(Widget):
@@ -46,21 +46,20 @@ class Checkbox(Widget):
         height: 1
 
         /idle:
-            fill_style: '@ui.panel1'
             frame_style: ui.primary+1
 
         /hover:
-            fill_style: '@ui.panel1+1'
+            fill_style: '@ui.panel1-2'
             frame_style: ui.primary+1
 
         /selected:
             content_style: dim bold
-            fill_style: '@ui.panel1+1'
+            fill_style: '@ui.panel1-1'
             frame_style: ui.primary+1
 
         /active:
             fill_style: '@ui.primary+3'
-            frame_style: 'ui.panel1-2'
+            frame_style: 'ui.panel1'
             indicator_style: 'dim'
     """
 
@@ -112,6 +111,9 @@ class Checkbox(Widget):
         self.on_change(self.checked)
 
         return True
+
+    def serialize(self) -> dict[str, str]:
+        return {serialize_name(self.content): self.checked}
 
     def get_content(self) -> list[str]:
         indicator = self.styles["indicator"](self.indicators[self.checked]) + "[/]"

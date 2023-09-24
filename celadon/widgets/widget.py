@@ -92,6 +92,15 @@ def _overflows(real: int, virt: int) -> bool:
     return real / max(virt, 1) <= 1.0
 
 
+def serialize_name(name: str) -> str:
+    """Serializes the given name.
+
+    Note that this is pretty subpar for the moment.
+    """
+
+    return name.lower().replace(" ", "-")
+
+
 class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-methods
     """This is a docstring."""
 
@@ -660,6 +669,11 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
 
     def setup(self) -> None:
         """Use this to do simple setup actions without overriding __init__."""
+
+    def serialize(self) -> dict[str, str]:
+        """Returns a dictionary to represent the dynamic value of the widget."""
+
+        return {}
 
     def update(
         self,
