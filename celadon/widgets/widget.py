@@ -963,10 +963,6 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             if hasattr(self, f"on_{name}"):
                 handle = getattr(self, f"on_{name}")
 
-                if name.count("_") > 0:
-                    handle(position)
-                    return True
-
                 return handle(action, position)
 
         return False
@@ -1100,8 +1096,8 @@ def handle_mouse_on_children(
 
     if (
         mouse_target is not None
-        and mouse_target.handle_mouse(action, position)
         and "click" not in action.value  # Clicks cannot be done outside of the widget
+        and mouse_target.handle_mouse(action, position)
     ):
         return True, None, mouse_target, hover_target
 

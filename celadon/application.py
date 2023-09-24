@@ -907,7 +907,7 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
 
         rules: dict[str, Any] = {}
 
-        # God compelled me to right this,,,
+        # God compelled me to write this,,,
         # May he compel me to clean  it up.
         #
         for key, value in self._rules.items():

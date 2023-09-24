@@ -211,6 +211,9 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
             IndexError: The index provided was beyond len(self.selectables).
         """
 
+        if self.selectable_count == 0:
+            return
+
         # Unselect all sub-elements
         for other in self.children:
             if other.selectable_count > 0:
