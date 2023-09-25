@@ -24,18 +24,7 @@ class Checkbox(Widget):
     """
 
     style_map = Button.style_map | {
-        "idle": {
-            "indicator": "",
-        },
-        "hover": {
-            "indicator": "",
-        },
-        "selected": {
-            "indicator": "",
-        },
-        "active": {
-            "indicator": "",
-        },
+        state: {"indicator": ""} for state in Button.state_machine.states
     }
 
     # TODO: Add a form of inheritance to YAML styling
@@ -67,6 +56,7 @@ class Checkbox(Widget):
         self,
         content: str,
         checked: bool = False,
+        name: str | None = None,
         on_change: list[EventCallback] | None = None,
         **widget_args: Any,
     ) -> None:
@@ -76,6 +66,7 @@ class Checkbox(Widget):
 
         self.content = content
         self.checked = checked
+        self.name = name
 
         self.on_change = Event("checkbox changed")
 
@@ -112,8 +103,11 @@ class Checkbox(Widget):
 
         return True
 
-    def serialize(self) -> dict[str, str]:
-        return {serialize_name(self.content): "true" if self.checked else "false"}
+    def serialize(self) -> dict[str, Any]:
+        if self.name is None:
+            raise ValueError(f"field {self!r} cannot be serialized without a name.")
+
+        return {self.name: self.checked}
 
     def get_content(self) -> list[str]:
         indicator = self.styles["indicator"](self.indicators[self.checked]) + "[/]"

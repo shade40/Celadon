@@ -132,7 +132,7 @@ class Text(Widget):
             Nunc viverra dui eget erat accumsan, id placerat ligula consectetur. Sed
             elementum dictum tortor ultrices aliquet. Proin ullamcorper euismod congue.
             Nullam eleifend lacus euismod ante mattis sagittis. Phasellus eu erat mauri.
-        """,
+            """,
         )
 
     @property
