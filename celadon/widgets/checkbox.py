@@ -6,7 +6,7 @@ from slate import Event, EventCallback
 
 from ..enums import MouseAction
 from .button import Button
-from .widget import Widget, serialize_name
+from .widget import Widget
 
 
 class Checkbox(Widget):
