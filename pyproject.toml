@@ -49,6 +49,7 @@ path = "celadon/__about__.py"
 [tool.hatch.build]
 include = [
   "celadon/*.py",
+  "celadon/widgets/*.py",
   "celadon/py.typed",
   "/tests",
 ]
