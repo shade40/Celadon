@@ -319,7 +319,7 @@ class Selector:  # pylint: disable=too-many-instance-attributes
 
         parent = widget.parent
 
-        while parent.parent is not None:
+        while hasattr(parent, "parent") and parent.parent is not None:
             if direct:
                 # Both are checked to be non-null at call site.
                 return self.direct_parent.matches(parent)  # type: ignore
