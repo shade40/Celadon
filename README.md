@@ -25,7 +25,8 @@ place to allow for more generalized testing.
 
 `Celadon` is a _library_ for creating good looking and performant
 UIs in the terminal. While it _is_ possible to use standalone,
-you generally wanna use it through a _framework_ like [celx]().
+you generally wanna use it through a _framework_ like
+[celx](https://github.com/shade40/celx).
 
 ![rule](https://singlecolorimage.com/get/afe1af/1600x3)
 
