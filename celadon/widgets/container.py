@@ -330,11 +330,11 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
             y: The origin's vertical coordinate.
         """
 
-        children = self.visible_children
+        children = [child for child in self.visible_children]
 
         width = self._framed_width - self.has_scrollbar(1)
         height = self._framed_height - self.has_scrollbar(0)
-        count = len(children)
+        count = len(children) - len([child for child in children if child.is_static()])
 
         horizontal = self.direction == Direction.HORIZONTAL
         available = width if horizontal else height
@@ -347,6 +347,9 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
                 continue
 
             child.compute_dimensions(width, height)
+
+            if child.is_static():
+                continue
 
             if horizontal:
                 available -= child.computed_width
@@ -384,6 +387,9 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
 
                 else:
                     child.compute_dimensions(width, this_fill)
+
+            if child.is_static():
+                continue
 
             this_gap = gap + (1 if gap_extra > 0 else 0)
             gap_extra -= 1

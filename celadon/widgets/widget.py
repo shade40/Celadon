@@ -11,7 +11,7 @@ from typing import Any, Callable, Generator, Type, Iterable, Literal, TYPE_CHECK
 from slate import Event, Span, Terminal, Key
 from zenith.markup import zml_pre_process, zml_get_spans, FULL_RESET
 
-from ..enums import Alignment, Overflow, MouseAction
+from ..enums import Alignment, Overflow, MouseAction, Positioning
 from ..frames import Frame, get_frame
 from ..style_map import StyleMap
 from ..state_machine import StateMachine
@@ -234,6 +234,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.frame = get_frame(None)  # type: ignore
         self.alignment = ("start", "start")  # type: ignore
         self.overflow = ("hide", "hide")  # type: ignore
+        self.positioning = Positioning.DYNAMIC
 
         self._virtual_width = 0
         self._virtual_height = 0
@@ -388,6 +389,21 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
 
         assert isinstance(new[0], Overflow) and isinstance(new[1], Overflow)
         self._overflow = new
+
+    @property
+    def positioning(self) -> Positioning:
+        """Returns and sets the positioning strategy."""
+
+        return self._positioning
+
+    @positioning.setter
+    def positioning(self, new: str | Positioning) -> None:
+        """Sets the positioning strategy."""
+
+        if isinstance(new, str):
+            new = Positioning(new)
+
+        self._positioning = new
 
     @property
     def _framed_width(self) -> int:
@@ -729,13 +745,23 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self._last_query = query
         return value
 
+    def is_static(self) -> bool:
+        """Shorthand for `positioning is Positioning.STATIC`."""
+
+        return self.positioning is Positioning.STATIC
+
+    def is_dynamic(self) -> bool:
+        """Shorthand for `positioning is Positioning.DYNAMIC`."""
+
+        return self.positioning is Positioning.DYNAMIC
+
     def is_fill_width(self) -> bool:
-        """Shorthand for `width is None`"""
+        """Shorthand for `width is None`."""
 
         return self.width is None
 
     def is_fill_height(self) -> bool:
-        """Shorthand for `height is None`"""
+        """Shorthand for `height is None`."""
 
         return self.height is None
 

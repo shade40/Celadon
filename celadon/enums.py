@@ -43,6 +43,16 @@ class Direction(Enum):
     """Flow content vertically."""
 
 
+class Positioning(Enum):
+    """An enum used to represent a positioning strategy."""
+
+    DYNAMIC = "dynamic"
+    """Widget should be arranged by its parent."""
+
+    STATIC = "static"
+    """Widget should be excluded from parent's arrangement, except for sizing."""
+
+
 class MouseAction(Enum):
     """A humonculous enumeration of mouse actions."""
 
