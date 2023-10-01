@@ -408,7 +408,12 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         unsetters with `/ {fill_style} {content_style}`.
         """
 
-        content_style = self.styles["_fill"].style + " " + self.styles["content"].style
+        fill = self.styles["_fill"]
+
+        if isinstance(self.parent, Widget) and fill.style == "":
+            fill = self.parent.styles["_fill"]
+
+        content_style = fill.style + " " + self.styles["content"].style
 
         # Replace full unsetters with full unsetter + content style
         markup = RE_FULL_UNSETTER.sub("/ " + content_style, markup)
