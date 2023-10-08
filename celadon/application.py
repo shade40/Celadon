@@ -12,7 +12,7 @@ from yaml import safe_load
 
 from slate import Terminal, getch, Event, terminal as slt_terminal, feed, Key
 
-from .widgets import Widget, handle_mouse_on_children
+from .widgets import Widget, handle_mouse_on_children, Container
 from .enums import MouseAction
 from .state_machine import deep_merge
 from .style_map import StyleMap
@@ -636,7 +636,9 @@ class Page:  # pylint: disable=too-many-instance-attributes
 
         return applicable_rules is not None
 
-    def find_all(self, query: str | Selector) -> Iterator[Widget]:
+    def find_all(
+        self, query: str | Selector, scope: Container | None = None
+    ) -> Iterator[Widget]:
         """Finds all widgets in the page matching the given query."""
 
         selector: Selector
@@ -646,15 +648,19 @@ class Page:  # pylint: disable=too-many-instance-attributes
         else:
             selector = Selector.parse(query)
 
-        for widget in self._children:
+        children = self._children if scope is None else scope.children
+
+        for widget in children:
             for child in widget.drawables():
                 if selector.matches(child):
                     yield child
 
-    def find(self, query: str | Selector) -> Widget | None:
+    def find(
+        self, query: str | Selector, scope: Container | None = None
+    ) -> Widget | None:
         """Finds the first widget in the page matching the given query."""
 
-        for widget in self.find_all(query):
+        for widget in self.find_all(query, scope):
             return widget
 
         return None
@@ -864,7 +870,9 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
 
         self._timeouts.append((callback, delay_ms))
 
-    def find_all(self, query: str | Selector) -> Iterator[Widget]:
+    def find_all(
+        self, query: str | Selector, scope: Container | None = None
+    ) -> Iterator[Widget]:
         selector = query
 
         if isinstance(query, str):
@@ -873,12 +881,9 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
         assert isinstance(selector, Selector)
 
         if self.page is not None:
-            yield from self.page.find_all(selector)
+            yield from self.page.find_all(selector, scope)
 
-        for widget in self._children:
-            for child in widget.drawables():
-                if selector.matches(child):
-                    yield child
+        yield from super().find_all(query, scope)
 
     def rule(
         self, query: str | Selector, score: int | None = None, **rules: str
