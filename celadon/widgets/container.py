@@ -57,8 +57,7 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
 
         super().__init__(**widget_args)
 
-        self._should_layout = False
-        self._layout_state: int = -1
+        self._should_layout = True
         self._mouse_target: Widget | None = None
         self._hover_target: Widget | None = None
         self._outer_dimensions = (1, 1)
@@ -330,7 +329,7 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
             y: The origin's vertical coordinate.
         """
 
-        children = [child for child in self.visible_children]
+        children = self.visible_children
 
         width = self._framed_width - self.has_scrollbar(1)
         height = self._framed_height - self.has_scrollbar(0)
@@ -427,7 +426,8 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
         start_x = self.position[0] + (self.frame.left != "")
         start_y = self.position[1] + (self.frame.top != "") + (self._clip_start or 0)
 
-        self.arrange(start_x - self.scroll[0], start_y - self.scroll[1])
+        if self._should_layout:
+            self.arrange(start_x - self.scroll[0], start_y - self.scroll[1])
         # self._layout_state = layout_state
 
         return [""]

@@ -740,6 +740,8 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
         self.on_page_added = Event("page added")
         self.on_page_changed = Event("page changed")
 
+        self.fps = 0.0
+
         self._pages = []
         self._page = None
         self._mouse_target: Widget | None = None
@@ -751,6 +753,9 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
         self._is_paused = False
         self._raised: Exception | None = None
         self._timeouts: list[tuple[Callable[[], Any], int | float]] = []
+
+        self._should_draw = True
+        self._terminal.on_resize += lambda _: setattr(self, "_should_draw", True)
 
         _ = self.terminal.foreground_color
         _ = self.terminal.background_color
@@ -786,7 +791,9 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
 
         return iter(self._pages)
 
-    def _draw_loop(self) -> None:  # pylint: disable=too-many-locals
+    def _draw_loop(  # pylint: disable=too-many-locals, too-many-nested-blocks
+        self,
+    ) -> None:
         """The display & timing loop of the Application, run as a thread."""
 
         frametime = 1 / self._framerate
@@ -797,47 +804,53 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
 
         on_frame_drawn = self.on_frame_drawn
 
+        elapsed = 1.0
+
         try:
             while self._is_running:
                 if self._is_paused:
                     sleep(frametime)
 
                 start = perf_counter()
-                clear()
+                width, height = self._terminal.size
 
-                self.apply_rules()
+                if self.apply_rules() or self._should_draw:
+                    clear()
 
-                for widget in [*self._page, *self._children]:  # type: ignore
-                    widget.compute_dimensions(
-                        self._terminal.width, self._terminal.height
-                    )
+                    for widget in [*self._page, *self._children]:  # type: ignore
+                        widget.compute_dimensions(width, height)
 
-                    for child in widget.drawables():
-                        origin = child.position
+                        for child in widget.drawables():
+                            origin = child.position
 
-                        for i, line in enumerate(child.build()):
-                            write(line, cursor=(origin[0], origin[1] + i))
+                            for i, line in enumerate(child.build()):
+                                write(line, cursor=(origin[0], origin[1] + i))
+
+                    self._should_draw = False
 
                 draw()
+
+                elapsed = perf_counter() - start
 
                 if on_frame_drawn:
                     on_frame_drawn()
                     on_frame_drawn.clear()
 
-                elapsed = perf_counter() - start
-
                 if elapsed < frametime:
                     sleep(frametime - elapsed)
+
+                self.fps = 1 / elapsed
 
                 eliminated = []
 
                 for i, (callback, timeout) in enumerate(self._timeouts):
-                    timeout -= elapsed * 1000
+                    timeout -= frametime * 1000
 
                     if timeout <= 0:
                         callback()
 
                         eliminated.append(i)
+                        self._should_draw = True
                         continue
 
                     self._timeouts[i] = (callback, timeout)
@@ -1003,10 +1016,7 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
         # We need to keep (not update) `_mouse_target` to handle keyboard inputs
         self._hover_target = hover_target
 
-        if result:
-            return True
-
-        return False
+        return result
 
     def run(self) -> None:
         """Runs the application.
@@ -1035,6 +1045,8 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
                 if inp == "ctrl-c":
                     self.stop()
                     break
+
+                self._should_draw = True
 
                 try:
                     self.process_input(inp)

@@ -57,7 +57,6 @@ def apply_rules(widget: Widget, rules: str | None = None) -> Widget:
         )
 
         app += Page(Tower(widget), rules=(rules or ""))
-
         app.timeout(0, lambda: app.stop())
 
     return widget
