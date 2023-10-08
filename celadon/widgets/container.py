@@ -234,15 +234,23 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
 
         return data
 
+    def insert(self, index: int, widget: Widget) -> None:
+        """Inserts a widget.
+
+        Analogous to `list.insert`.
+        """
+
+        self.children.insert(index, widget)
+        widget.parent = self
+        self._should_layout = True
+
     def append(self, widget: Widget) -> None:
         """Adds a new widget setting its parent attribute to self.
 
         Analogous to `list.append`.
         """
 
-        self.children.append(widget)
-        widget.parent = self
-        self._should_layout = True
+        self.insert(len(self.children), widget)
 
     def extend(self, widgets: Iterable[Widget]) -> None:
         """Extends our children by the given iterable.
@@ -262,14 +270,6 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
         self.children.remove(widget)
         widget.parent = None
         self._should_layout = True
-
-    def insert(self, index: int, item: Widget) -> None:
-        """Inserts a widget.
-
-        Analogous to `list.insert`.
-        """
-
-        self.children.insert(index, item)
 
     def pop(self, index: int) -> Widget:
         """Pops a widget from our children.
