@@ -738,6 +738,7 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
 
         self.on_frame_drawn = Event("frame drawn")
         self.on_page_added = Event("page added")
+        self.on_page_changed = Event("page changed")
 
         self._pages = []
         self._page = None
@@ -967,6 +968,7 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
             raise ValueError(f"No page with route {destination!r}.")
 
         self._page = page
+        self.on_page_changed()
 
         if page.route_name == "/":
             self._terminal.set_title(f"{self.title}")
