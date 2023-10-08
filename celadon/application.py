@@ -827,7 +827,7 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
                 elapsed = perf_counter() - start
 
                 if elapsed < frametime:
-                    sleep(frametime)
+                    sleep(frametime - elapsed)
 
                 eliminated = []
 
