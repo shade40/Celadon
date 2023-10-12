@@ -6,9 +6,10 @@ import re
 
 from copy import deepcopy
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Any, Callable, Generator, Type, Iterable, Literal, TYPE_CHECKING
 
-from slate import Event, Span, Terminal, Key
+from slate import Event, Span, Terminal, Key, EMPTY_SPAN
 from zenith.markup import zml_pre_process, zml_get_spans, FULL_RESET
 
 from ..enums import Alignment, Overflow, MouseAction, Positioning
@@ -166,29 +167,29 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 "fill": "@ui.panel1-3",
                 "frame": "ui.panel1+1",
                 "content": "ui.text-1",
-                "scrollbar_x": "ui.panel1-1",
-                "scrollbar_y": "ui.panel1-1",
+                "scrollbar_x": "ui.panel1+3*0.2",
+                "scrollbar_y": "ui.panel1+3*0.2",
             },
             "hover": {
                 "fill": "@ui.panel1-3",
                 "frame": "ui.panel1+1",
                 "content": "ui.text-1",
-                "scrollbar_x": "ui.panel1-1",
-                "scrollbar_y": "ui.panel1-1",
+                "scrollbar_x": "ui.panel1+3*0.2",
+                "scrollbar_y": "ui.panel1+3*0.2",
             },
             "selected": {
                 "fill": "@ui.panel1-3",
                 "frame": "ui.panel1+1",
                 "content": "ui.text+1",
-                "scrollbar_x": "ui.panel1-1",
-                "scrollbar_y": "ui.panel1-1",
+                "scrollbar_x": "ui.panel1+3*0.2",
+                "scrollbar_y": "ui.panel1+3*0.2",
             },
             "active": {
                 "fill": "@ui.panel1-3",
                 "frame": "ui.panel1+1",
                 "content": "ui.text-1",
-                "scrollbar_x": "ui.panel1-1",
-                "scrollbar_y": "ui.panel1-1",
+                "scrollbar_x": "ui.panel1+3*0.2",
+                "scrollbar_y": "ui.panel1+3*0.2",
             },
             "/scrolling_x": {
                 "scrollbar_x": "ui.primary",
@@ -247,6 +248,12 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
 
         self.computed_width = 1
         self.computed_height = 1
+
+        self.pre_content = Event("pre content")
+        self.on_content = Event("post content")
+
+        self.pre_build = Event("pre build")
+        self.on_build = Event("post build")
 
         self.setup()
 
@@ -417,6 +424,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
 
         return max(self.computed_height - self.frame.height, 0)
 
+    @lru_cache(1024)
     def _parse_markup(self, markup: str) -> tuple[Span, ...]:
         """Parses some markup into a span of tuples.
 
@@ -535,6 +543,8 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
     def _horizontal_align(self, line: tuple[Span, ...], width: int) -> tuple[Span, ...]:
         """Aligns a tuple of spans horizontally, using `self.alignment[0]`."""
 
+        alignment = self.alignment[0]
+
         width = max(width, self._virtual_width)
         length = sum(len(span.text) for span in line)
         diff = width - length
@@ -543,8 +553,6 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
 
         if line in [tuple(), (Span(""),)]:
             return self._parse_markup(style(diff * " "))
-
-        alignment = self.alignment[0]
 
         if alignment is Alignment.START:
             return (*line[:-1], line[-1].mutate(text=line[-1].text + diff * " "))
@@ -578,8 +586,9 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         Note that this mutates `lines`.
         """
 
-        available = height - len(lines)
         alignment = self.alignment[1]
+
+        available = height - len(lines)
         filler = self._parse_markup(self.styles["content"](" "))
 
         if alignment is Alignment.START:
@@ -599,6 +608,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         for _ in range(available):
             lines.insert(0, filler)
 
+    @lru_cache(1024)
     def _slice_line(
         self, line: tuple[Span, ...], start: int, end: int
     ) -> tuple[Span, ...]:
@@ -1005,6 +1015,8 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
     ) -> list[tuple[Span, ...]]:
         """Builds the strings that represent the widget."""
 
+        self.pre_build()
+
         width = self._framed_width
         height = self._framed_height
 
@@ -1021,9 +1033,13 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
 
         content_style = self.styles["content"]
 
+        self.pre_content()
+
         lines: list[tuple[Span, ...]] = [
             self._parse_markup(content_style(line)) for line in self.get_content()
         ]
+
+        self.on_content()
 
         self._virtual_height = virt_height or len(lines)
         self._virtual_width = virt_width or max(
@@ -1035,7 +1051,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             lines = lines[self.scroll[1] : self.scroll[1] + height]
 
             if len(lines) < height:
-                lines.extend([(Span(""),)] * (height - len(lines)))
+                lines.extend([(EMPTY_SPAN,)] * (height - len(lines)))
 
         # Handle alignment
         self._vertical_align(lines, height)
@@ -1050,13 +1066,11 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         ]
 
         # Composite together frame + content + scrollbar
-        self._add_scrollbars(
-            lines,
-            width,
-            height,
-            self.has_scrollbar(0),
-            self.has_scrollbar(1),
-        )
+        horiz_bar = self.has_scrollbar(0)
+        vert_bar = self.has_scrollbar(1)
+
+        if horiz_bar or vert_bar:
+            self._add_scrollbars(lines, width, height, horiz_bar, vert_bar)
 
         self._apply_frame(lines, width)
 
@@ -1064,6 +1078,8 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             lines = lines[: self.computed_height]
 
         lines = lines[self._clip_start : self._clip_end]
+
+        self.on_build()
 
         return lines
 
