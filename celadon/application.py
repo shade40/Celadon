@@ -720,7 +720,11 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
     _page: Page | None
 
     def __init__(
-        self, title: str, framerate: int = 60, terminal: Terminal | None = None
+        self,
+        title: str,
+        framerate: int = 60,
+        terminal: Terminal | None = None,
+        average_fps_over: int = 15,
     ) -> None:
         """Initializes the Application.
 
@@ -737,7 +741,8 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
         self.on_page_added = Event("page added")
         self.on_page_changed = Event("page changed")
 
-        self.fps = 0.0
+        self.fps = 0
+        self.average_fps_over = average_fps_over
 
         self._pages = []
         self._page = None
@@ -802,6 +807,9 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
         on_frame_drawn = self.on_frame_drawn
 
         elapsed = 1.0
+        framerates = []
+        average_over = self.average_fps_over
+        did_draw = False
 
         try:
             while self._is_running:
@@ -824,6 +832,7 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
                                 write(line, cursor=(origin[0], origin[1] + i))
 
                     self._should_draw = False
+                    did_draw = True
 
                 draw()
 
@@ -836,7 +845,17 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
                 if elapsed < frametime:
                     sleep(frametime - elapsed)
 
-                self.fps = 1 / elapsed
+                if did_draw:
+                    framerates.append(1 / elapsed)
+
+                    did_draw = False
+                else:
+                    framerates.append(framerates[-1])
+
+                if len(framerates) > average_over:
+                    framerates.pop(0)
+
+                self.fps = round(sum(framerates) / average_over)
 
                 eliminated = []
 
