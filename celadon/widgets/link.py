@@ -15,4 +15,7 @@ class Link(Text):
         if to is None:
             to = content.lower()
 
-        super().__init__(f"[~/{to}]{content}[/~]", **widget_args)
+        if not to.startswith("/"):
+            to = "/" + to
+
+        super().__init__(f"[~{to}]{content}[/~]", **widget_args)
