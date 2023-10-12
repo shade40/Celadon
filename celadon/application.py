@@ -357,9 +357,6 @@ class Selector:  # pylint: disable=too-many-instance-attributes
         if type(widget).__name__ not in self.elements and self.elements != ("",):
             return 0
 
-        if self.forced_score is not None:
-            return self.forced_score
-
         score = 100
 
         if self.direct_parent is not None:
@@ -399,7 +396,7 @@ class Selector:  # pylint: disable=too-many-instance-attributes
             else:
                 return 0
 
-        return score
+        return self.forced_score or score
 
 
 BuilderType = Callable[..., "Page"]
