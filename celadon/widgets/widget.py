@@ -9,7 +9,8 @@ from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any, Callable, Generator, Type, Iterable, Literal, TYPE_CHECKING
 
-from slate import Event, Span, Terminal, Key, EMPTY_SPAN
+from slate import Event, Span, Terminal, Key
+from slate.span import EMPTY_SPAN
 from zenith.markup import zml_pre_process, zml_get_spans, FULL_RESET
 
 from ..enums import Alignment, Overflow, MouseAction, Positioning
