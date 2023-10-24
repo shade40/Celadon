@@ -18,7 +18,7 @@ class Button(Widget):
         self: The instance that sent the event.
     """
 
-    rules = f"""
+    rules = """
     Button:
         content_style: dim
         alignment: [center, center]

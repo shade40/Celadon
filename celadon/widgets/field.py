@@ -70,7 +70,7 @@ class Field(Widget):
         binds = super().handle_keyboard(key)
 
         # TODO: Properly handle markup in field value
-        if key in "[]":
+        if str(key) in "[]":
             return True
 
         if key == "left":
