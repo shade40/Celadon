@@ -69,6 +69,10 @@ class Field(Widget):
     def handle_keyboard(self, key: Key) -> bool:
         binds = super().handle_keyboard(key)
 
+        # TODO: Properly handle markup in field value
+        if key in "[]":
+            return True
+
         if key == "left":
             self.move_cursor(x=-1)
             return True
