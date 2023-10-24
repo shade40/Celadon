@@ -11,6 +11,7 @@ from typing import Any, Callable, Iterable, Iterator, Type, overload
 
 from slate import Event, Key, Terminal, feed, getch
 from slate import terminal as slt_terminal
+from zenith import Palette
 from yaml import safe_load
 
 from .enums import MouseAction
@@ -352,10 +353,16 @@ class Selector:  # pylint: disable=too-many-instance-attributes
             matching attributes, otherwise the function will return 0.
         """
 
+        is_palette = self.elements == ("Palette",)
+
         if self.query == "*":
             return 10
 
-        if type(widget).__name__ not in self.elements and self.elements != ("",):
+        if (
+            not is_palette
+            and type(widget).__name__ not in self.elements
+            and self.elements != ("",)
+        ):
             return 0
 
         score = 100
@@ -371,6 +378,9 @@ class Selector:  # pylint: disable=too-many-instance-attributes
                 return 0
 
             score += scr
+
+        if is_palette:
+            return score + 100
 
         if self.eid is not None:
             if isinstance(widget, Widget) and widget.eid == self.eid:
@@ -625,6 +635,17 @@ class Page:  # pylint: disable=too-many-instance-attributes
             for sel, score, (attrs, style_map) in sorted(
                 applicable_rules, key=lambda item: item[1]
             ):
+                # TODO: This redefines palettes every time we encounter them, which is
+                #       quite wasteful!
+                if sel.elements == ("Palette",):
+                    namespace = sel.query.split(">")[-1].removeprefix("Palette/")
+
+                    if namespace == "Palette":
+                        continue
+
+                    Palette(**attrs, namespace=namespace + ".").alias()
+                    continue
+
                 new_attrs.update(**attrs)
                 new_style_map |= style_map
 
