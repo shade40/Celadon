@@ -1,22 +1,21 @@
 # pylint: disable=too-many-lines
 from __future__ import annotations
 
-import uuid
 import re
-
+import uuid
 from copy import deepcopy
 from dataclasses import dataclass
 from functools import lru_cache
-from typing import Any, Callable, Generator, Type, Iterable, Literal, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable, Generator, Iterable, Literal, Type
 
-from slate import Event, Span, Terminal, Key
+from slate import Event, Key, Span, Terminal
 from slate.span import EMPTY_SPAN
-from zenith.markup import zml_pre_process, zml_get_spans, FULL_RESET
+from zenith.markup import FULL_RESET, zml_get_spans, zml_pre_process
 
-from ..enums import Alignment, Overflow, MouseAction, Positioning
+from ..enums import Alignment, MouseAction, Overflow, Positioning
 from ..frames import Frame, get_frame
-from ..style_map import StyleMap
 from ..state_machine import StateMachine
+from ..style_map import StyleMap
 
 if TYPE_CHECKING:
     from ..application import Application, Page
@@ -165,38 +164,38 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
     style_map = StyleMap(
         {
             "idle": {
-                "fill": "@ui.panel1-3",
-                "frame": "ui.panel1+1",
-                "content": "ui.text-1",
-                "scrollbar_x": "ui.panel1+3*0.2",
-                "scrollbar_y": "ui.panel1+3*0.2",
+                "fill": "@.panel1-3",
+                "frame": ".panel1+1",
+                "content": ".text-1",
+                "scrollbar_x": ".panel1+3*0.2",
+                "scrollbar_y": ".panel1+3*0.2",
             },
             "hover": {
-                "fill": "@ui.panel1-3",
-                "frame": "ui.panel1+1",
-                "content": "ui.text-1",
-                "scrollbar_x": "ui.panel1+3*0.2",
-                "scrollbar_y": "ui.panel1+3*0.2",
+                "fill": "@.panel1-3",
+                "frame": ".panel1+1",
+                "content": ".text-1",
+                "scrollbar_x": ".panel1+3*0.2",
+                "scrollbar_y": ".panel1+3*0.2",
             },
             "selected": {
-                "fill": "@ui.panel1-3",
-                "frame": "ui.panel1+1",
-                "content": "ui.text+1",
-                "scrollbar_x": "ui.panel1+3*0.2",
-                "scrollbar_y": "ui.panel1+3*0.2",
+                "fill": "@.panel1-3",
+                "frame": ".panel1+1",
+                "content": ".text+1",
+                "scrollbar_x": ".panel1+3*0.2",
+                "scrollbar_y": ".panel1+3*0.2",
             },
             "active": {
-                "fill": "@ui.panel1-3",
-                "frame": "ui.panel1+1",
-                "content": "ui.text-1",
-                "scrollbar_x": "ui.panel1+3*0.2",
-                "scrollbar_y": "ui.panel1+3*0.2",
+                "fill": "@.panel1-3",
+                "frame": ".panel1+1",
+                "content": ".text-1",
+                "scrollbar_x": ".panel1+3*0.2",
+                "scrollbar_y": ".panel1+3*0.2",
             },
             "/scrolling_x": {
-                "scrollbar_x": "ui.primary",
+                "scrollbar_x": ".primary",
             },
             "/scrolling_y": {
-                "scrollbar_y": "ui.primary",
+                "scrollbar_y": ".primary",
             },
         }
     )
@@ -237,6 +236,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.alignment = ("start", "start")  # type: ignore
         self.overflow = ("hide", "hide")  # type: ignore
         self.positioning = Positioning.DYNAMIC
+        self.palette: str = "ui"
 
         self._virtual_width = 0
         self._virtual_height = 0
@@ -293,7 +293,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 styles |= self.style_map[key].items()
 
         output = {}
-        fill = styles["fill"]
+        fill = styles["fill"].replace(".", self.palette + ".", 1)
 
         if fill != "":
             fill += " "
@@ -301,6 +301,9 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         for key, style in styles.items():
             if key == "fill":
                 key = "_fill"
+
+            if "." in style[:2]:
+                style = style.replace(".", self.palette + ".", 1)
 
             output[key] = BoundStyle(style, fill)
 

@@ -6,16 +6,17 @@ import re
 from dataclasses import dataclass
 from threading import Thread
 from time import perf_counter, sleep
-from typing import Any, Callable, Iterator, Iterable, Type, overload
 from types import TracebackType
+from typing import Any, Callable, Iterable, Iterator, Type, overload
+
+from slate import Event, Key, Terminal, feed, getch
+from slate import terminal as slt_terminal
 from yaml import safe_load
 
-from slate import Terminal, getch, Event, terminal as slt_terminal, feed, Key
-
-from .widgets import Widget, handle_mouse_on_children, Container
 from .enums import MouseAction
 from .state_machine import deep_merge
 from .style_map import StyleMap
+from .widgets import Container, Widget, handle_mouse_on_children
 
 __all__ = [
     "load_rules",

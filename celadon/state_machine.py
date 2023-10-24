@@ -14,7 +14,7 @@ __all__ = [
 def deep_merge(
     dict1: dict[Any, Any], dict2: dict[Any, Any], path: list[str] | None = None
 ):
-    """Deep merges dict1 into dict2.
+    """Deep merges dict2 into dict1.
 
     Source: https://stackoverflow.com/a/7205107
     """

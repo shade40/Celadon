@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Type, Tuple
+from typing import Tuple, Type
 
 __all__ = [
     "Frame",

@@ -1,5 +1,5 @@
-from typing import Any
 from string import printable, punctuation, whitespace
+from typing import Any
 
 from slate import Key
 
@@ -26,15 +26,15 @@ class Field(Widget):
         placeholder_style: 'dim italic'
 
         /idle|hover|active:
-            frame_style: ui.primary-1
+            frame_style: .primary-1
 
         /hover:
-            fill_style: '@ui.panel1-2'
+            fill_style: '@.panel1-2'
 
         /selected:
             content_style: ''
-            frame_style: ui.primary-1
-            cursor_style: '@ui.panel1+3'
+            frame_style: .primary-1
+            cursor_style: '@.panel1+3'
     """
 
     def __init__(

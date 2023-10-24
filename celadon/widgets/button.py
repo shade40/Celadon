@@ -10,14 +10,14 @@ from .widget import Widget
 SEMANTIC_STYLES = """
         .{base}:
             /idle|hover:
-                frame_style: ui.{base}
+                frame_style: .{base}
 
             /selected:
-                frame_style: ui.{base}
+                frame_style: .{base}
 
             /active:
-                frame_style: ui.panel1-2
-                fill_style: '@ui.{base}+3'
+                frame_style: .panel1-2
+                fill_style: '@.{base}+3'
 """
 
 
@@ -40,21 +40,21 @@ class Button(Widget):
         frame: [heavy, null, heavy, null]
 
         /idle:
-            fill_style: '@ui.panel1'
-            frame_style: ui.primary+1
+            fill_style: '@.panel1'
+            frame_style: .primary+1
 
         /hover:
-            fill_style: '@ui.panel1+1'
-            frame_style: ui.primary+1
+            fill_style: '@.panel1+1'
+            frame_style: .primary+1
 
         /selected:
             content_style: dim bold
-            fill_style: '@ui.panel1+1'
-            frame_style: ui.primary+1
+            fill_style: '@.panel1+1'
+            frame_style: .primary+1
 
         /active:
-            fill_style: '@ui.primary+3'
-            frame_style: 'ui.panel1-2'
+            fill_style: '@.primary+3'
+            frame_style: '.panel1-2'
             frame: frameless
 
         # Variants

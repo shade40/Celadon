@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-from typing import Iterator, Iterable, Any
-from slate import Span, Key
+from typing import Any, Iterable, Iterator
+
+from slate import Key, Span
+
+from ..enums import Alignment, Direction, MouseAction
 from .widget import Widget, _compute, handle_mouse_on_children
-from ..enums import MouseAction, Direction, Alignment
 
 __all__ = [
     "Container",
@@ -36,7 +38,7 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
     """
 
     style_map = Widget.style_map | {
-        "idle": {"scrollbar_y": "ui.secondary"},
+        "idle": {"scrollbar_y": ".secondary"},
         "hover": {"fill": Widget.style_map["idle"]["fill"]},
     }
 

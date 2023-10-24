@@ -3,8 +3,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from .widget import Widget
 from ..enums import MouseAction
+from .widget import Widget
 
 RE_HYPERLINK_MARKUP = re.compile(r"~([^ \]\[]+)")
 
