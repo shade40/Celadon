@@ -9,10 +9,10 @@ from time import perf_counter, sleep
 from types import TracebackType
 from typing import Any, Callable, Iterable, Iterator, Type, overload
 
-from slate import Event, Key, Terminal, feed, getch
+from slate import Color, Event, Key, Terminal, color, feed, getch
 from slate import terminal as slt_terminal
-from zenith import Palette
 from yaml import safe_load
+from zenith import Palette
 
 from .enums import MouseAction
 from .state_machine import deep_merge
@@ -55,6 +55,29 @@ DEFAULT_RULES = """
 .of-hide:
     overflow: [hide, hide]
 """
+
+
+class _TerminalWrapper:
+    def __init__(self) -> None:
+        self.eid = 0
+        self.parent = None
+
+    @property
+    def groups(self) -> tuple[str, ...]:
+        """Returns the current color space."""
+
+        return (slt_terminal.color_space.value.replace("_", "-"),)
+
+    def query_changed(self) -> bool:
+        """Our query (currently) never changes at runtime."""
+
+        return False
+
+    def update(self, _: dict[str, Any], __: dict[str, str]) -> None:
+        """No-op"""
+
+
+_terminal_wrapper = _TerminalWrapper()
 
 
 def _parse_mouse_input(key: Key) -> tuple[MouseAction, tuple[int, int]] | None:
@@ -156,6 +179,8 @@ def load_rules(source: str) -> dict[str, dict[str, Any]]:
 
         for key, value in data.items():
             if isinstance(value, dict):
+                key = key.replace(r"\>", ">").replace(r"\*>", "*>")
+
                 if key.startswith((">", "*>")):
                     key = " " + key
 
@@ -289,6 +314,9 @@ class Selector:  # pylint: disable=too-many-instance-attributes
         elements_str, eid, groups_str, states = mtch.groups()
         elements_str = elements_str or ""
 
+        if elements_str == "Terminal":
+            elements_str = "_TerminalWrapper"
+
         elements = tuple(elements_str.split("|"))
         eid = (eid or "").lstrip("#") or None
         groups = tuple(groups_str.split(".")[1:])
@@ -307,7 +335,9 @@ class Selector:  # pylint: disable=too-many-instance-attributes
             forced_score=forced_score,
         )
 
-    def _match_parent(self, widget: Widget | "Page", direct: bool = True) -> int:
+    def _match_parent(
+        self, widget: Widget | "Page" | _TerminalWrapper, direct: bool = True
+    ) -> int:
         """Walks up the widget's parent tree and tries to match each.
 
         Args:
@@ -315,6 +345,14 @@ class Selector:  # pylint: disable=too-many-instance-attributes
             direct: If set, we will only walk up for one node, and use `direct_parent`
                 instead of `indirect_parent`.
         """
+
+        # Match Terminal.<color-space> *> queries
+        if (
+            self.indirect_parent is not None
+            and not direct
+            and "_TerminalWrapper" in self.indirect_parent.elements
+        ):
+            return self.indirect_parent.matches(_terminal_wrapper)
 
         if widget.parent is None:
             return 0
@@ -333,8 +371,9 @@ class Selector:  # pylint: disable=too-many-instance-attributes
 
         return 0
 
+    # TODO: We should have a Protocol to describe common actions between these classes.
     def matches(  # pylint: disable=too-many-return-statements, too-many-branches
-        self, widget: Widget | "Page"
+        self, widget: Widget | "Page" | _TerminalWrapper
     ) -> int:
         """Determines how well this selector matches the widget.
 
@@ -390,7 +429,7 @@ class Selector:  # pylint: disable=too-many-instance-attributes
                 return 0
 
         if self.groups:
-            if isinstance(widget, Widget) and all(
+            if isinstance(widget, (Widget, _TerminalWrapper)) and all(
                 group in widget.groups for group in self.groups
             ):
                 score += 500 + 100 * len(self.groups)
@@ -436,6 +475,7 @@ class Page:  # pylint: disable=too-many-instance-attributes
 
         self.title = title
         self.route_name = route_name
+        self._palettes: dict[str, Palette] = {}
         self._children: list[Widget] = []
         self._rules = {}
         self._encountered_types: list[type] = []
@@ -619,17 +659,17 @@ class Page:  # pylint: disable=too-many-instance-attributes
 
         rules_changed = self._rules_changed
 
-        for widget in drawables:
+        for target in [_terminal_wrapper] + drawables:
             new_attrs: dict[str, Any] = {}
             new_style_map = StyleMap()
 
-            if not rules_changed and not widget.query_changed():
+            if not rules_changed and not target.query_changed():
                 continue
 
             applicable_rules = [
                 (sel, score, rule)
                 for sel, rule in self._rules.items()
-                if (score := sel.matches(widget)) != 0
+                if (score := sel.matches(target)) != 0
             ]
 
             for sel, score, (attrs, style_map) in sorted(
@@ -643,13 +683,30 @@ class Page:  # pylint: disable=too-many-instance-attributes
                     if namespace == "Palette":
                         continue
 
-                    Palette(**attrs, namespace=namespace + ".").alias()
+                    for key, value in attrs.items():
+                        if isinstance(value, Color):
+                            continue
+
+                        attrs[key] = color(value)
+
+                    if namespace in self._palettes:
+                        palette = self._palettes[namespace]
+
+                        palette.update(**attrs)
+                        palette.alias(ignore_already_aliased=True)
+
+                    else:
+                        palette = Palette(**attrs, namespace=namespace + ".")
+
+                        self._palettes[namespace] = palette
+                        palette.alias()
+
                     continue
 
                 new_attrs.update(**attrs)
                 new_style_map |= style_map
 
-            widget.update(new_attrs, new_style_map)
+            target.update(new_attrs, new_style_map)
 
         self._rules_changed = False
 
