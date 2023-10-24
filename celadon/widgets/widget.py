@@ -236,7 +236,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.alignment = ("start", "start")  # type: ignore
         self.overflow = ("hide", "hide")  # type: ignore
         self.positioning = Positioning.DYNAMIC
-        self.palette: str = "ui"
+        self.palette: str = "main"
 
         self._virtual_width = 0
         self._virtual_height = 0
