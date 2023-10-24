@@ -1035,10 +1035,9 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
 
         self.scroll = _clamp_scrolls()
 
-        content_style = self.styles["content"]
-
         self.pre_content()
 
+        content_style = self.styles["content"]
         lines: list[tuple[Span, ...]] = [
             self._parse_markup(content_style(line)) for line in self.get_content()
         ]

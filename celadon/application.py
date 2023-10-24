@@ -207,7 +207,7 @@ def load_rules(source: str) -> dict[str, dict[str, Any]]:
 
 
 RE_QUERY = re.compile(
-    r"^([A-Z][\w\|]+)?(#[a-z0-9@\-]+)?((?:\.[a-z0-9@\-]+)*)?(\/[\w\|]+)?$"
+    r"^([A-Z][\w\|]+)?(#[a-z0-9@\-]+)?((?:\.[a-z0-9@\-]+)*)?(\/[\w\|\-]+)?$"
 )
 
 

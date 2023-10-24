@@ -7,19 +7,6 @@ from slate import Event, EventCallback
 from ..enums import MouseAction
 from .widget import Widget
 
-SEMANTIC_STYLES = """
-        .{base}:
-            /idle|hover:
-                frame_style: .{base}
-
-            /selected:
-                frame_style: .{base}
-
-            /active:
-                frame_style: .panel1-2
-                fill_style: '@.{base}+3'
-"""
-
 
 class Button(Widget):
     """A pressable/clickable button."""
@@ -53,7 +40,7 @@ class Button(Widget):
             frame_style: .primary+1
 
         /active:
-            fill_style: '@.primary+3'
+            fill_style: 'bold @.primary+3'
             frame_style: '.panel1-2'
             frame: frameless
 
@@ -61,10 +48,6 @@ class Button(Widget):
 
         .big:
             height: 3
-
-    {SEMANTIC_STYLES.format(base="success")}
-    {SEMANTIC_STYLES.format(base="warning")}
-    {SEMANTIC_STYLES.format(base="error")}
     """
 
     def __init__(
