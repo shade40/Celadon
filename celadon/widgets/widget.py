@@ -118,6 +118,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
     """The most recently run Application instance."""
 
     scroll_step: int = 1
+    consumes_mouse: bool = False
 
     state_machine = StateMachine(
         states=("idle", "hover", "selected", "active"),
@@ -911,6 +912,14 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
 
         self.move_to(self.position[0] + x, self.position[1] + y)
 
+    def remove_from_parent(self) -> None:
+        """Removes this widget from its parent."""
+
+        if self.parent is None:
+            return
+
+        self.parent.remove(self)
+
     def bind(self, key: str, callback: Callable[[], Any]) -> Event:
         """Binds a key to the given callback.
 
@@ -1170,15 +1179,16 @@ def handle_mouse_on_children(
 
             hover_target = child
 
-        if child.handle_mouse(action, position):
+        if child.handle_mouse(action, position) or child.consumes_mouse:
             selection -= child.selectable_count - (child.selected_index or 0)
 
             if mouse_target is not None and mouse_target is not child:
                 mouse_target.handle_mouse(*release)
 
-            mouse_target = child
+            if child.consumes_mouse:
+                return True, None, mouse_target, hover_target
 
-            return True, selection, mouse_target, hover_target
+            return True, selection, child, hover_target
 
         break
 
