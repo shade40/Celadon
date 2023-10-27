@@ -284,6 +284,15 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         need to reference it.
         """
 
+        def _fill_palette(style: str) -> str:
+            alpha = ""
+
+            if "*" in style:
+                style, alpha = style.split("*")
+                alpha = "*" + alpha
+
+            return style.replace(".", self.palette + ".", 1) + alpha
+
         styles = self.style_map[self.state.split("/")[0]].copy()
 
         if "/" in self.state:
@@ -293,7 +302,8 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 styles |= self.style_map[key].items()
 
         output = {}
-        fill = styles["fill"].replace(".", self.palette + ".", 1)
+
+        fill = _fill_palette(styles["fill"])
 
         if fill != "":
             fill += " "
@@ -303,7 +313,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 key = "_fill"
 
             if "." in style[:2]:
-                style = style.replace(".", self.palette + ".", 1)
+                style = _fill_palette(style)
 
             output[key] = BoundStyle(style, fill)
 
