@@ -7,7 +7,7 @@ from .container import Tower
 class Dialogue(Tower):
     """A full-screen overlay that displays some content."""
 
-    rules = """
+    rules = r"""
     Dialogue:
         consumes_mouse: True
         positioning: static
