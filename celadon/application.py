@@ -1048,7 +1048,7 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
     def remove(self, widget: Widget) -> None:
         super().remove(widget)
 
-        if self._mouse_target is widget:
+        if self._mouse_target is widget and self.page is not None:
             self._mouse_target = self.page[0]
 
     def pin(self, widget: Widget) -> None:

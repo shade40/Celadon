@@ -50,7 +50,7 @@ class Dialogue(Tower):
     def on_click(self, _, __) -> bool:
         """Destroy dialogue if the outside (dim part) is clicked."""
 
-        self.parent.remove(self)
+        self.remove_from_parent()
         return True
 
     # Redirect all operations to .content
@@ -68,7 +68,7 @@ class Dialogue(Tower):
         self.content.remove(widget)
 
     def pop(self, index: int) -> Widget:
-        self.content.pop(index)
+        return self.content.pop(index)
 
     def clear(self) -> None:
         self.content.clear()

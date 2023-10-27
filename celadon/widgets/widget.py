@@ -19,6 +19,7 @@ from ..style_map import StyleMap
 
 if TYPE_CHECKING:
     from ..application import Application, Page
+    from .container import Container
 
 __all__ = ["Widget", "widget_types", "handle_mouse_on_children"]
 
@@ -224,11 +225,11 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.eid = eid or str(uuid.uuid4())
         if group is not None:
             groups = (group,)
-        self.groups = groups
+        self.groups = tuple(groups)
         self.scroll = (0, 0)
         self.position = (0, 0)
         self.state_machine = deepcopy(self.state_machine)
-        self.parent: Widget | "Page" | None = None
+        self.parent: "Container" | "Page" | None = None
 
         self.width: int | float | None = None
         self.height: int | float | None = None
