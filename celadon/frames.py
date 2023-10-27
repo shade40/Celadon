@@ -106,6 +106,7 @@ class Frame:  # pylint: disable=too-many-instance-attributes
             borders.append(side().borders[i])
 
         frame.borders = tuple(borders)  # type: ignore
+        frame.corners = borders[1], borders[1], borders[3], borders[3]  # type: ignore
         frame.__init__()  # type: ignore # pylint: disable=unnecessary-dunder-call
 
         return frame

@@ -272,6 +272,9 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
         widget.parent = None
         self._should_layout = True
 
+        if self._mouse_target is widget:
+            self._mouse_target = None
+
     def pop(self, index: int) -> Widget:
         """Pops a widget from our children.
 

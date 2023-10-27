@@ -367,7 +367,7 @@ class Selector:  # pylint: disable=too-many-instance-attributes
             if score := self.indirect_parent.matches(parent):  # type: ignore
                 return score
 
-            parent = widget.parent
+            parent = parent.parent
 
         return 0
 
@@ -583,7 +583,6 @@ class Page:  # pylint: disable=too-many-instance-attributes
         Analogous to `list.remove`.
         """
 
-        self._init_widget(widget)
         self._children.remove(widget)
 
     def pop(self, index: int) -> Widget:
@@ -1046,6 +1045,12 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
         if self._mouse_target is None and len(page) > 0:
             self._mouse_target = page[0]
 
+    def remove(self, widget: Widget) -> None:
+        super().remove(widget)
+
+        if self._mouse_target is widget:
+            self._mouse_target = self.page[0]
+
     def pin(self, widget: Widget) -> None:
         """Pins a widget to the application.
 
@@ -1056,6 +1061,7 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
         """
 
         super().append(widget)
+        self._mouse_target = widget
 
     def apply_rules(self) -> bool:
         page_applied = False
