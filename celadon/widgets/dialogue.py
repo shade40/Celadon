@@ -36,6 +36,9 @@ class Dialogue(Tower):
             height: null
             overflow: [hide, auto]
 
+        \*> Tower.body:
+            gap: 0
+
         \*> Row.input:
             height: 3
             alignment: [center, end]
