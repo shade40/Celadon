@@ -35,20 +35,20 @@ class Checkbox(Widget):
         height: 1
 
         /idle:
-            frame_style: ui.primary+1
+            frame_style: .primary+1
 
         /hover:
-            fill_style: '@ui.panel1-2'
-            frame_style: ui.primary+1
+            fill_style: '@.panel1-2'
+            frame_style: .primary+1
 
         /selected:
             content_style: dim bold
-            fill_style: '@ui.panel1-1'
-            frame_style: ui.primary+1
+            fill_style: '@.panel1-1'
+            frame_style: .primary+1
 
         /active:
-            fill_style: '@ui.primary+3'
-            frame_style: 'ui.panel1'
+            fill_style: '@.primary+3'
+            frame_style: '.panel1'
             indicator_style: 'dim'
     """
 
