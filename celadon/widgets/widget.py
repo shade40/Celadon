@@ -26,6 +26,27 @@ __all__ = ["Widget", "widget_types", "handle_mouse_on_children"]
 RE_FULL_UNSETTER = re.compile(r"\/(?=\]| )")
 
 
+def _get_mouse_action_name_options(action: MouseAction) -> tuple[str, ...]:
+    if action.value == "hover":
+        return (action.value,)
+
+    parts = action.value.split("_")
+
+    full = action.value
+    alt_key = "_".join(parts[-2:])
+    event = parts[-1]
+
+    if alt_key in ["left", "right"]:
+        return (full, alt_key, event)
+
+    return (full, event)
+
+
+_MOUSE_ACTION_NAME_OPTIONS = {
+    action: _get_mouse_action_name_options(action) for action in MouseAction
+}
+
+
 @dataclass
 class BoundStyle:
     """A callable object containing both style and fill markup."""
@@ -988,47 +1009,29 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
 
         if "scroll" in action.value:
             can_scroll_x, can_scroll_y = self.has_scrollbar(0), self.has_scrollbar(1)
-            if (
-                can_scroll_x
-                and action is MouseAction.SCROLL_LEFT
-                or action is MouseAction.SHIFT_SCROLL_UP
-            ):
-                self.scroll = (self.scroll[0] - self.scroll_step, self.scroll[1])
 
-            elif (
-                can_scroll_x
-                and action is MouseAction.SCROLL_RIGHT
-                or action is MouseAction.SHIFT_SCROLL_DOWN
-            ):
-                self.scroll = (self.scroll[0] + self.scroll_step, self.scroll[1])
+            if can_scroll_x:
+                if (
+                    action is MouseAction.SCROLL_LEFT
+                    or action is MouseAction.SHIFT_SCROLL_UP
+                ):
+                    self.scroll = (self.scroll[0] - self.scroll_step, self.scroll[1])
 
-            elif can_scroll_y and action is MouseAction.SCROLL_UP:
-                self.scroll = (self.scroll[0], self.scroll[1] - self.scroll_step)
+                elif (
+                    action is MouseAction.SCROLL_RIGHT
+                    or action is MouseAction.SHIFT_SCROLL_DOWN
+                ):
+                    self.scroll = (self.scroll[0] + self.scroll_step, self.scroll[1])
 
-            elif can_scroll_y and action is MouseAction.SCROLL_DOWN:
-                self.scroll = (self.scroll[0], self.scroll[1] + self.scroll_step)
+            if can_scroll_y:
+                if action is MouseAction.SCROLL_UP:
+                    self.scroll = (self.scroll[0], self.scroll[1] - self.scroll_step)
 
-        def _get_names(action: MouseAction) -> tuple[str, ...]:
-            if action.value == "hover":
-                return (action.value,)
+                if action is MouseAction.SCROLL_DOWN:
+                    self.scroll = (self.scroll[0], self.scroll[1] + self.scroll_step)
 
-            parts = action.value.split("_")
-
-            full = action.value
-            alt_key = "_".join(parts[-2:])
-            event = parts[-1]
-
-            if alt_key in ["left", "right"]:
-                return (full, alt_key, event)
-
-            return (full, event)
-
-        possible_names = _get_names(action)
-
-        for name in possible_names:
-            if hasattr(self, f"on_{name}"):
-                handle = getattr(self, f"on_{name}")
-
+        for name in _MOUSE_ACTION_NAME_OPTIONS[action]:
+            if (handle := getattr(self, f"on_{name}", None)) is not None:
                 return handle(action, position)
 
         return False
@@ -1190,13 +1193,13 @@ def handle_mouse_on_children(
 
             hover_target = child
 
-        if child.handle_mouse(action, position) or child.consumes_mouse:
+        if (handled := child.handle_mouse(action, position)) or child.consumes_mouse:
             selection -= child.selectable_count - (child.selected_index or 0)
 
             if mouse_target is not None and mouse_target is not child:
                 mouse_target.handle_mouse(*release)
 
-            if child.consumes_mouse:
+            if child.consumes_mouse and not handled:
                 return True, None, mouse_target, hover_target
 
             return True, selection, child, hover_target
