@@ -295,7 +295,7 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
         Analogous to `list.clear`.
         """
 
-        for widget in self.children:
+        for widget in self.children.copy():
             self.remove(widget)
 
     def update_children(self, widgets: Iterable[Widget]) -> None:
