@@ -815,9 +815,9 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
 
         super().__init__(title=title, route_name="/")
 
-        self.on_frame_drawn = Event("frame drawn")
-        self.on_page_added = Event("page added")
-        self.on_page_changed = Event("page changed")
+        self.on_frame_drawn: Event[Application] = Event("frame drawn")
+        self.on_page_added: Event[Page] = Event("page added")
+        self.on_page_changed: Event[Page] = Event("page changed")
 
         self.fps = 0
         self.average_fps_over = average_fps_over
@@ -835,7 +835,13 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
         self._timeouts: list[tuple[Callable[[], Any], int | float]] = []
 
         self._should_draw = True
-        self._terminal.on_resize += lambda _: setattr(self, "_should_draw", True)
+
+        def _on_terminal_resize(_: tuple[int, int]) -> bool:
+            self._should_draw = True
+
+            return True
+
+        self._terminal.on_resize += _on_terminal_resize
 
         _ = self.terminal.foreground_color
         _ = self.terminal.background_color
@@ -917,7 +923,7 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
                 elapsed = perf_counter() - start
 
                 if on_frame_drawn:
-                    on_frame_drawn()
+                    on_frame_drawn(self)
                     on_frame_drawn.clear()
 
                 if elapsed < frametime:
@@ -1040,7 +1046,7 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
 
         self._pages.append(page)
         page.load_rules(load_init_rules=True)
-        self.on_page_added()
+        self.on_page_added(page)
 
         if self._mouse_target is None and len(page) > 0:
             self._mouse_target = page[0]
@@ -1082,7 +1088,7 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
             raise ValueError(f"No page with route {destination!r}.")
 
         self._page = page
-        self.on_page_changed()
+        self.on_page_changed(page)
 
         if page.route_name == "/":
             self._terminal.set_title(f"{self.title}")

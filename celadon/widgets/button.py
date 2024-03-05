@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Callable
 
-from slate import Event, EventCallback
+from slate import Event
 
 from ..enums import MouseAction
 from .widget import Widget
@@ -53,7 +53,7 @@ class Button(Widget):
     def __init__(
         self,
         content: str,
-        on_submit: list[EventCallback] | None = None,
+        on_submit: list[Callable[[Button], bool]] | None = None,
         **widget_args: Any,
     ) -> None:
         """Initializes the button.
@@ -78,7 +78,7 @@ class Button(Widget):
 
         self.bind("return", self._visual_submit)
 
-    def _visual_submit(self) -> bool:
+    def _visual_submit(self, _: Widget) -> bool:
         """Animates the active state when the button is submitted using a keyboard."""
 
         if self._has_timeout:

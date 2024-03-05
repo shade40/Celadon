@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Callable
 
 from slate import Event, EventCallback
 
@@ -57,7 +57,7 @@ class Checkbox(Widget):
         content: str,
         checked: bool = False,
         name: str | None = None,
-        on_change: list[EventCallback] | None = None,
+        on_change: list[Callable[[Checkbox], bool]] | None = None,
         **widget_args: Any,
     ) -> None:
         super().__init__(**widget_args)
@@ -75,7 +75,7 @@ class Checkbox(Widget):
 
         self.bind("return", self._visual_submit)
 
-    def _visual_submit(self) -> bool:
+    def _visual_submit(self, _: Widget) -> bool:
         """Animates the active state when the button is submitted using a keyboard."""
 
         if self._has_timeout:

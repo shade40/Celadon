@@ -269,6 +269,7 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
         """
 
         self.children.remove(widget)
+
         widget.parent = None
         self._should_layout = True
 

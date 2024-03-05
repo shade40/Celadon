@@ -273,11 +273,11 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.computed_width = 1
         self.computed_height = 1
 
-        self.pre_content = Event("pre content")
-        self.on_content = Event("post content")
+        self.pre_content: Event[Widget] = Event("pre content")
+        self.on_content: Event[Widget] = Event("post content")
 
-        self.pre_build = Event("pre build")
-        self.on_build = Event("post build")
+        self.pre_build: Event[Widget] = Event("pre build")
+        self.on_build: Event[Widget] = Event("post build")
 
         self.setup()
 
@@ -952,7 +952,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
 
         self.parent.remove(self)
 
-    def bind(self, key: str, callback: Callable[[], Any]) -> Event:
+    def bind(self, key: str, callback: Callable[[Widget], Any]) -> Event:
         """Binds a key to the given callback.
 
         If a binding already exists, the given callback is added to the Event.
@@ -1052,7 +1052,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
     ) -> list[tuple[Span, ...]]:
         """Builds the strings that represent the widget."""
 
-        self.pre_build()
+        self.pre_build(self)
 
         width = self._framed_width
         height = self._framed_height
@@ -1068,14 +1068,14 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
 
         self.scroll = _clamp_scrolls()
 
-        self.pre_content()
+        self.pre_content(self)
 
         content_style = self.styles["content"]
         lines: list[tuple[Span, ...]] = [
             self._parse_markup(content_style(line)) for line in self.get_content()
         ]
 
-        self.on_content()
+        self.on_content(self)
 
         self._virtual_height = virt_height or len(lines)
         self._virtual_width = virt_width or max(
@@ -1115,7 +1115,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
 
         lines = lines[self._clip_start : self._clip_end]
 
-        self.on_build()
+        self.on_build(self)
 
         return lines
 
