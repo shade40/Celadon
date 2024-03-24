@@ -55,7 +55,7 @@ class BoundStyle:
     fill: str
 
     def __call__(self, item: str) -> str:
-        return f"[{self.fill}{self.style}]{item}"
+        return f"[{self.fill}{self.style}]{item}[/]"
 
 
 def _compute(spec: int | float | None, hint: int) -> int:

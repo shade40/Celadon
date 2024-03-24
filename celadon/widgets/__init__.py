@@ -5,4 +5,5 @@ from .dialogue import Dialogue
 from .field import Field
 from .link import Link
 from .text import Text
+from .slider import Slider
 from .widget import *
