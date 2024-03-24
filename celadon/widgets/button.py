@@ -44,6 +44,11 @@ class Button(Widget):
             frame_style: '.panel1-2'
             frame: frameless
 
+        /disabled:
+            fill_style: '@.panel1-2'
+            frame_style: .primary-3
+            content_style: .panel1+2
+
         # Variants
 
         .big:

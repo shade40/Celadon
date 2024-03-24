@@ -143,25 +143,32 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
     consumes_mouse: bool = False
 
     state_machine = StateMachine(
-        states=("idle", "hover", "selected", "active"),
+        states=("idle", "hover", "selected", "active", "disabled"),
         transitions={
             "idle": {
+                "DISABLED": "disabled",
                 "HOVERED": "hover",
                 "SELECTED": "selected",
                 "CLICKED": "active",
             },
             "hover": {
+                "DISABLED": "disabled",
                 "RELEASED": "idle",
                 "SELECTED": "selected",
                 "CLICKED": "active",
             },
             "selected": {
+                "DISABLED": "disabled",
                 "UNSELECTED": "idle",
                 "CLICKED": "active",
             },
             "active": {
+                "DISABLED": "disabled",
                 "RELEASED": "hover",
                 "RELEASED_KEYBOARD": "selected",
+            },
+            "disabled": {
+                "ENABLED": "idle",
             },
             "/": {
                 "SUBSTATE_ENTER_SCROLLING_X": "/scrolling_x",
@@ -214,6 +221,13 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 "scrollbar_x": ".panel1+3*0.2",
                 "scrollbar_y": ".panel1+3*0.2",
             },
+            "disabled": {
+                "fill": "",
+                "frame": ".panel1",
+                "content": ".text-3",
+                "scrollbar_x": ".panel1",
+                "scrollbar_y": ".panel1",
+            },
             "/scrolling_x": {
                 "scrollbar_x": ".primary",
             },
@@ -251,6 +265,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.position = (0, 0)
         self.state_machine = deepcopy(self.state_machine)
         self.parent: "Container" | "Page" | None = None
+        self.disabled = False
 
         self.width: int | float | None = None
         self.height: int | float | None = None
@@ -374,6 +389,9 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         See Container's selectables for more info.
         """
 
+        if self.disabled:
+            return []
+
         return [(self, 0)]
 
     @property
@@ -470,6 +488,23 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         """Gets the widget's height excluding its frame."""
 
         return max(self.computed_height - self.frame.height, 0)
+
+    @property
+    def disabled(self) -> bool:
+        """Returns the widget's disabled state."""
+
+        return self._disabled
+
+    @disabled.setter
+    def disabled(self, value: bool) -> None:
+        """Sets the widget's disabled state."""
+
+        self._disabled = value
+
+        if value:
+            self.state_machine.apply_action("DISABLED")
+        else:
+            self.state_machine.apply_action("ENABLED")
 
     @lru_cache(1024)
     def _parse_markup(self, markup: str) -> tuple[Span, ...]:
@@ -985,6 +1020,9 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             event was already handled.
         """
 
+        if self.disabled:
+            return False
+
         result = False
 
         for value in key:
@@ -1004,6 +1042,9 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             Whether the event should continue to bubble upwards. Return `True` if the
             event was already handled.
         """
+
+        if self.disabled:
+            return False
 
         self._apply_mouse_state(action)
 
