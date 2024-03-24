@@ -224,7 +224,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             "disabled": {
                 "fill": "",
                 "frame": ".panel1",
-                "content": ".text-3",
+                "content": ".panel1+2",
                 "scrollbar_x": ".panel1",
                 "scrollbar_y": ".panel1",
             },

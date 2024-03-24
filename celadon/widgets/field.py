@@ -35,6 +35,9 @@ class Field(Widget):
             content_style: ''
             frame_style: .primary-1
             cursor_style: '@.panel1+3'
+
+        /disabled:
+            frame_style: .primary-3
     """
 
     def __init__(
