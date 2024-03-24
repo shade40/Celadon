@@ -661,13 +661,11 @@ class Page:  # pylint: disable=too-many-instance-attributes
 
         applicable_rules = None
 
-        rules_changed = self._rules_changed
-
         for target in [_terminal_wrapper] + drawables:
             new_attrs: dict[str, Any] = {}
             new_style_map = StyleMap()
 
-            if not rules_changed and not target.query_changed():
+            if not self._rules_changed and not target.query_changed():
                 continue
 
             applicable_rules = [
@@ -821,7 +819,7 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
         title: str,
         framerate: int = 60,
         terminal: Terminal | None = None,
-        average_fps_over: int = 15,
+        fps_sample: int = 60,
     ) -> None:
         """Initializes the Application.
 
@@ -839,7 +837,7 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
         self.on_page_changed: Event[Page] = Event("page changed")
 
         self.fps = 0
-        self.average_fps_over = average_fps_over
+        self.fps_sample = fps_sample
 
         self._pages = []
         self._page = None
@@ -911,11 +909,12 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
 
         elapsed = 1.0
         framerates = []
-        average_over = self.average_fps_over
-        did_draw = False
+        fps_sample = self.fps_sample
 
         try:
             while self._is_running:
+                did_draw = False
+
                 if self._is_paused:
                     sleep(frametime)
 
@@ -939,27 +938,25 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
 
                 draw()
 
+                on_frame_drawn(self)
+                on_frame_drawn.clear()
+
+                # Calculate & manage FPS
                 elapsed = perf_counter() - start
-
-                if on_frame_drawn:
-                    on_frame_drawn(self)
-                    on_frame_drawn.clear()
-
-                if elapsed < frametime:
-                    sleep(frametime - elapsed)
 
                 if did_draw:
                     framerates.append(1 / elapsed)
 
-                    did_draw = False
-                else:
-                    framerates.append(framerates[-1])
+                if elapsed < frametime:
+                    sleep(1 / 1000)
 
-                if len(framerates) > average_over:
+                fps_framecount = len(framerates)
+                if fps_framecount > fps_sample:
                     framerates.pop(0)
 
-                self.fps = round(sum(framerates) / average_over)
+                self.fps = round(sum(framerates) / min(fps_framecount, fps_sample))
 
+                # Handle timeouts
                 eliminated = []
 
                 for i, (callback, timeout) in enumerate(self._timeouts):
