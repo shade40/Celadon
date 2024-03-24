@@ -93,7 +93,7 @@ class Checkbox(Widget):
             ),
         )
 
-        return self.on_change(self)
+        return self.on_change(self.checked)
 
     def on_click(self, _: MouseAction, __: tuple[int, int]) -> bool:
         """Toggles checked & emits the change event."""
