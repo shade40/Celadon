@@ -9,7 +9,7 @@ class Dialogue(Tower):
 
     rules = r"""
     Dialogue:
-        consumes_mouse: True
+        consumes_mouse: true
         positioning: static
 
         width: 1.0
@@ -21,8 +21,8 @@ class Dialogue(Tower):
         \> Tower:
             consumes_mouse: true
 
-            width: 0.8
-            height: 0.8
+            width: 0.6
+            height: 0.5
 
             alignment: [center, start]
             frame: [padded, verticalouter, padded, verticalouter]
@@ -30,14 +30,14 @@ class Dialogue(Tower):
         \*> Text.title:
             alignment: [center, center]
             height: 2
-            content_style: bold
+            content_style: bold dim
 
         \*> Text.body:
             height: null
             overflow: [hide, auto]
 
         \*> Tower.body:
-            gap: 0
+            gap: 1
 
         \*> Row.input:
             height: 3
