@@ -5,7 +5,7 @@ from typing import Any
 from slate import Event
 
 from ..enums import MouseAction
-from .widget import Widget
+from .widget import Widget, to_widget_space
 
 
 class Slider(Widget):
@@ -64,6 +64,13 @@ class Slider(Widget):
     def value(self) -> float:
         return self._value * self._end
 
+    # TODO: This docstring fucking sucks lol
+    def _get_value(self, offset: int) -> float:
+        """Get's the fractional value at the given widget offset."""
+
+        x = to_widget_space((offset, 0), self)[0] + 1
+        return max(0.0, min(x / self.computed_width, 1.0))
+
     def increase(self, _: Widget) -> bool:
         self._value = min(round(self._value + 0.1, self.precision), 1.0)
         self.on_change(self.value)
@@ -76,20 +83,12 @@ class Slider(Widget):
 
         return True
 
-    def _compute_value(self, pos: int) -> float:
-        offset = pos - self.position[0]
-
-        if offset == 1:
-            return 0
-
-        return max(0.0, min(offset / self.computed_width, 1.0))
-
     def on_click(self, _: MouseAction, pos: tuple[int, int]) -> bool:
-        self._value = self._compute_value(pos[0])
+        self._value = self._get_value(pos[0])
         return True
 
     def on_drag(self, _: MouseAction, pos: tuple[int, int]) -> bool:
-        self._value = self._compute_value(pos[0])
+        self._value = self._get_value(pos[0])
         return True
 
     def get_content(self) -> list[str]:

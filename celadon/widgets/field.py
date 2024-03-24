@@ -4,7 +4,7 @@ from typing import Any
 from slate import Key
 
 from ..enums import MouseAction
-from .widget import Widget
+from .widget import Widget, to_widget_space
 
 PRINTABLE = [*printable]
 DELIMITERS = {*whitespace, *punctuation}
@@ -64,8 +64,12 @@ class Field(Widget):
 
         self.cursor = min(self.cursor[0] + x, self._value_length), self.cursor[1] + y
 
-    def on_click(self, _: MouseAction, __: tuple[int, int]) -> bool:
+    def on_click(self, _: MouseAction, pos: tuple[int, int]) -> bool:
         """Allows the widget to be selected on click."""
+
+        x, y = to_widget_space(pos, self)
+        # Account for padding on the left
+        self.cursor = x - 1, y
 
         return True
 

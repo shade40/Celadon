@@ -115,6 +115,18 @@ def _overflows(real: int, virt: int) -> bool:
     return real / max(virt, 1) <= 1.0
 
 
+def to_widget_space(pos: tuple[int, int], widget: Widget) -> tuple[int, int]:
+    """Computes a position as an offset from the widgets origin.
+
+    This doesn't account for positions _outside_ of a widget.
+    """
+
+    x_offset = pos[0] - widget.position[0] - len(widget.frame.left) - 1
+    y_offset = pos[1] - widget.position[1] - len(widget.frame.top) - 1
+
+    return (x_offset, y_offset)
+
+
 class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-methods
     """This is a docstring."""
 
