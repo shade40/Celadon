@@ -29,10 +29,15 @@ class Slider(Widget):
 
         content_style: '.panel1+1'
 
-        /hover|selected:
+        /selected|hover:
             fill_style: '@.panel1-1'
+
         /selected|active:
             cursor_style: '.primary'
+
+        /disabled:
+            cursor_style: .panel1-1
+            content_style: .panel1-1
     """
 
     def __init__(
