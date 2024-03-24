@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from slate import Event, EventCallback
+from slate import Event
 
 from ..enums import MouseAction
 from .button import Button

@@ -274,7 +274,7 @@ class Selector:  # pylint: disable=too-many-instance-attributes
                 `direct_parent > query`.
             indirect_parent: Direct parent to test for, obtained by parsing
                 `indirect_parent *> query`.
-            forced_score:A score to use when a selector matches the rule, instead of the
+            forced_score: A score to use when a selector matches the rule, instead of the
                 score the selector calculates.
 
         Returns:
@@ -406,17 +406,14 @@ class Selector:  # pylint: disable=too-many-instance-attributes
 
         score = 100
 
-        if self.direct_parent is not None:
-            if (scr := self._match_parent(widget)) == 0:
-                return 0
+        if self.direct_parent is not None and self._match_parent(widget) == 0:
+            return 0
 
-            score += scr
-
-        elif self.indirect_parent is not None:
-            if (scr := self._match_parent(widget, direct=False)) == 0:
-                return 0
-
-            score += scr
+        if (
+            self.indirect_parent is not None
+            and self._match_parent(widget, direct=False) == 0
+        ):
+            return 0
 
         if is_palette:
             return score + 100
