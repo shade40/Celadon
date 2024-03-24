@@ -459,6 +459,9 @@ class Page:  # pylint: disable=too-many-instance-attributes
     children: list[Widget]
     _rules: dict[Selector, tuple[dict[str, Any], dict[str, Any]]]
 
+    _builtin_rules: dict[Selector, tuple[dict[str, Any], dict[str, Any]]]
+    _user_rules: dict[Selector, tuple[dict[str, Any], dict[str, Any]]]
+
     def __init__(
         self,
         *children: Widget,
@@ -480,7 +483,8 @@ class Page:  # pylint: disable=too-many-instance-attributes
         self._builder = builder
         self._rules_changed = True
 
-        self._init_rules = rules
+        self.load_rules(DEFAULT_RULES, _builtin=True)
+        self.load_rules(rules)
 
         self.extend(children)
 
@@ -521,7 +525,20 @@ class Page:  # pylint: disable=too-many-instance-attributes
     def _rules(self) -> dict[str, Any]:
         """Returns {**builtin_rules, **user_rules}."""
 
-        return {**self._builtin_rules, **self._user_rules}
+        rules = {**self._builtin_rules}
+        keys = [*rules]
+
+        for sel, value in self._user_rules.items():
+            if sel in keys:
+                attrs, style_map = rules[sel]
+
+                deep_merge(attrs, value[0])
+                deep_merge(style_map, value[1])
+                continue
+
+            rules[sel] = value
+
+        return rules
 
     def _init_widget(self, widget: Widget) -> None:
         """Initializes a widget.
@@ -530,10 +547,12 @@ class Page:  # pylint: disable=too-many-instance-attributes
         and sets its parent to self.
         """
 
-        if type(widget) not in self._encountered_types:
-            for child in widget.drawables():
-                self.load_rules(child.rules, _builtin=True)
-                self._encountered_types.append(type(child))
+        for child in widget.drawables():
+            if type(child) in self._encountered_types:
+                continue
+
+            self.load_rules(child.rules, _builtin=True)
+            self._encountered_types.append(type(child))
 
         widget.parent = self
 
@@ -619,10 +638,9 @@ class Page:  # pylint: disable=too-many-instance-attributes
 
     def load_rules(
         self,
-        rules: str | None = None,
+        rules: str,
         score: int | None = None,
         _builtin: bool = False,
-        load_init_rules: bool = False,
     ) -> None:
         """Loads the given YAML rules.
 
@@ -630,19 +648,7 @@ class Page:  # pylint: disable=too-many-instance-attributes
             rules: The YAML to load.
             score: A score to use when a selector matches the rule, instead of the score
                 the selector calculates.
-            load_init_rules: If set, will ignore rules and use the rules passed in
-                during `__init__`.
-
-        Either `rules` or `load_init_rules` must be set.
         """
-
-        if rules is None and not load_init_rules:
-            raise TypeError("must provide rules to load.")
-
-        if load_init_rules:
-            rules = self._init_rules
-
-        assert rules is not None
 
         for selector, rule in load_rules(rules).items():
             self.rule(selector, **rule, score=score, _builtin=_builtin)
@@ -794,8 +800,13 @@ class Page:  # pylint: disable=too-many-instance-attributes
     def dump_rules_applied_to(self, widget: Widget) -> dict[Selector, int]:
         out = {}
 
-        for sel in self._rules:
-            out[sel] = sel.matches(widget)
+        for sel, rule in self._rules.items():
+            score = sel.matches(widget)
+
+            if score == 0:
+                continue
+
+            out[sel] = (sel.matches(widget), rule)
 
         return out
 
@@ -830,6 +841,7 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
             terminal: A terminal instance to use.
         """
 
+        self._pages = []
         super().__init__(title=title, route_name="/")
 
         self.on_frame_drawn: Event[Application] = Event("frame drawn")
@@ -839,7 +851,6 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
         self.fps = 0
         self.fps_sample = fps_sample
 
-        self._pages = []
         self._page = None
         self._mouse_target: Widget | None = None
         self._hover_target: Widget | None = None
@@ -936,6 +947,7 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
                     self._should_draw = False
                     did_draw = True
 
+                write(str(self.fps), cursor=self._terminal.origin)
                 draw()
 
                 on_frame_drawn(self)
@@ -1061,7 +1073,6 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
         page.parent = self
 
         self._pages.append(page)
-        page.load_rules(load_init_rules=True)
         self.on_page_added(page)
 
         if self._mouse_target is None and len(page) > 0:
@@ -1152,7 +1163,6 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
         if self._page is None:
             self.route("/")
 
-        self.load_rules(DEFAULT_RULES, _builtin=True)
         terminal = self._terminal
 
         with terminal.report_mouse(), terminal.no_echo(), terminal.alt_buffer():
