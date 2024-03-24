@@ -162,6 +162,10 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
         if self._selected_index is None:
             return None
 
+        # TODO: This sideeffect might be a problem
+        if self._selected_index > self.selectable_count:
+            self._selected_index = self.selectable_count - 1
+
         return self.selectables[self._selected_index][0]
 
     @property
