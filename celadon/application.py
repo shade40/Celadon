@@ -474,7 +474,8 @@ class Page:  # pylint: disable=too-many-instance-attributes
         self.route_name = route_name
         self._palettes: dict[str, Palette] = {}
         self._children: list[Widget] = []
-        self._rules = {}
+        self._builtin_rules = {}
+        self._user_rules = {}
         self._encountered_types: list[type] = []
         self._builder = builder
         self._rules_changed = True
@@ -516,6 +517,12 @@ class Page:  # pylint: disable=too-many-instance-attributes
 
         return self._children[item]
 
+    @property
+    def _rules(self) -> dict[str, Any]:
+        """Returns {**builtin_rules, **user_rules}."""
+
+        return {**self._builtin_rules, **self._user_rules}
+
     def _init_widget(self, widget: Widget) -> None:
         """Initializes a widget.
 
@@ -525,7 +532,7 @@ class Page:  # pylint: disable=too-many-instance-attributes
 
         if type(widget) not in self._encountered_types:
             for child in widget.drawables():
-                self.load_rules(child.rules, score=None)
+                self.load_rules(child.rules, _builtin=True)
                 self._encountered_types.append(type(child))
 
         widget.parent = self
@@ -614,6 +621,7 @@ class Page:  # pylint: disable=too-many-instance-attributes
         self,
         rules: str | None = None,
         score: int | None = None,
+        _builtin: bool = False,
         load_init_rules: bool = False,
     ) -> None:
         """Loads the given YAML rules.
@@ -637,7 +645,7 @@ class Page:  # pylint: disable=too-many-instance-attributes
         assert rules is not None
 
         for selector, rule in load_rules(rules).items():
-            self.rule(selector, **rule, score=score)
+            self.rule(selector, **rule, score=score, _builtin=_builtin)
 
     def apply_rules(self) -> bool:
         """Applies the page's rules to the widgets.
@@ -738,7 +746,11 @@ class Page:  # pylint: disable=too-many-instance-attributes
         return None
 
     def rule(
-        self, query: str | Selector, score: int | None = None, **rules: str
+        self,
+        query: str | Selector,
+        score: int | None = None,
+        _builtin: bool = False,
+        **rules: str,
     ) -> Selector:
         """Creates a new rule that matches query, and applies rules on matches.
 
@@ -755,6 +767,8 @@ class Page:  # pylint: disable=too-many-instance-attributes
         style_map = {}
         attrs = {}
 
+        rules_container = self._builtin_rules if _builtin else self._user_rules
+
         self._rules_changed = True
 
         for key, value in rules.copy().items():
@@ -768,16 +782,24 @@ class Page:  # pylint: disable=too-many-instance-attributes
         else:
             selector = Selector.parse(query, forced_score=score)
 
-        if selector not in self._rules:
-            self._rules[selector] = (attrs, style_map)
+        if selector not in rules_container:
+            rules_container[selector] = (attrs, style_map)
             return selector
 
-        # Merge existing rules for the same selector
-        old_attrs, old_style_map = self._rules[selector]
+        # Merge existing rules_container for the same selector
+        old_attrs, old_style_map = rules_container[selector]
         deep_merge(old_attrs, attrs)
         deep_merge(old_style_map, style_map)
 
         return selector
+
+    def dump_rules_applied_to(self, widget: Widget) -> dict[Selector, int]:
+        out = {}
+
+        for sel in self._rules:
+            out[sel] = sel.matches(widget)
+
+        return out
 
 
 class Application(Page):  # pylint: disable=too-many-instance-attributes
@@ -1026,7 +1048,7 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
         # God compelled me to write this,,,
         # May he compel me to clean  it up.
         #
-        for key, value in self._rules.items():
+        for key, value in self._user_rules.items():
             rules.update(
                 **{
                     str(key): {
@@ -1133,7 +1155,7 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
         if self._page is None:
             self.route("/")
 
-        self.load_rules(DEFAULT_RULES)
+        self.load_rules(DEFAULT_RULES, _builtin=True)
         terminal = self._terminal
 
         with terminal.report_mouse(), terminal.no_echo(), terminal.alt_buffer():
