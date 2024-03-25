@@ -24,16 +24,13 @@ class Field(Widget):
         height: 1
 
         placeholder_style: 'dim italic'
-
-        /idle|hover|active:
-            frame_style: .primary-1
+        frame_style: .primary-1
 
         /hover:
             fill_style: '@.panel1-2'
 
-        /selected:
+        /selected|active:
             content_style: ''
-            frame_style: .primary-1
             cursor_style: '@.panel1+3'
 
         /disabled:
@@ -69,7 +66,7 @@ class Field(Widget):
 
         x, y = to_widget_space(pos, self)
         # Account for padding on the left
-        self.cursor = x - 1, y
+        self.cursor = min(x - 1, self._value_length), y
 
         return True
 
