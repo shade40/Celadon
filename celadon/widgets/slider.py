@@ -46,25 +46,28 @@ class Slider(Widget):
         self,
         *,
         value: float = 0.0,
-        end: float = 1.0,
+        scale: float = 1.0,
         precision: int = 1,
+        name: str | None = None,
         **widget_args: Any,
     ) -> None:
         """Initializes a Slider.
 
         Args:
             value: The internal value (0.0-1.0) to start at.
-            end: The factor to scale the internal value by (`value = _value * _end`).
+            scale: The factor to scale the internal value by (`value = _value * scale`).
             precision: The rounding precision used in `increase` & `decrease` to avoid
                 floating point errors.
+            name: The name used when serializing this widget.
         """
 
         super().__init__(**widget_args)
 
-        self.precision = precision
-
         self._value = value
-        self._end = end
+        self._scale = scale
+
+        self.precision = precision
+        self.name = name
 
         self.on_change: Event[float] = Event("slider change")
 
@@ -75,7 +78,13 @@ class Slider(Widget):
     def value(self) -> float:
         """Returns the internal state of progress bar scaled to the end factor."""
 
-        return self._value * self._end
+        return self._value * self._scale
+
+    def serialize(self) -> dict[str, Any]:
+        if self.name is None:
+            raise ValueError(f"slider {self!r} cannot be serialized without a name.")
+
+        return {self.name: self.value}
 
     # TODO: This docstring fucking sucks lol
     def _get_value(self, offset: int) -> float:
