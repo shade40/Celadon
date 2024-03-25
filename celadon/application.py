@@ -971,8 +971,10 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
                 # Handle timeouts
                 eliminated = []
 
+                elapsed = perf_counter() - start
+
                 for i, (callback, timeout) in enumerate(self._timeouts):
-                    timeout -= frametime * 1000
+                    timeout -= elapsed * 1000
 
                     if timeout <= 0:
                         callback()
