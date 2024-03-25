@@ -5,7 +5,7 @@ from typing import Any, Callable
 from slate import Event
 
 from ..enums import MouseAction
-from .widget import Widget
+from .widget import Widget, wrap_callback
 
 
 class Button(Widget):
@@ -81,9 +81,9 @@ class Button(Widget):
         for callback in on_submit or []:
             self.on_submit += callback
 
-        self.bind("return", self._visual_submit)
+        self.bind("return", wrap_callback(self._visual_submit))
 
-    def _visual_submit(self, _: Widget) -> bool:
+    def _visual_submit(self) -> bool:
         """Animates the active state when the button is submitted using a keyboard."""
 
         if self._has_timeout:

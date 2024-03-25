@@ -5,10 +5,12 @@ from typing import Any
 from slate import Event
 
 from ..enums import MouseAction
-from .widget import Widget, to_widget_space
+from .widget import Widget, to_widget_space, wrap_callback
 
 
 class Slider(Widget):
+    """A clickable and draggable slider."""
+
     style_map = Widget.style_map | {
         state: {"cursor": ""} for state in Widget.state_machine.states
     }
@@ -48,6 +50,15 @@ class Slider(Widget):
         precision: int = 1,
         **widget_args: Any,
     ) -> None:
+        """Initializes a Slider.
+
+        Args:
+            value: The internal value (0.0-1.0) to start at.
+            end: The factor to scale the internal value by (`value = _value * _end`).
+            precision: The rounding precision used in `increase` & `decrease` to avoid
+                floating point errors.
+        """
+
         super().__init__(**widget_args)
 
         self.precision = precision
@@ -57,28 +68,34 @@ class Slider(Widget):
 
         self.on_change: Event[float] = Event("slider change")
 
-        self.bind("right", self.increase)
-        self.bind("left", self.decrease)
+        self.bind("right", wrap_callback(self.increase))
+        self.bind("left", wrap_callback(self.decrease))
 
     @property
     def value(self) -> float:
+        """Returns the internal state of progress bar scaled to the end factor."""
+
         return self._value * self._end
 
     # TODO: This docstring fucking sucks lol
     def _get_value(self, offset: int) -> float:
-        """Get's the fractional value at the given widget offset."""
+        """Gets the fractional value at the given widget offset."""
 
         x = to_widget_space((offset, 0), self)[0] + 1
         return max(0.0, min(x / self.computed_width, 1.0))
 
-    def increase(self, _: Widget) -> bool:
-        self._value = min(round(self._value + 0.1, self.precision), 1.0)
+    def increase(self, amount: float = 0.1) -> bool:
+        """Increases the progress bar by the given amount."""
+
+        self._value = min(round(self._value + amount, self.precision), 1.0)
         self.on_change(self.value)
 
         return True
 
-    def decrease(self, _: Widget) -> bool:
-        self._value = max(round(self._value - 0.1, self.precision), 0.0)
+    def decrease(self, amount: float = 0.1) -> bool:
+        """Decreases the progress bar by the given amount."""
+
+        self._value = max(round(self._value - amount, self.precision), 0.0)
         self.on_change(self.value)
 
         return True

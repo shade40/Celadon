@@ -5,7 +5,7 @@ import re
 import uuid
 from copy import deepcopy
 from dataclasses import dataclass
-from functools import lru_cache
+from functools import lru_cache, wraps
 from typing import TYPE_CHECKING, Any, Callable, Generator, Iterable, Literal, Type
 
 from slate import Event, Key, Span, Terminal
@@ -125,6 +125,25 @@ def to_widget_space(pos: tuple[int, int], widget: Widget) -> tuple[int, int]:
     y_offset = pos[1] - widget.position[1] - len(widget.frame.top) - 1
 
     return (x_offset, y_offset)
+
+
+def wrap_callback(callback: Callable[[], Any]) -> Callable[[Widget], bool]:
+    """Creates a wrapper for empty widget callbacks.
+
+    This lets us maintain the callback's __name__, as opposed to doing
+    `lambda _: callback()`
+    """
+
+    @wraps(callback)
+    def _inner(_: Widget) -> bool:
+        value = callback()
+
+        if isinstance(value, bool):
+            return value
+
+        return True
+
+    return _inner
 
 
 class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-methods

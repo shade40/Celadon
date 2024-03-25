@@ -6,7 +6,7 @@ from slate import Event
 
 from ..enums import MouseAction
 from .button import Button
-from .widget import Widget
+from .widget import Widget, wrap_callback
 
 
 class Checkbox(Widget):
@@ -73,9 +73,9 @@ class Checkbox(Widget):
         for event in on_change or []:
             self.on_change += event
 
-        self.bind("return", self._visual_submit)
+        self.bind("return", wrap_callback(self._visual_submit))
 
-    def _visual_submit(self, _: Widget) -> bool:
+    def _visual_submit(self) -> bool:
         """Animates the active state when the button is submitted using a keyboard."""
 
         if self._has_timeout:
