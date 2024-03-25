@@ -29,10 +29,10 @@ class Slider(Widget):
     Slider:
         height: 1
 
-        content_style: '.panel1+1'
+        content_style: '.panel1'
 
         /selected|hover:
-            fill_style: '@.panel1-1'
+            fill_style: '@.panel1-2'
 
         /selected|active:
             cursor_style: '.primary'
@@ -111,10 +111,14 @@ class Slider(Widget):
 
     def on_click(self, _: MouseAction, pos: tuple[int, int]) -> bool:
         self._value = self._get_value(pos[0])
+        self.on_change(self.value)
+
         return True
 
     def on_drag(self, _: MouseAction, pos: tuple[int, int]) -> bool:
         self._value = self._get_value(pos[0])
+        self.on_change(self.value)
+
         return True
 
     def get_content(self) -> list[str]:
