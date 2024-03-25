@@ -121,6 +121,7 @@ class Field(Widget):
 
             self.value = left[:-distance] + right
             self.move_cursor(x=-distance)
+            self._value_length -= distance
             return True
 
         if key in PRINTABLE:
@@ -146,6 +147,15 @@ class Field(Widget):
         if not value:
             return [" " + self.styles["cursor"](" ") + "[/] "]
 
+        content_style = self.styles["content"]
+        cursor_style = self.styles["cursor"]
+
+        if self.value == "":
+            content_style = self.styles["placeholder"]
+
+            if self._selected_index is None:
+                cursor_style = content_style
+
         style = self.styles["placeholder" if not self.value else "content"]
 
         left, right = value[:x], value[x + 1 :]
@@ -155,4 +165,10 @@ class Field(Widget):
         if x < len(value):
             cursor = value[x]
 
-        return [" " + style(left) + self.styles["cursor"](cursor) + style(right) + " "]
+        return [
+            " "
+            + content_style(left)
+            + cursor_style(cursor)
+            + content_style(right)
+            + " "
+        ]
