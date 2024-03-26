@@ -107,6 +107,7 @@ class Frame:  # pylint: disable=too-many-instance-attributes
 
         frame.borders = tuple(borders)  # type: ignore
         frame.corners = borders[1], borders[1], borders[3], borders[3]  # type: ignore
+        frame.scrollbars = ((" ", "▅"), (" ", "█"))
         frame.__init__()  # type: ignore # pylint: disable=unnecessary-dunder-call
 
         return frame
