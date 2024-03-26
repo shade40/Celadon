@@ -25,6 +25,7 @@ class Field(Widget):
 
         placeholder_style: 'dim italic'
         frame_style: .primary-1
+        overflow: [auto, auto]
 
         /hover:
             fill_style: '@.panel1-2'
@@ -236,7 +237,7 @@ class Field(Widget):
         value = self.value or self.placeholder
 
         if not value:
-            return [" " + self.styles["cursor"](" ") + "[/] "]
+            return [" " + self.styles["cursor"](" ") + " "]
 
         content_style = self.styles["content"]
         cursor_style = self.styles["cursor"]

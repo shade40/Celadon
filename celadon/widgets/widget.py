@@ -124,6 +124,9 @@ def to_widget_space(pos: tuple[int, int], widget: Widget) -> tuple[int, int]:
     x_offset = pos[0] - widget.position[0] - len(widget.frame.left) - 1
     y_offset = pos[1] - widget.position[1] - len(widget.frame.top) - 1
 
+    x_offset += widget.scroll[0]
+    y_offset += widget.scroll[1]
+
     return (x_offset, y_offset)
 
 
