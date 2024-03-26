@@ -280,6 +280,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         eid: str | None = None,
         group: str | None = None,
         groups: tuple[str, ...] = tuple(),
+        disabled: bool = False,
     ) -> None:
         """Initializes a Widget.
 
@@ -297,7 +298,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.position = (0, 0)
         self.state_machine = deepcopy(self.state_machine)
         self.parent: "Container" | "Page" | None = None
-        self.disabled = False
+        self.disabled = disabled
 
         self.width: int | float | None = None
         self.height: int | float | None = None

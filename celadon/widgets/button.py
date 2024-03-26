@@ -59,6 +59,7 @@ class Button(Widget):
         self,
         content: str,
         on_submit: list[Callable[[Button], bool]] | None = None,
+        name: str | None = None,
         **widget_args: Any,
     ) -> None:
         """Initializes the button.
@@ -66,8 +67,7 @@ class Button(Widget):
         Args:
             content: The content the button should display.
             on_submit: A list of event callbacks to fire when the button submits.
-            route: On click, it routes the application to a new page. Likely removed
-                in the future.
+            name: The name to be used in some parents' serialization result.
         """
 
         super().__init__(**widget_args)
@@ -75,6 +75,7 @@ class Button(Widget):
         self._has_timeout = False
 
         self.content = content
+        self.name = name
         self.width = sum(len(span) for span in self._parse_markup(self.content)) + 4
 
         self.on_submit = Event("button submit")
