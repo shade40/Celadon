@@ -7,4 +7,5 @@ from .link import Link
 from .text import Text
 from .slider import Slider
 from .progress import Progress
+from .dropdown import Dropdown
 from .widget import *

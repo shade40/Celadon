@@ -30,6 +30,7 @@ class Slider(Widget):
         height: 1
 
         content_style: '.panel1'
+        cursor_style: '.panel1+1'
 
         /selected|hover:
             fill_style: '@.panel1-2'
