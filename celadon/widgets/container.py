@@ -339,6 +339,8 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
             y: The origin's vertical coordinate.
         """
 
+        origin = x, y
+
         children = self.visible_children
 
         width = self._framed_width - self.has_scrollbar(1)
@@ -425,7 +427,10 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
         if horizontal:
             self._outer_dimensions = (x, self.computed_height - this_gap - align_extra)
         else:
-            self._outer_dimensions = (self.computed_width - this_gap - align_extra, y)
+            self._outer_dimensions = (
+                self.computed_width - this_gap - align_extra,
+                y - origin[1],
+            )
 
     def get_content(self) -> list[str]:
         """Calls our `arrange` method and returns a single empty line."""
@@ -485,7 +490,7 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
 
         yield self
 
-        for widget in self.children:
+        for widget in sorted(self.children, key=lambda w: w.layer):
             yield from widget.drawables()
 
     def build(

@@ -935,7 +935,12 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
                 if self.apply_rules() or self._should_draw:
                     clear()
 
-                    for widget in [*self._page, *self._children]:  # type: ignore
+                    items = sorted(  # type: ignore
+                        [*self._page, *self._children],
+                        key=lambda w: w.layer,
+                    )
+
+                    for widget in items:
                         widget.compute_dimensions(width, height)
 
                         for child in widget.drawables():
@@ -960,7 +965,7 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
                     framerates.append(1 / elapsed)
 
                 if elapsed < frametime:
-                    sleep(1 / 1000)
+                    sleep(frametime - elapsed)
 
                 fps_framecount = len(framerates)
                 if fps_framecount > fps_sample:

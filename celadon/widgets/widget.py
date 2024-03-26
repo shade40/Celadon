@@ -273,6 +273,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
     """YAML rules for this widget, applied only when added as part of an Application."""
 
     _frame: Frame
+    layer: int = 0
 
     def __init__(
         self,
