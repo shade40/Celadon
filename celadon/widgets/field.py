@@ -208,12 +208,13 @@ class Field(Widget):
                 right = left[-1] + right
                 left = left[:-1]
 
+            lines[y] = left
+
             if len(lines) > y + 1:
-                lines[y + 1] = right + lines[y + 1]
+                lines.insert(y + 1, right)
             else:
                 lines.append(right)
 
-            lines[y] = left
             self.value = "\n".join(lines)
 
             self.move_cursor(x=-self.cursor[0], y=1)
