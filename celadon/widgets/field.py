@@ -1,13 +1,12 @@
-from string import printable, punctuation, whitespace
-from typing import Any
+import string
+from typing import Any, Iterator
 
 from slate import Key
 
 from ..enums import MouseAction
 from .widget import Widget, to_widget_space
 
-PRINTABLE = [*printable]
-DELIMITERS = {*whitespace, *punctuation}
+PRINTABLE = [*string.printable]
 
 
 class Field(Widget):
@@ -67,6 +66,23 @@ class Field(Widget):
         cursor = line[x] if x < len(line) else ""
 
         return left, cursor, right
+
+    def _find_word_end(self, line: str, direction: int = 1) -> int:
+        """Returns the distance from the next word boundary."""
+
+        # Consistent with unix shell behaviour:
+        # * Always delete first char, then remove any non-punctuation
+        # Note that the exact behaviour isn't standardized:
+        # * Python repl: until change in letter+digit & punctionation
+        # * Unix shells: only removes letter+digit
+        word_chars = string.ascii_letters + string.digits
+
+        if direction == -1:
+            strip_line = line.rstrip(word_chars)
+        else:
+            strip_line = line.lstrip(word_chars)
+
+        return -direction * (len(strip_line) - len(line)) + direction
 
     def move_cursor(self, x: int = 0, y: int = 0) -> None:
         """Moves the cursor by the given x and y coordinates."""
@@ -153,6 +169,23 @@ class Field(Widget):
         x, y = self.cursor
 
         left, cursor, right = self._get_cursorline()
+
+        if key == "alt-left":
+            self.move_cursor(x=self._find_word_end(left, direction=-1))
+            return True
+
+        if key == "alt-right":
+            self.move_cursor(x=self._find_word_end(right + " "))
+            return True
+
+        if key == "ctrl-left":
+            self.set_cursor(0, y)
+            return True
+
+        if key == "ctrl-right":
+            self.set_cursor(len(left + cursor + right), y)
+            return True
+
         left += cursor
 
         if key == "backspace":
@@ -181,21 +214,11 @@ class Field(Widget):
                 self.delete_trailing_newline()
                 return True
 
-            distance = 0
+            distance = self._find_word_end(left, direction=-1)
 
-            for distance, char in enumerate(reversed(left)):
-                if char in DELIMITERS:
-                    if distance == 0:
-                        continue
+            self.set_line(y, left[:distance] + right)
+            self.move_cursor(x=distance)
 
-                    break
-
-            else:
-                distance = len(left)
-
-            self.set_line(y, left[:-distance] + right)
-
-            self.move_cursor(x=-distance)
             return True
 
         if key == "return":
@@ -221,7 +244,8 @@ class Field(Widget):
             return True
 
         if key in PRINTABLE:
-            self.set_line(y, left + str(key) + right)
+            left = left.removesuffix(cursor)
+            self.set_line(y, left + str(key) + cursor + right)
 
             self.move_cursor(x=1)
             return True
