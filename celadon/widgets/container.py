@@ -280,7 +280,7 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
         if self._mouse_target is widget:
             self._mouse_target = None
 
-    def pop(self, index: int) -> Widget:
+    def pop(self, index: int = -1) -> Widget:
         """Pops a widget from our children.
 
         Analogous to `list.pop`.
@@ -521,7 +521,7 @@ class Tower(Container):
     ```
     """
 
-    direction = Direction.VERTICAL
+    _direction = Direction.VERTICAL
 
 
 class Row(Container):
@@ -543,4 +543,4 @@ class Row(Container):
     ```
     """
 
-    direction = Direction.HORIZONTAL
+    _direction = Direction.HORIZONTAL
