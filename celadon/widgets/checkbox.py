@@ -33,6 +33,7 @@ class Checkbox(Widget):
         content_style: dim
 
         height: 1
+        width: shrink
 
         /idle:
             frame_style: .primary+1
@@ -94,6 +95,12 @@ class Checkbox(Widget):
         )
 
         return self.on_change(self.checked)
+
+    def _compute_shrink_width(self) -> int:
+        return len(f" {self.indicators[self.checked]} {self.content} ")
+
+    def _compute_shrink_height(self) -> int:
+        return 1
 
     def on_click(self, _: MouseAction, __: tuple[int, int]) -> bool:
         """Toggles checked & emits the change event."""

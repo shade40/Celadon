@@ -13,8 +13,9 @@ class Text(Widget):
     """A widget that displays some static text."""
 
     rules = """
-    Text:
-        height: 1
+    Text, Link:
+        width: shrink
+        height: shrink
     """
 
     def __init__(self, content: str, **widget_args: Any) -> None:
@@ -22,10 +23,18 @@ class Text(Widget):
 
         self.content = content
 
-        self.width = max(
-            (len(span) for span in self._parse_markup(content.splitlines()[0])),
+    def _compute_shrink_width(self) -> int:
+        # TODO: This really should look at the way the content is displayed.
+        return max(
+            (
+                sum(len(span) for span in self._parse_markup(line))
+                for line in self.content.splitlines()
+            ),
             default=0,
         )
+
+    def _compute_shrink_height(self) -> int:
+        return len(self.content.splitlines())
 
     @classmethod
     def lorem(cls, **widget_args: Any) -> Text:

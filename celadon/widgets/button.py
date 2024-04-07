@@ -23,7 +23,9 @@ class Button(Widget):
         content_style: dim
         alignment: [center, center]
 
+        width: shrink
         height: 1
+
         frame: [heavy, null, heavy, null]
 
         /idle:
@@ -41,8 +43,7 @@ class Button(Widget):
 
         /active:
             fill_style: 'bold @.primary+3'
-            frame_style: '.panel1-2'
-            frame: frameless
+            frame_style: '.primary+3'
 
         /disabled:
             fill_style: '@.panel1-2'
@@ -76,7 +77,6 @@ class Button(Widget):
 
         self.content = content
         self.name = name
-        self.width = sum(len(span) for span in self._parse_markup(self.content)) + 4
 
         self.on_submit = Event("button submit")
         for callback in on_submit or []:
@@ -102,6 +102,12 @@ class Button(Widget):
         )
 
         return self.on_submit(self)
+
+    def _compute_shrink_width(self) -> int:
+        return sum(len(span) for span in self._parse_markup(self.content)) + 4
+
+    def _compute_shrink_height(self) -> int:
+        return 1
 
     def on_click(self, _: MouseAction, __: tuple[int, int]) -> bool:
         """Emits the submit event."""

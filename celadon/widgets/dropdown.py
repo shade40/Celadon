@@ -19,6 +19,8 @@ class Dropdown(Tower):
 
     rules = """
     Dropdown:
+        width: shrink
+
         \> Button:
             width: null
     """
@@ -116,10 +118,8 @@ class Dropdown(Tower):
 
         yield from super().drawables()
 
-    # TODO: shrink
-    def compute_dimensions(self, available_width: int, available_height: int) -> None:
-        self.computed_width = max(len(widget.content) for widget in self.children) + 4
-        self.computed_height = 1
+    def _compute_shrink_width(self) -> int:
+        return max(len(widget.content) for widget in self.children) + 4
 
     @property
     def visible_children(self) -> list[Widget]:
@@ -135,7 +135,6 @@ class Dropdown(Tower):
     ) -> list[tuple[Span, ...]]:
         """Fakes `computed_height` while open to allow for dropdown behavior."""
 
-        if self.is_open:
-            self.computed_height = len(self.children)
+        self.computed_height = len(self.children) if self.is_open else 1
 
         return super().build(virt_width=virt_width, virt_height=virt_height)

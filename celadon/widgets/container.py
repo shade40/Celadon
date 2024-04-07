@@ -45,8 +45,6 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
     gap: int | float | None = None
     fallback_gap: int = 0
 
-    _direction: Direction = Direction.VERTICAL
-
     def __init__(self, *children: Widget, **widget_args: Any) -> None:
         """Initializes a container.
 
@@ -154,6 +152,30 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
         per_widget, extra = divmod(available, count or 1)
 
         return _compute(self.gap, per_widget), extra
+
+    def _compute_shrink_width(self) -> int:
+        if self.direction is Direction.VERTICAL:
+            return max([child.computed_width for child in self.children], default=0)
+
+        gap = 0
+
+        if isinstance(self.gap, int):
+            gap = self.gap
+
+        # TODO: This isn't accurate - fallback gap and all. Revisit with better layout.
+        return sum(child.computed_width + gap for child in self.children) - gap
+
+    def _compute_shrink_height(self) -> int:
+        if self.direction is Direction.HORIZONTAL:
+            return max([child.computed_height for child in self.children], default=0)
+
+        # TODO: This isn't accurate - fallback gap and all. Revisit with better layout.
+        gap = 0
+
+        if isinstance(self.gap, int):
+            gap = self.gap
+
+        return sum(child.computed_height + gap for child in self.children) - gap
 
     @property
     def selected(self) -> Widget | None:
