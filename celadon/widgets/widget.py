@@ -807,6 +807,22 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             self.state_machine.apply_action("HOVERED")
             return
 
+    def _compute_shrink_width(self) -> int:
+        """Computes the minimum width this widget's content takes up.
+
+        Used for `width = -1`.
+        """
+
+        raise NotImplementedError(f"widget {self!r} does not implement shrink width.")
+
+    def _compute_shrink_height(self) -> int:
+        """Computes the minimum height this widget's content takes up.
+
+        Used for `height = -1`.
+        """
+
+        raise NotImplementedError(f"widget {self!r} does not implement shrink height.")
+
     def setup(self) -> None:
         """Use this to do simple setup actions without overriding __init__."""
 
@@ -839,6 +855,12 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
 
             if key not in keys:
                 raise ValueError(f"cannot set non-existant attr {key!r}")
+
+            if key in ["width", "height"]:
+                if value == "fill":
+                    value = 1.0
+                elif value == "shrink":
+                    value = -1
 
             setattr(self, key, value)
 
@@ -1116,8 +1138,19 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
     def compute_dimensions(self, available_width: int, available_height: int) -> None:
         """Computes width & height based on our specifications and the given space."""
 
-        self.computed_width = _compute(self.width, available_width)
-        self.computed_height = _compute(self.height, available_height)
+        if self.width == -1:
+            self.computed_width = max(
+                self._compute_shrink_width() + self.frame.width, 0
+            )
+        else:
+            self.computed_width = _compute(self.width, available_width)
+
+        if self.height == -1:
+            self.computed_height = max(
+                self._compute_shrink_height() + self.frame.height, 0
+            )
+        else:
+            self.computed_height = _compute(self.height, available_height)
 
     def get_content(self) -> list[str]:
         """Gets the dynamic content for this widget."""
