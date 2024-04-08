@@ -983,7 +983,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         ][index]
 
         return self.overflow[index] is Overflow.SCROLL or (
-            self.overflow[index] is Overflow.AUTO and _overflows(real, virt)
+            self.overflow[index] is Overflow.AUTO and virt > real
         )
 
     def drawables(self) -> Iterable[Widget]:
@@ -1199,8 +1199,8 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         height = self._framed_height
 
         def _clamp_scrolls() -> tuple[int, int]:
-            x_bar = _overflows(width, self._virtual_width)
-            y_bar = _overflows(height, self._virtual_height)
+            x_bar = width < self._virtual_width
+            y_bar = height < self._virtual_height
 
             return (
                 max(min(self.scroll[0], self._virtual_width - width + x_bar), 0),

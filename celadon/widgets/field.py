@@ -19,12 +19,14 @@ class Field(Widget):
 
     rules = """
     Field:
+        overflow: [auto, auto]
+        width: fill
+        height: shrink
+
         frame: [heavy, null, null, null]
-        height: 1
 
         placeholder_style: 'dim italic'
         frame_style: .primary-1
-        overflow: [auto, auto]
 
         /hover:
             fill_style: '@.panel1-2'
@@ -83,6 +85,12 @@ class Field(Widget):
             strip_line = line.lstrip(word_chars)
 
         return -direction * (len(strip_line) - len(line)) + direction
+
+    def _compute_shrink_width(self) -> int:
+        return max(*[len(line) for line in self.value.split("\n")], 8) + 4
+
+    def _compute_shrink_height(self) -> int:
+        return max(len(self.value.split("\n")), 1)
 
     def move_cursor(self, x: int = 0, y: int = 0) -> None:
         """Moves the cursor by the given x and y coordinates."""

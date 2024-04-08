@@ -24,7 +24,6 @@ class Text(Widget):
         self.content = content
 
     def _compute_shrink_width(self) -> int:
-        # TODO: This really should look at the way the content is displayed.
         return max(
             (
                 sum(len(span) for span in self._parse_markup(line))
