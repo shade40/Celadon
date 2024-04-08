@@ -323,6 +323,10 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
 
         self.computed_width = 1
         self.computed_height = 1
+        # Used for width: shrink/fill
+        self.width_offset = 0
+        # Used for height: shrink/fill
+        self.height_offset = 0
 
         self.pre_content: Event[Widget] = Event("pre content")
         self.on_content: Event[Widget] = Event("post content")
@@ -847,6 +851,23 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                     `self.style_map | {self.state: style_map}`
         """
 
+        def _parse_offset(number: str) -> int | float:
+            if number == "":
+                return 0
+
+            if number.lstrip("-+").replace(".", "", 1).isdigit():
+                num = float(number)
+
+                if num.is_integer():
+                    return int(num)
+
+                return num
+
+            raise ValueError(
+                f"can't parse {key} offset {number!r} "
+                + str(value.lstrip("-+").replace(".", "", 1))
+            )
+
         keys = dir(self)
 
         for key, value in attrs.items():
@@ -856,11 +877,18 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             if key not in keys:
                 raise ValueError(f"cannot set non-existant attr {key!r}")
 
-            if key in ["width", "height"]:
-                if value == "fill":
+            if key in ["width", "height"] and isinstance(value, str):
+                if value.startswith("fill"):
+                    offset = _parse_offset(value[len("fill") :])
                     value = 1.0
-                elif value == "shrink":
+
+                    setattr(self, f"{key}_offset", offset)
+
+                elif value.startswith("shrink"):
+                    offset = _parse_offset(value[len("shrink") :])
                     value = -1
+
+                    setattr(self, f"{key}_offset", offset)
 
             setattr(self, key, value)
 
@@ -1138,19 +1166,22 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
     def compute_dimensions(self, available_width: int, available_height: int) -> None:
         """Computes width & height based on our specifications and the given space."""
 
+        width_offset = _compute(self.width_offset, available_width)
+
         if self.width == -1:
-            self.computed_width = max(
-                self._compute_shrink_width() + self.frame.width, 0
-            )
+            self.computed_width = self._compute_shrink_width() + self.frame.width
         else:
             self.computed_width = _compute(self.width, available_width)
 
+        height_offset = _compute(self.height_offset, available_height)
+
         if self.height == -1:
-            self.computed_height = max(
-                self._compute_shrink_height() + self.frame.height, 0
-            )
+            self.computed_height = self._compute_shrink_height() + self.frame.height
         else:
             self.computed_height = _compute(self.height, available_height)
+
+        self.computed_width += self.width_offset
+        self.computed_height += self.height_offset
 
     def get_content(self) -> list[str]:
         """Gets the dynamic content for this widget."""
