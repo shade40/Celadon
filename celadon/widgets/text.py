@@ -3,6 +3,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from zenith import zml_wrap
+
 from ..enums import MouseAction
 from .widget import Widget
 
@@ -11,6 +13,8 @@ RE_HYPERLINK_MARKUP = re.compile(r"~([^ \]\[]+)")
 
 class Text(Widget):
     """A widget that displays some static text."""
+
+    wrap: bool = False
 
     rules = """
     Text, Link:
@@ -23,6 +27,18 @@ class Text(Widget):
 
         self.content = content
 
+        self._wrapped_content = []
+
+        def _wrap_content(_: Widget) -> bool:
+            if self.wrap:
+                self._wrapped_content = zml_wrap(self.content, width=self._framed_width)
+            else:
+                self._wrapped_content = self.content.splitlines()
+
+            return True
+
+        self.pre_content += _wrap_content
+
     def _compute_shrink_width(self) -> int:
         return max(
             (
@@ -33,7 +49,7 @@ class Text(Widget):
         )
 
     def _compute_shrink_height(self) -> int:
-        return len(self.content.splitlines())
+        return len(self._wrapped_content)
 
     @classmethod
     def lorem(cls, **widget_args: Any) -> Text:
@@ -162,7 +178,7 @@ class Text(Widget):
         return False
 
     def get_content(self) -> list[str]:
-        return self.content.splitlines()
+        return self._wrapped_content
 
     # Proper linebreaking prototype
     #
