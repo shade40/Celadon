@@ -2,6 +2,7 @@ import string
 from typing import Any, Iterator
 
 from slate import Key
+from zenith import zml_wrap
 
 from ..enums import MouseAction
 from .widget import Widget, to_widget_space
@@ -44,17 +45,44 @@ class Field(Widget):
         value: str = "",
         placeholder: str = "",
         multiline: bool = False,
+        scroll_to_cursor: bool = True,
+        wrap: bool = False,
         name: str | None = None,
         **widget_args,
     ) -> None:
-        self.value = value
+        self._lines = []
+
+        self.wrap = wrap
         self.placeholder = placeholder
         self.multiline = multiline
+        self.scroll_to_cursor = scroll_to_cursor
+
+        self.value = value
         self.name = name
 
         self.cursor = (0, 0)
 
         super().__init__(**widget_args)
+
+    @property
+    def lines(self) -> list[str]:
+        return self._lines
+
+    def _update_lines(self, new: str) -> None:
+        if self.wrap:
+            self._lines = zml_wrap(new, self._framed_width) or [""]
+        else:
+            self._lines = new.split("\n")
+
+    @property
+    def value(self) -> str:
+        return self._value
+
+    @value.setter
+    def value(self, new: str) -> None:
+        self._update_lines(new)
+
+        self._value = new
 
     def _get_cursorline(self, x_offset=0, y_offset=0) -> tuple[str, str, str]:
         """Gets the line (left, cursor, right) at the current cursor + given offset."""
@@ -62,7 +90,7 @@ class Field(Widget):
         x += x_offset
         y += y_offset
 
-        line = self.value.split("\n")[y]
+        line = self._lines[y]
 
         left, right = line[:x], line[x + 1 :]
         cursor = line[x] if x < len(line) else ""
@@ -75,7 +103,7 @@ class Field(Widget):
         # Consistent with unix shell behaviour:
         # * Always delete first char, then remove any non-punctuation
         # Note that the exact behaviour isn't standardized:
-        # * Python repl: until change in letter+digit & punctionation
+        # * Python repl: until change in letter+digit & punctuation
         # * Unix shells: only removes letter+digit
         word_chars = string.ascii_letters + string.digits
 
@@ -90,7 +118,7 @@ class Field(Widget):
         return max(*[len(line) for line in self.value.split("\n")], 8) + 4
 
     def _compute_shrink_height(self) -> int:
-        return max(len(self.value.split("\n")), 1)
+        return max(len(self.lines), 1)
 
     def move_cursor(self, x: int = 0, y: int = 0) -> None:
         """Moves the cursor by the given x and y coordinates."""
@@ -100,13 +128,43 @@ class Field(Widget):
     def set_cursor(self, x: int = 0, y: int = 0) -> None:
         """Sets the cursor to the given coordinates and clamps them."""
 
-        lines = self.value.split("\n")
-        y = max(0, min(len(lines) - 1, y))
+        y = max(0, min(len(self.lines) - 1, y))
 
-        line = lines[y]
+        line = self.lines[y]
+
         x = max(0, min(len(line), x))
 
         self.cursor = x, y
+
+        if not self.scroll_to_cursor:
+            return
+
+        # Scroll to cursor
+        scroll_offsets = [0, 0]
+        frame_start = (self.frame.borders[0] != "", self.frame.borders[1] != "")
+        dimensions = (self.computed_width - 1, self.computed_height)
+
+        absolute_cursor = (
+            self.cursor[0] + 1 + self.frame.width,
+            self.cursor[1] + 1 + self.frame.height,
+        )
+
+        for i in range(2):
+            opposite_i = 1 * (1 - i)
+
+            box_start = self.scroll[i] + frame_start[i]
+            box_end = self.scroll[i] + dimensions[i] - self.has_scrollbar(opposite_i)
+
+            if self.cursor[i] < box_start:
+                scroll_offsets[i] = self.cursor[i] - (box_start - frame_start[i])
+
+            elif absolute_cursor[i] > box_end:
+                scroll_offsets[i] = absolute_cursor[i] - box_end
+
+        self.scroll = (
+            self.scroll[0] + scroll_offsets[0],
+            self.scroll[1] + scroll_offsets[1],
+        )
 
     def on_click(self, _: MouseAction, pos: tuple[int, int]) -> bool:
         """Allows the widget to be selected on click."""
@@ -120,13 +178,11 @@ class Field(Widget):
     def set_line(self, y: int, line: str) -> None:
         """Sets the line at the given y index."""
 
-        lines = self.value.split("\n")
-
         self.value = "\n".join(
             [
-                *lines[:y],
+                *self.lines[:y],
                 line,
-                *lines[y + 1 :],
+                *self.lines[y + 1 :],
             ]
         )
 
@@ -143,13 +199,15 @@ class Field(Widget):
 
         parts = self._get_cursorline(y_offset=-1)
 
-        lines = self.value.split("\n")
+        # TODO: Must we copy?
+        lines = self.lines.copy()
         lines[y - 1] += lines[y]
         lines.pop(y)
 
         self.value = "\n".join(lines)
 
         self.move_cursor(y=-1, x=len("".join(parts)))
+        self.scroll = (self.scroll[0], self.scroll[1] - 1)
 
     def handle_keyboard(self, key: Key) -> bool:
         binds = super().handle_keyboard(key)
@@ -233,7 +291,7 @@ class Field(Widget):
             if not self.multiline:
                 return True
 
-            lines = self.value.split("\n")
+            lines = self.lines
 
             if cursor != "":
                 right = left[-1] + right
@@ -286,7 +344,7 @@ class Field(Widget):
         if cursor == "":
             cursor = " "
 
-        lines = self.value.split("\n")
+        lines = self.lines
         y = self.cursor[1]
 
         return [
