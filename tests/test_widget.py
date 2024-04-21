@@ -5,7 +5,8 @@ from contextlib import contextmanager
 
 from celadon import Application, Page, Tower, Row, Text, Widget
 
-from slate import Span, Terminal
+from slate import Span, Terminal, Color
+from zenith import zml_get_spans
 
 
 class SizedTerminal(Terminal):
@@ -174,3 +175,11 @@ def test_widget_scrolling() -> None:
             ("X", "------------------", "X"),
         ]
     ), _format_lines(output)
+
+
+def test_widget_slice_line() -> None:
+    w = Widget()
+
+    spans = zml_get_spans("[blue]tes[@red]t[/ blue] content")
+    sliced = w._slice_line(spans, 0, 3)
+    assert sliced == (Span("tes", reset_after=True, foreground=Color(rgb=(0, 0, 255))),)

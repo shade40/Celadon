@@ -55,7 +55,7 @@ class BoundStyle:
     fill: str
 
     def __call__(self, item: str) -> str:
-        return f"[{self.fill}{self.style}]{item}[/]"
+        return f"[{self.fill}{self.style}]{item}"
 
 
 def _compute(spec: int | float | None, hint: int) -> int:
@@ -745,6 +745,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         before_start = 0
         occupied = 0
 
+        # Slice to start
         for span in line:
             length = len(span)
 
@@ -755,6 +756,9 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             new = span[max(start - (before_start - length), 0) :]
             length = len(new)
 
+            if length == 0:
+                continue
+
             line_list.append(new)
 
             occupied += length
@@ -763,16 +767,25 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 break
 
         width_diff = max(occupied - width, 0)
+        empty = []
 
+        # Slice from end
         if width_diff > 0 and len(line_list) > 0:
             for i, span in enumerate(reversed(line_list)):
                 new = span[:-width_diff]
                 width_diff -= len(span) - len(new)
 
-                line_list[-i - 1] = new
+                if len(new) == 0:
+                    empty.append(-i - 1)
+                else:
+                    line_list[-i - 1] = new
 
                 if width_diff <= 0:
                     break
+
+        # Remove 0 length spans
+        for offset, i in enumerate(empty):
+            line_list.pop(i - offset)
 
         if not line_list:
             line_list.extend(self._parse_markup(self.styles["content"](" ")))

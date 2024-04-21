@@ -347,14 +347,10 @@ class Field(Widget):
         lines = self.lines
         y = self.cursor[1]
 
+        styled_cursor_line = " " + left + cursor_style(cursor) + "[/]" + right + " "
+
         return [
             *(f" {line} " for line in lines[:y]),
-            (
-                " "
-                + content_style(left)
-                + cursor_style(cursor)
-                + content_style(right)
-                + " "
-            ),
+            styled_cursor_line,
             *(f" {line} " for line in lines[y + 1 :]),
         ]
