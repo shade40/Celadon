@@ -338,6 +338,9 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
 
         widget_types[type(self).__name__] = type(self)
 
+    def __str__(self) -> str:
+        return self.as_query()
+
     @property
     def terminal(self) -> Terminal | None:
         """Returns the app's terminal."""
