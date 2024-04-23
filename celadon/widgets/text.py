@@ -160,8 +160,8 @@ class Text(Widget):
         )
 
     @property
-    def selectables(self) -> list[tuple[Widget, int]]:
-        return []
+    def selectable_count(self) -> int:
+        return 0
 
     def on_click(self, _: MouseAction, __: tuple[int, int]) -> bool:
         """Clicks the first hyperlink within the text's content."""

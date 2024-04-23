@@ -56,7 +56,12 @@ class Dropdown(Tower):
         def _update_trigger_content() -> None:
             self._trigger.content = f"{self.label} {self.indicators[self.is_open]}"
 
+        def _close_on_deselect() -> None:
+            if self.selected_index is None:
+                self.close()
+
         self.pre_content += wrap_callback(_update_trigger_content)
+        self.pre_build += wrap_callback(_close_on_deselect)
 
     def serialize(self) -> dict[str, Any]:
         if self.name is None:

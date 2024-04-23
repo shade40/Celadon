@@ -85,6 +85,9 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
 
     @property
     def selectable_count(self) -> int:
+        if self.disabled:
+            return 0
+
         return sum(child.selectable_count for child in self.children)
 
     def __iadd__(self, other: object) -> Container:
@@ -181,9 +184,11 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
     def selected(self) -> Widget | None:
         return self._selected
 
-    def select(self, index: int | None = None) -> None:
-        # Use None if index is 0 - nothing should happen by changing selection by 0.
-        possible_index = index or None
+    def select(self, index: int | None = None) -> int | None:
+        if index == 0 or self.selectable_count == 0:
+            return index
+
+        possible_index = index
 
         if index is None:
             if self._selected is not None:
@@ -191,6 +196,9 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
 
             self._selected_index = None
             return None
+
+        if self._selected is not None:
+            self._selected.select(None)
 
         for widget in self.children:
             val = widget.select(index)
@@ -440,7 +448,7 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
         return super().handle_keyboard(key)
 
     def handle_mouse(self, action: MouseAction, position: tuple[int, int]) -> bool:
-        result, selection, mouse_target, hover_target = handle_mouse_on_children(
+        result, mouse_target, hover_target = handle_mouse_on_children(
             action,
             position,
             self._mouse_target,
@@ -452,8 +460,16 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
         self._hover_target = hover_target
 
         if result:
-            if selection is not None:
-                self.select(selection)
+            index = 0
+
+            for child in self.children:
+                if child is mouse_target:
+                    index += child.selected_index or 1
+                    self.select(index)
+
+                    return True
+
+                index += child.selectable_count
 
             return True
 

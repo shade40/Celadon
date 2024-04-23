@@ -421,6 +421,14 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         return self
 
     @property
+    def selected_index(self) -> int | None:
+        return self._selected_index
+
+    @property
+    def selectable_count(self) -> int:
+        return 1 - self.disabled
+
+    @property
     def frame(self) -> Frame:
         """Returns and sets the current frame."""
 
@@ -1010,14 +1018,13 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.add_group(target)
         return True
 
-    def select(self, index: int | None = None) -> None:
+    def select(self, index: int | None = None) -> int | None:
+        if index == 0 or self.selectable_count == 0:
+            return index
+
         if index is None:
             self._selected_index = None
             self.state_machine.apply_action("UNSELECTED")
-            return index
-
-        # Nothing should change if we change selection by 0.
-        if index == 0:
             return index
 
         index -= 1
@@ -1270,7 +1277,7 @@ def handle_mouse_on_children(
     mouse_target: Widget | None,
     hover_target: Widget | None,
     children: Iterable[Widget],
-) -> tuple[bool, int | None, Widget | None, Widget | None]:
+) -> tuple[bool, Widget | None, Widget | None]:
     """Handles the given mouse event on an iterable of widgets.
 
     This can be used by 'container' type widgets (like `Container`), or meta-level
@@ -1286,12 +1293,23 @@ def handle_mouse_on_children(
     Returns:
         A tuple of:
 
-            (success, selection_index, mouse_target, hover_target)
+            (success, mouse_target, hover_target)
 
-        Since this function doesn't have access to the caller, the caller has to set
-        its mouse & hover targets to the returned values. `selection_index` is only set
-        when a new widget handled the event & is selectable, so should be ignored when
-        set to None.
+        The input state changes based on the following rules:
+
+        - Success is False _only_ if no child contains the given position.
+        - Mouse target is...
+            - Set to None on release events, or
+            - Untouched if the event was not a form of "click" and the current mouse
+              target could handle it, or
+            - Untouched if the event was captured by another child but it could not
+              handle it, or
+            - Set to the first child that contained & handled the event.
+        - Hover target is...
+            - Set to None on release events, or
+            - Set to None if a hover event is done outside the current hover target, or
+            - Set to the first child that contained & handled a hover event,
+            - Untouched otherwise.
     """
 
     if action is MouseAction.LEFT_RELEASE:
@@ -1303,7 +1321,7 @@ def handle_mouse_on_children(
             hover_target.handle_mouse(action, position)
             hover_target = None
 
-        return True, None, mouse_target, hover_target
+        return True, mouse_target, hover_target
 
     is_hover = action is MouseAction.HOVER
     release = MouseAction.LEFT_RELEASE, position
@@ -1313,17 +1331,13 @@ def handle_mouse_on_children(
         and "click" not in action.value  # Clicks cannot be done outside of the widget
         and mouse_target.handle_mouse(action, position)
     ):
-        return True, None, mouse_target, hover_target
+        return True, mouse_target, hover_target
 
     if is_hover and hover_target is not None and not hover_target.contains(position):
         hover_target.handle_mouse(*release)
         hover_target = None
 
-    selection = 0
-
     for child in children:
-        selection += child.selectable_count
-
         if not child.contains(position):
             continue
 
@@ -1334,16 +1348,14 @@ def handle_mouse_on_children(
             hover_target = child
 
         if (handled := child.handle_mouse(action, position)) or child.consumes_mouse:
-            selection -= child.selectable_count - (child.selected_index or 0)
-
             if mouse_target is not None and mouse_target is not child:
                 mouse_target.handle_mouse(*release)
 
             if child.consumes_mouse and not handled:
-                return True, None, mouse_target, hover_target
+                return True, mouse_target, hover_target
 
-            return True, selection, child, hover_target
+            return True, child, hover_target
 
         break
 
-    return False, None, mouse_target, hover_target
+    return False, mouse_target, hover_target

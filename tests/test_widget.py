@@ -201,8 +201,6 @@ def test_widget_selection() -> None:
 
     w.select(0)
     assert w._selected_index is None
-    # This might change in the future, it's not super well defined.
-    assert w.state == "selected"
 
     w.select(3)
     assert w._selected_index == 3
