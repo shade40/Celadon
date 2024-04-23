@@ -183,3 +183,41 @@ def test_widget_slice_line() -> None:
     spans = zml_get_spans("[blue]tes[@red]t[/ blue] content")
     sliced = w._slice_line(spans, 0, 3)
     assert sliced == (Span("tes", reset_after=True, foreground=Color(rgb=(0, 0, 255))),)
+
+
+def test_widget_selection() -> None:
+    w = Widget()
+    assert w._selected_index is None
+    assert w.state == "idle"
+
+    w.select(1)
+    assert w._selected_index == 0
+    assert w.selected is w
+    assert w.state == "selected"
+
+    target = Widget()
+
+    w = Tower(Widget(), Widget(), target, Widget())
+
+    w.select(0)
+    assert w._selected_index is None
+    # This might change in the future, it's not super well defined.
+    assert w.state == "selected"
+
+    w.select(3)
+    assert w._selected_index == 3
+    assert w.selected is target
+
+    nested_target = Widget()
+    target = Tower(Widget(), nested_target, Widget())
+    outer_target = Widget()
+    w = Tower(Widget(), outer_target, target, Widget())
+
+    w.select(4)
+    assert w.selected is target
+    assert w.selected.selected is nested_target
+    assert w.state == "selected"
+
+    w.select(2)
+    assert w.selected is outer_target
+    assert w.state == "selected"

@@ -179,79 +179,35 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
 
     @property
     def selected(self) -> Widget | None:
-        """Returns the currently selected widget."""
-
-        if self._selected_index is None:
-            return None
-
-        # TODO: This sideeffect might be a problem
-        if self._selected_index > self.selectable_count:
-            self._selected_index = self.selectable_count - 1
-
-        return self.selectables[self._selected_index][0]
-
-    @property
-    def selectables(self) -> list[tuple[Widget, int]]:
-        """Gets all selectable widgets and their inner indices.
-
-        This is used in order to have a constant reference to all selectable indices
-        within this widget.
-
-        Returns:
-            A list of tuples containing a widget and an integer each. For each widget
-            that is withing this one, it is added to this list as many times as it has
-            selectables. Each of the integers correspond to a selectable_index within
-            the widget.
-
-            For example, a Container with a Button, InputField and an inner Container
-            containing 3 selectables might return something like this:
-
-            ```
-            [
-                (Button(...), 0),
-                (InputField(...), 0),
-                (Container(...), 0),
-                (Container(...), 1),
-                (Container(...), 2),
-            ]
-            ```
-        """
-
-        _selectables: list[tuple[Widget, int]] = []
-
-        for widget in self.children:
-            if widget.selectable_count == 0:
-                continue
-
-            for i, (inner, _) in enumerate(widget.selectables):
-                _selectables.append((inner, i))
-
-        return _selectables
+        return self._selected
 
     def select(self, index: int | None = None) -> None:
-        """Selects inner subwidget.
+        # Use None if index is 0 - nothing should happen by changing selection by 0.
+        possible_index = index or None
 
-        Args:
-            index: The index to select.
+        if index is None:
+            if self._selected is not None:
+                self._selected.select(None)
 
-        Raises:
-            IndexError: The index provided was beyond len(self.selectables).
-        """
+            self._selected_index = None
+            return None
 
-        if self.selectable_count == 0:
-            return
+        for widget in self.children:
+            val = widget.select(index)
+            index = val
 
-        # Unselect all sub-elements
-        for other in self.children:
-            if other.selectable_count > 0:
-                other.select(None)
+            if index <= 0:
+                self._selected = widget
+                self._selected_index = possible_index
+                self.state_machine.apply_action("SELECTED")
+                break
 
-        if index is not None:
-            index = max(0, min(index, len(self.selectables) - 1))
-            widget, inner_index = self.selectables[index]
-            widget.select(inner_index)
+        else:
+            # We did not contain index, so we can unselect
+            self._selected_index = None
+            self.state_machine.apply_action("UNSELECTED")
 
-        super().select(index)
+        return max(index, 0)
 
     def serialize(self) -> dict[str, str]:
         data: dict[str, str] = {}
@@ -473,7 +429,7 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
         if self.selected is not None and self.selected.handle_keyboard(key):
             return True
 
-        idx = self.selected_index or 0
+        idx = self._selected_index or 0
 
         if key in ("left", "up", "shift-tab"):
             self.select(idx - 1)
@@ -498,6 +454,7 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
         if result:
             if selection is not None:
                 self.select(selection)
+
             return True
 
         # There was a click, but it didn't get handled; likely clicked on a

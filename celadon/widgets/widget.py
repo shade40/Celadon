@@ -316,6 +316,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self._virtual_height = 0
         self._last_query: str | None = None
         self._selected_index: int | None = None
+        self._selected: Widget | None = None
 
         self._clip_start: int | None = None
         self._clip_end: int | None = None
@@ -411,37 +412,13 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         return output
 
     @property
-    def selected_index(self) -> int | None:
-        """Returns the currently selected child's index."""
-
-        return self._selected_index
-
-    @property
     def selected(self) -> Widget | None:
         """Returns the currently selected widget."""
 
-        if self.selected_index is None:
+        if self._selected_index is None:
             return None
 
         return self
-
-    @property
-    def selectables(self) -> list[tuple[Widget, int]]:
-        """Generates a list of tuples for selecting by the parent.
-
-        See Container's selectables for more info.
-        """
-
-        if self.disabled:
-            return []
-
-        return [(self, 0)]
-
-    @property
-    def selectable_count(self) -> int:
-        """Returns the amount of selectable objects this widget has within."""
-
-        return len(self.selectables)
 
     @property
     def frame(self) -> Frame:
@@ -818,7 +795,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             self.state_machine.apply_action("SUBSTATE_EXIT_SCROLLING_X")
             self.state_machine.apply_action("SUBSTATE_EXIT_SCROLLING_Y")
 
-            if self.selected_index is not None:
+            if self._selected_index is not None:
                 self.state_machine.apply_action("SELECTED")
 
             return
@@ -1034,20 +1011,26 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         return True
 
     def select(self, index: int | None = None) -> None:
-        """Selects a part of this Widget.
+        if index is None:
+            self._selected_index = None
+            self.state_machine.apply_action("UNSELECTED")
+            return index
 
-        Args:
-            index: The index to select.
+        # Nothing should change if we change selection by 0.
+        if index == 0:
+            return index
 
-        Raises:
-            TypeError: This widget has no selectables, i.e. widget.is_selectable == False.
-        """
+        index -= 1
 
-        if index is not None:
-            index = min(max(0, index), self.selectable_count - 1)
+        if index == 0:
+            self._selected_index = index
+            self.state_machine.apply_action("SELECTED")
 
-        self._selected_index = index
-        self.state_machine.apply_action(("UN" if index is None else "") + "SELECTED")
+        else:
+            self._selected_index = None
+            self.state_machine.apply_action("UNSELECTED")
+
+        return index
 
     def hide(self) -> None:
         """Adds the `hidden` group onto the widget."""
