@@ -17,7 +17,7 @@ from zenith import Palette
 from .enums import MouseAction
 from .state_machine import deep_merge
 from .style_map import StyleMap
-from .widgets import Container, Widget, handle_mouse_on_children
+from .widgets import Container, Widget, handle_mouse_on_children, Slider
 
 __all__ = [
     "load_rules",
@@ -489,6 +489,9 @@ class Page:  # pylint: disable=too-many-instance-attributes
 
         self.load_rules(DEFAULT_RULES, _builtin=True)
         self.load_rules(rules)
+
+        # Always load slider rules for scrollbars
+        self._init_widget(Slider())
 
         self.extend(children)
 

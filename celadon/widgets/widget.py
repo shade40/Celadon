@@ -297,7 +297,6 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         if group is not None:
             groups = (group,)
         self.groups = tuple(groups)
-        self.scroll = (0, 0)
         self.position = (0, 0)
         self.state_machine = deepcopy(self.state_machine)
         self.parent: "Container" | "Page" | None = None
@@ -335,6 +334,16 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.pre_build: Event[Widget] = Event("pre build")
         self.on_build: Event[Widget] = Event("post build")
 
+        self._scrollbar_x = None
+        self._scrolling_x = False
+        self._scrollbar_y = None
+        self._scrolling_y = False
+        self._scrollbar_corner_fill = None
+        self._scroll = (0, 0)
+
+        self._mouse_target: Widget | None = None
+        self._hover_target: Widget | None = None
+
         self.setup()
 
         widget_types[type(self).__name__] = type(self)
@@ -350,6 +359,51 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             return None
 
         return self.app.terminal
+
+    @property
+    def scrollbar_x(self) -> "Slider":
+        from .slider import Slider
+
+        if self._scrollbar_x is None:
+            self._scrollbar_x = Slider(cursor_size=3)
+            self._scrollbar_x.on_change += (
+                lambda val: self.scroll_to(x=int(val * self._virtual_width)) or True
+            )
+
+        return self._scrollbar_x
+
+    @property
+    def scrollbar_y(self) -> "Slider":
+        from .slider import VerticalSlider
+
+        if self._scrollbar_y is None:
+            self._scrollbar_y = VerticalSlider()
+            self._scrollbar_y.on_change += (
+                lambda val: self.scroll_to(y=int(val * self._virtual_height)) or True
+            )
+
+        return self._scrollbar_y
+
+    @property
+    def scrollbar_corner_fill(self) -> Widget:
+        if self._scrollbar_corner_fill is None:
+            from .text import Text
+
+            self._scrollbar_corner_fill = Text(" ")
+
+        return self._scrollbar_corner_fill
+
+    @property
+    def scroll(self) -> tuple[int, int]:
+        return self._scroll
+
+    @scroll.setter
+    def scroll(self, new: tuple[int, int]) -> None:
+        self._scroll = new
+
+        if self._virtual_width > 0:
+            self.scrollbar_x.value = new[0] / self._virtual_width
+            self.scrollbar_y.value = new[1] / self._virtual_height
 
     @property
     def state(self) -> str:
@@ -555,53 +609,36 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
 
         return tuple(span for span in zml_get_spans(markup) if span is not FULL_RESET)
 
-    def _add_scrollbars(  # pylint: disable=too-many-arguments
-        self,
-        lines: list[tuple[Span, ...]],
-        width: int,
-        height: int,
-        scrollbar_x: bool,
-        scrollbar_y: bool,
-    ) -> None:
-        """Adds scrollbars to the given lines."""
+    def _update_scrollbars(self, width: int, height: int) -> None:
+        def _get_size(computed: int, virtual: int, framed: int) -> int:
+            return int(computed * (framed / (virtual or framed)))
 
-        if scrollbar_x:
-            buff = "".join(
-                list(
-                    _build_scrollbar(
-                        *self.frame.scrollbars[0],
-                        size=width - scrollbar_y,
-                        current=self.scroll[0] / max(self._virtual_width - width, 1),
-                        ratio=width / self._virtual_width,
-                    )
-                )
-            )
+        # TODO: Add scrollbar style target syntax
+        self.scrollbar_x.rail, self.scrollbar_x.cursor = self.frame.scrollbars[0]
+        self.scrollbar_y.rail, self.scrollbar_y.cursor = self.frame.scrollbars[1]
 
-            lines[-1] = self._parse_markup(
-                self.styles["scrollbar_x"](buff + " " * scrollbar_y)
-            )
+        self.scrollbar_x.compute_dimensions(width, 1)
+        self.scrollbar_y.compute_dimensions(1, height)
 
-        if scrollbar_y:
-            chars = list(
-                _build_scrollbar(
-                    *self.frame.scrollbars[1],
-                    size=height - scrollbar_x,
-                    current=self.scroll[1] / max(self._virtual_height - height, 1),
-                    ratio=height / self._virtual_height,
-                )
-            )
+        self.scrollbar_x.position = (
+            self.position[0] + 1,
+            self.position[1] + self.computed_height - 2,
+        )
+        self.scrollbar_y.position = (
+            self.position[0] + self.computed_width - 2,
+            self.position[1] + 1,
+        )
+        self.scrollbar_corner_fill.position = (
+            self.position[0] + self.computed_width - 2,
+            self.position[1] + self.computed_height - 2,
+        )
 
-            for i, line in enumerate(lines):
-                if i >= height - scrollbar_x:
-                    break
-
-                span = line[-1]
-
-                lines[i] = (
-                    *line[:-1],
-                    span.mutate(text=span.text[:-1]),
-                    *(self._parse_markup(self.styles["scrollbar_y"](chars[i]))),
-                )
+        self.scrollbar_x.cursor_size = _get_size(
+            self.computed_width, self._virtual_width, width
+        )
+        self.scrollbar_y.cursor_size = _get_size(
+            self.computed_height, self._virtual_height, height
+        )
 
     def _apply_frame(  # pylint: disable=too-many-locals
         self, lines: list[tuple[Span, ...]], width: int
@@ -794,14 +831,10 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
 
         if "click" in value:
             self.state_machine.apply_action("CLICKED")
-            self.state_machine.apply_action("SUBSTATE_EXIT_SCROLLING_X")
-            self.state_machine.apply_action("SUBSTATE_EXIT_SCROLLING_Y")
             return
 
         if "release" in value:
             self.state_machine.apply_action("RELEASED")
-            self.state_machine.apply_action("SUBSTATE_EXIT_SCROLLING_X")
-            self.state_machine.apply_action("SUBSTATE_EXIT_SCROLLING_Y")
 
             if self._selected_index is not None:
                 self.state_machine.apply_action("SELECTED")
@@ -992,6 +1025,18 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
 
         yield self
 
+        x_bar = self.has_scrollbar(0)
+        y_bar = self.has_scrollbar(1)
+
+        if x_bar:
+            yield self.scrollbar_x
+
+        if y_bar:
+            yield self.scrollbar_y
+
+        if x_bar and y_bar:
+            yield self.scrollbar_corner_fill
+
     def clip_height(self, start: int | None, end: int | None) -> None:
         """Sets the clipping rectangle's coordinates."""
 
@@ -1138,22 +1183,57 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         if self.disabled:
             return False
 
+        scrolling_flags = self._scrolling_x, self._scrolling_y
+
+        if "hover" in action.value:
+            if self.scrollbar_x.contains(position):
+                self.scrollbar_x.handle_mouse(action, position)
+            else:
+                self.scrollbar_x.handle_mouse(MouseAction.LEFT_RELEASE, position)
+
+            if self.scrollbar_y.contains(position):
+                self.scrollbar_y.handle_mouse(action, position)
+            else:
+                self.scrollbar_y.handle_mouse(MouseAction.LEFT_RELEASE, position)
+
+        if "click" in action.value:
+            if self.scrollbar_x.contains(position):
+                self._scrolling_x = self.scrollbar_x.handle_mouse(action, position)
+                return self._scrolling_x
+
+            if self.scrollbar_y.contains(position):
+                self._scrolling_y = self.scrollbar_y.handle_mouse(action, position)
+                return self._scrolling_y
+
+        if "drag" in action.value:
+            if self._scrolling_x:
+                return self.scrollbar_x.handle_mouse(action, position)
+
+            if self._scrolling_y:
+                return self.scrollbar_y.handle_mouse(action, position)
+
+        if "release" in action.value:
+            if self.has_scrollbar(0):
+                self.scrollbar_x.handle_mouse(action, position)
+                self._scrolling_x = False
+
+            if self.has_scrollbar(1):
+                self.scrollbar_y.handle_mouse(action, position)
+                self._scrolling_y = False
+
         self._apply_mouse_state(action)
 
         if "scroll" in action.value:
             can_scroll_x, can_scroll_y = self.has_scrollbar(0), self.has_scrollbar(1)
 
             if can_scroll_x:
-                if (
-                    action is MouseAction.SCROLL_LEFT
-                    or action is MouseAction.SHIFT_SCROLL_UP
-                ):
+                forward = [MouseAction.SCROLL_LEFT, MouseAction.SHIFT_SCROLL_UP]
+                backward = [MouseAction.SCROLL_RIGHT, MouseAction.SHIFT_SCROLL_DOWN]
+
+                if action in forward:
                     self.scroll = (self.scroll[0] - self.scroll_step, self.scroll[1])
 
-                elif (
-                    action is MouseAction.SCROLL_RIGHT
-                    or action is MouseAction.SHIFT_SCROLL_DOWN
-                ):
+                elif action in backward:
                     self.scroll = (self.scroll[0] + self.scroll_step, self.scroll[1])
 
             if can_scroll_y:
@@ -1248,19 +1328,15 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             for line in lines
         ]
 
-        # Composite together frame + content + scrollbar
-        horiz_bar = self.has_scrollbar(0)
-        vert_bar = self.has_scrollbar(1)
-
-        if horiz_bar or vert_bar:
-            self._add_scrollbars(lines, width, height, horiz_bar, vert_bar)
-
         self._apply_frame(lines, width)
 
         if len(lines) > self.computed_height:
             lines = lines[: self.computed_height]
 
         lines = lines[self._clip_start : self._clip_end]
+
+        both = self.has_scrollbar(0) and self.has_scrollbar(1)
+        self._update_scrollbars(width - both, height - both)
 
         self.on_build(self)
 
