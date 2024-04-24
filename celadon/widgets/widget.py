@@ -1183,43 +1183,25 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         if self.disabled:
             return False
 
-        scrolling_flags = self._scrolling_x, self._scrolling_y
+        bars = []
 
-        if "hover" in action.value:
-            if self.scrollbar_x.contains(position):
-                self.scrollbar_x.handle_mouse(action, position)
-            else:
-                self.scrollbar_x.handle_mouse(MouseAction.LEFT_RELEASE, position)
+        if self.has_scrollbar(0):
+            bars.append(self.scrollbar_x)
 
-            if self.scrollbar_y.contains(position):
-                self.scrollbar_y.handle_mouse(action, position)
-            else:
-                self.scrollbar_y.handle_mouse(MouseAction.LEFT_RELEASE, position)
+        if self.has_scrollbar(1):
+            bars.append(self.scrollbar_y)
 
-        if "click" in action.value:
-            if self.scrollbar_x.contains(position):
-                self._scrolling_x = self.scrollbar_x.handle_mouse(action, position)
-                return self._scrolling_x
+        result, mouse_target, hover_target = handle_mouse_on_children(
+            action,
+            position,
+            self._mouse_target,
+            self._hover_target,
+            # TODO: We might be able to get away with just providing both regardless.
+            bars,
+        )
 
-            if self.scrollbar_y.contains(position):
-                self._scrolling_y = self.scrollbar_y.handle_mouse(action, position)
-                return self._scrolling_y
-
-        if "drag" in action.value:
-            if self._scrolling_x:
-                return self.scrollbar_x.handle_mouse(action, position)
-
-            if self._scrolling_y:
-                return self.scrollbar_y.handle_mouse(action, position)
-
-        if "release" in action.value:
-            if self.has_scrollbar(0):
-                self.scrollbar_x.handle_mouse(action, position)
-                self._scrolling_x = False
-
-            if self.has_scrollbar(1):
-                self.scrollbar_y.handle_mouse(action, position)
-                self._scrolling_y = False
+        self._mouse_target = mouse_target
+        self._hover_target = hover_target
 
         self._apply_mouse_state(action)
 
@@ -1242,6 +1224,9 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
 
                 if action is MouseAction.SCROLL_DOWN:
                     self.scroll = (self.scroll[0], self.scroll[1] + self.scroll_step)
+
+        if result:
+            return True
 
         for name in _MOUSE_ACTION_NAME_OPTIONS[action]:
             if (handle := getattr(self, f"on_{name}", None)) is not None:
