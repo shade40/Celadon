@@ -143,10 +143,7 @@ class Slider(Widget):
         return [
             *[style(self.rail) for _ in range(start)],
             *[self.styles["cursor"](self.cursor) for _ in range(self.cursor_size)],
-            *[
-                style(self.rail)
-                for _ in range(self.computed_width - start - self.cursor_size)
-            ],
+            *[style(self.rail) for _ in range(dimension - start - self.cursor_size)],
         ]
 
     def get_content(self) -> list[str]:

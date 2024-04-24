@@ -621,16 +621,16 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.scrollbar_y.compute_dimensions(1, height)
 
         self.scrollbar_x.position = (
-            self.position[0] + 1,
-            self.position[1] + self.computed_height - 2,
+            self.position[0] + (self.frame.left != ""),
+            self.position[1] + self.computed_height - 1 - (self.frame.bottom != ""),
         )
         self.scrollbar_y.position = (
-            self.position[0] + self.computed_width - 2,
-            self.position[1] + 1,
+            self.position[0] + self.computed_width - 1 - (self.frame.right != ""),
+            self.position[1] + (self.frame.top != ""),
         )
         self.scrollbar_corner_fill.position = (
-            self.position[0] + self.computed_width - 2,
-            self.position[1] + self.computed_height - 2,
+            self.position[0] + self.computed_width - 1 - (self.frame.right != ""),
+            self.position[1] + self.computed_height - 1 - (self.frame.bottom != ""),
         )
 
         self.scrollbar_x.cursor_size = _get_size(
@@ -1098,8 +1098,8 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         """Determines whether this widget contains the given position."""
 
         rect = self.position, (
-            self.position[0] + self.computed_width - self.has_scrollbar(1),
-            self.position[1] + self.computed_height - self.has_scrollbar(0),
+            self.position[0] + self.computed_width,
+            self.position[1] + self.computed_height,
         )
 
         (left, top), (right, bottom) = rect
