@@ -26,9 +26,7 @@ class Slider(Widget):
     rail: str = "─"
 
     rules = """
-    Slider:
-        height: 1
-
+    Slider,VerticalSlider:
         content_style: '.panel1'
         cursor_style: '.panel1+1'
 
@@ -41,6 +39,14 @@ class Slider(Widget):
         /disabled:
             cursor_style: .panel1-1
             content_style: .panel1-1
+
+    Slider:
+        height: 1
+        width: 1.0
+
+    VerticalSlider:
+        height: 1.0
+        width: 1
     """
 
     def __init__(
@@ -49,6 +55,7 @@ class Slider(Widget):
         value: float = 0.0,
         scale: float = 1.0,
         precision: int = 1,
+        cursor_size: int = 1,
         name: str | None = None,
         **widget_args: Any,
     ) -> None:
@@ -69,9 +76,11 @@ class Slider(Widget):
 
         self.precision = precision
         self.name = name
+        self.cursor_size = cursor_size
 
         self.on_change: Event[float] = Event("slider change")
 
+        # TODO: These can be directional with class-body definitions
         self.bind("right", wrap_callback(self.increase))
         self.bind("left", wrap_callback(self.decrease))
 
@@ -80,6 +89,10 @@ class Slider(Widget):
         """Returns the internal state of progress bar scaled to the end factor."""
 
         return self._value * self._scale
+
+    @value.setter
+    def value(self, new: float) -> None:
+        self._value = new
 
     def serialize(self) -> dict[str, Any]:
         if self.name is None:
@@ -91,7 +104,7 @@ class Slider(Widget):
     def _get_value(self, offset: int) -> float:
         """Gets the fractional value at the given widget offset."""
 
-        x = to_widget_space((offset, 0), self)[0] + 1
+        x = to_widget_space((offset, 0), self)[0] + 1 - self.cursor_size // 2
         return max(0.0, min(x / self.computed_width, 1.0))
 
     def increase(self, amount: float = 0.1) -> bool:
@@ -122,13 +135,46 @@ class Slider(Widget):
 
         return True
 
-    def get_content(self) -> list[str]:
-        filled = round(self.computed_width * self._value)
+    def _build(self, dimension: int) -> list[str]:
+        start = min(round(dimension * self._value) - 1, dimension - self.cursor_size)
 
         style = self.styles["content"]
 
         return [
-            style((filled - 1) * self.rail)
-            + self.styles["cursor"](self.cursor)
-            + style((self.computed_width - filled) * self.rail)
+            *[style(self.rail) for _ in range(start)],
+            *[self.styles["cursor"](self.cursor) for _ in range(self.cursor_size)],
+            *[
+                style(self.rail)
+                for _ in range(self.computed_width - start - self.cursor_size)
+            ],
         ]
+
+    def get_content(self) -> list[str]:
+        return ["".join(self._build(self.computed_width))]
+
+
+class VerticalSlider(Slider):
+    cursor: str = "━"
+    rail: str = "│"
+
+    # TODO: This docstring fucking sucks lol
+    def _get_value(self, offset: int) -> float:
+        """Gets the fractional value at the given widget offset."""
+
+        x = to_widget_space((0, offset), self)[1] + 1 - self.cursor_size // 2
+        return max(0.0, min(x / self.computed_height, 1.0))
+
+    def on_click(self, _: MouseAction, pos: tuple[int, int]) -> bool:
+        self._value = self._get_value(pos[1])
+        self.on_change(self.value)
+
+        return True
+
+    def on_drag(self, _: MouseAction, pos: tuple[int, int]) -> bool:
+        self._value = self._get_value(pos[1])
+        self.on_change(self.value)
+
+        return True
+
+    def get_content(self) -> list[str]:
+        return self._build(self.computed_height)
