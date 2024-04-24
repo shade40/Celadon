@@ -190,7 +190,11 @@ def load_rules(source: str) -> dict[str, dict[str, Any]]:
                 key = key.replace("&", prefix)
 
                 for part in key.split(","):
-                    outer[part.lstrip()] = _flatten(value, prefix=part)
+                    key = part.lstrip()
+                    if key not in outer:
+                        outer[key] = {}
+
+                    outer[part.lstrip()].update(_flatten(value, prefix=part))
 
                 continue
 
