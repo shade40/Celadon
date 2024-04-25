@@ -84,6 +84,8 @@ class Slider(Widget):
         self.bind("right", wrap_callback(self.increase))
         self.bind("left", wrap_callback(self.decrease))
 
+        self._grab_offset = 0
+
     @property
     def value(self) -> float:
         """Returns the internal state of progress bar scaled to the end factor."""
@@ -104,8 +106,8 @@ class Slider(Widget):
     def _get_value(self, offset: int) -> float:
         """Gets the fractional value at the given widget offset."""
 
-        x = to_widget_space((offset, 0), self)[0] - self.cursor_size // 2
-        return max(0.0, min(x / self.computed_width, 1.0))
+        x = to_widget_space((offset, 0), self)[0]
+        return max(0.0, min((x - self._grab_offset) / self.computed_width, 1.0))
 
     def increase(self, amount: float = 0.1) -> bool:
         """Increases the progress bar by the given amount."""
@@ -124,6 +126,13 @@ class Slider(Widget):
         return True
 
     def on_click(self, _: MouseAction, pos: tuple[int, int]) -> bool:
+        cursor = round(self.computed_width * self._value)
+        self._grab_offset = to_widget_space(pos, self)[0] - cursor
+
+        # Click outside of cursor bar, so we recenter around it
+        if not (0 <= self._grab_offset < cursor + self.cursor_size):
+            self._grab_offset = self.cursor_size // 2
+
         self._value = self._get_value(pos[0])
         self.on_change(self.value)
 
@@ -158,10 +167,17 @@ class VerticalSlider(Slider):
     def _get_value(self, offset: int) -> float:
         """Gets the fractional value at the given widget offset."""
 
-        x = to_widget_space((0, offset), self)[1] - self.cursor_size // 2
-        return max(0.0, min(x / self.computed_height, 1.0))
+        x = to_widget_space((0, offset), self)[1]
+        return max(0.0, min((x - self._grab_offset) / self.computed_height, 1.0))
 
     def on_click(self, _: MouseAction, pos: tuple[int, int]) -> bool:
+        cursor = round(self.computed_height * self._value)
+        self._grab_offset = to_widget_space(pos, self)[1] - cursor
+
+        # Click outside of cursor bar, so we recenter around it
+        if not (0 <= self._grab_offset < cursor + self.cursor_size):
+            self._grab_offset = self.cursor_size // 2
+
         self._value = self._get_value(pos[1])
         self.on_change(self.value)
 
