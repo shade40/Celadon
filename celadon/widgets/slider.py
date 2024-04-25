@@ -104,7 +104,7 @@ class Slider(Widget):
     def _get_value(self, offset: int) -> float:
         """Gets the fractional value at the given widget offset."""
 
-        x = to_widget_space((offset, 0), self)[0] + 1 - self.cursor_size // 2
+        x = to_widget_space((offset, 0), self)[0] - self.cursor_size // 2
         return max(0.0, min(x / self.computed_width, 1.0))
 
     def increase(self, amount: float = 0.1) -> bool:
@@ -136,7 +136,7 @@ class Slider(Widget):
         return True
 
     def _build(self, dimension: int) -> list[str]:
-        start = min(round(dimension * self._value) - 1, dimension - self.cursor_size)
+        start = min(round(dimension * self._value), dimension - self.cursor_size)
 
         style = self.styles["content"]
 
@@ -158,7 +158,7 @@ class VerticalSlider(Slider):
     def _get_value(self, offset: int) -> float:
         """Gets the fractional value at the given widget offset."""
 
-        x = to_widget_space((0, offset), self)[1] + 1 - self.cursor_size // 2
+        x = to_widget_space((0, offset), self)[1] - self.cursor_size // 2
         return max(0.0, min(x / self.computed_height, 1.0))
 
     def on_click(self, _: MouseAction, pos: tuple[int, int]) -> bool:
