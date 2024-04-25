@@ -70,45 +70,6 @@ def _compute(spec: int | float | None, hint: int) -> int:
     return spec
 
 
-def _build_scrollbar(
-    rail: str, thumb: str, size: int, current: float, ratio: float
-) -> Generator[str, None, None]:
-    """Builds the characters for a scrollbar.
-
-    Args:
-        rail: The character used for the 'rail' of the scrollbar.
-        thumb: The character used for the 'thumb' of the scrollbar.
-        size: The total available size for the scrollbar to follow.
-        current: The current value/position of the scrollbar, 0-1.
-        ratio: The visible ('viewport') size divided by the total ('virtual') size.
-
-    Yields:
-        `rail` or `thumb`, depending on which character comes next, a total of `size`
-        times.
-    """
-
-    thumb_length = int(size * ratio)
-    move_area = size - thumb_length
-
-    thumb_center = int(current * move_area)
-    half_thumb, offset = divmod(thumb_length, 2)
-    thumb_center += half_thumb
-
-    thumb_start = thumb_center - half_thumb
-    thumb_end = thumb_center + half_thumb + offset
-
-    if thumb_end >= size - 1:
-        thumb_end = size
-        thumb_start = thumb_end - thumb_length - offset
-
-    for i in range(size):
-        if thumb_start <= i <= thumb_end:
-            yield thumb
-            continue
-
-        yield rail
-
-
 def _overflows(real: int, virt: int) -> bool:
     """Determines whether the given real and virtual dimensions overflow."""
 
