@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Tuple, Type
+from typing import Any, Tuple, Type
 
 __all__ = [
     "Frame",
@@ -24,12 +24,6 @@ class Frame:  # pylint: disable=too-many-instance-attributes
 
     corners: CharTuple = ("", "", "", "")
     """Left-top, right-top, right-bottom and left-bottom border characters."""
-
-    scrollbars: tuple[tuple[str, str], tuple[str, str]]
-    """The characters to use for scrollbars (horizontal, vertical).
-
-    It is stored in the order of (start_corner, thumb, rail, end_corner).
-    """
 
     width: int
     """Width of the left and right borders combined."""
@@ -107,7 +101,6 @@ class Frame:  # pylint: disable=too-many-instance-attributes
 
         frame.borders = tuple(borders)  # type: ignore
         frame.corners = borders[1], borders[1], borders[3], borders[3]  # type: ignore
-        frame.scrollbars = ((" ", "▅"), (" ", "█"))
         frame.__init__()  # type: ignore # pylint: disable=unnecessary-dunder-call
 
         return frame
@@ -169,8 +162,6 @@ class ASCII_X(Frame):  # pylint: disable=invalid-name
         "X---X",
     )
 
-    scrollbars = (("-", "#"), ("|", "#"))
-
 
 @add_frame_preview
 class Light(Frame):
@@ -182,8 +173,6 @@ class Light(Frame):
         "└───┘",
     )
 
-    scrollbars = ((" ", "▅"), (" ", "█"))
-
 
 @add_frame_preview
 class LightVertical(Frame):
@@ -191,8 +180,6 @@ class LightVertical(Frame):
 
     borders = ("│", "", "│", "")
     corners = ("", "", "", "")
-
-    scrollbars = ((" ", "▅"), (" ", "█"))
 
 
 @add_frame_preview
@@ -205,8 +192,6 @@ class Heavy(Frame):
         "┗━━━┛",
     )
 
-    scrollbars = ((" ", "▅"), (" ", "█"))
-
 
 @add_frame_preview
 class Rounded(Frame):
@@ -217,8 +202,6 @@ class Rounded(Frame):
         "│   │",
         "╰───╯",
     )
-
-    scrollbars = ((" ", "▅"), (" ", "█"))
 
 
 @add_frame_preview
@@ -231,8 +214,6 @@ class Double(Frame):
         "╚═══╝",
     )
 
-    scrollbars = ((" ", "▅"), (" ", "█"))
-
 
 @add_frame_preview
 class Dashed(Frame):
@@ -243,8 +224,6 @@ class Dashed(Frame):
         "╎   ╎",
         "└╌╌╌┘",
     )
-
-    scrollbars = ((" ", "▅"), (" ", "█"))
 
 
 @add_frame_preview
@@ -257,8 +236,6 @@ class HeavyDashed(Frame):
         "┗╍╍╍┛",
     )
 
-    scrollbars = ((" ", "▅"), (" ", "█"))
-
 
 @add_frame_preview
 class Padded(Frame):
@@ -270,8 +247,6 @@ class Padded(Frame):
         "   ",
     )
 
-    scrollbars = ((" ", "▅"), (" ", "█"))
-
 
 @add_frame_preview
 class Frameless(Frame):
@@ -279,8 +254,6 @@ class Frameless(Frame):
 
     borders = ("", "", "", "")
     corners = ("", "", "", "")
-
-    scrollbars = ((" ", "▅"), (" ", "█"))
 
 
 @add_frame_preview
@@ -295,8 +268,6 @@ class HorizontalOuter(Frame):
         "▎ x 🮇",
         "▔▔▔▔▔",
     )
-
-    scrollbars = ((" ", "▅"), (" ", "█"))
 
     outer_horizontal = True
     outer_corner = True
@@ -314,8 +285,6 @@ class VerticalOuter(Frame):
         "🮇  x  ▎",
         "🮇▁▁▁▁▁▎",
     )
-
-    scrollbars = ((" ", "▅"), (" ", "█"))
 
     outer_vertical = True
     outer_corner = True

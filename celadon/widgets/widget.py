@@ -335,9 +335,11 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.on_build: Event[Widget] = Event("post build")
 
         self._scrollbar_x = None
-        self._scrolling_x = False
         self._scrollbar_y = None
+
+        self._scrolling_x = False
         self._scrolling_y = False
+
         self._scrollbar_corner_fill = None
         self._scroll = (0, 0)
 
@@ -365,7 +367,9 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         from .slider import Slider
 
         if self._scrollbar_x is None:
-            self._scrollbar_x = Slider(cursor_size=3)
+            self._scrollbar_x = Slider(groups=("-scroll", "x"))
+
+            self._scrollbar_x.parent = self
             self._scrollbar_x.on_change += (
                 lambda val: self.scroll_to(x=int(val * self._virtual_width)) or True
             )
@@ -377,7 +381,9 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         from .slider import VerticalSlider
 
         if self._scrollbar_y is None:
-            self._scrollbar_y = VerticalSlider()
+            self._scrollbar_y = VerticalSlider(groups=("-scroll", "y"))
+
+            self._scrollbar_y.parent = self
             self._scrollbar_y.on_change += (
                 lambda val: self.scroll_to(y=int(val * self._virtual_height)) or True
             )
@@ -390,6 +396,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             from .text import Text
 
             self._scrollbar_corner_fill = Text(" ")
+            self._scrollbar_corner_fill.parent = self
 
         return self._scrollbar_corner_fill
 
@@ -491,6 +498,8 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
     @frame.setter
     def frame(self, new: str | tuple[str, str, str, str] | Type[Frame]) -> None:
         """Sets the frame setting."""
+
+        current = getattr(self, "_frame", None)
 
         if isinstance(new, tuple):
             sides = tuple(get_frame(side) for side in new)
@@ -612,10 +621,6 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
     def _update_scrollbars(self, width: int, height: int) -> None:
         def _get_size(computed: int, virtual: int, framed: int) -> int:
             return int(computed * (framed / (virtual or framed)))
-
-        # TODO: Add scrollbar style target syntax
-        self.scrollbar_x.rail, self.scrollbar_x.cursor = self.frame.scrollbars[0]
-        self.scrollbar_y.rail, self.scrollbar_y.cursor = self.frame.scrollbars[1]
 
         self.scrollbar_x.compute_dimensions(width, 1)
         self.scrollbar_y.compute_dimensions(1, height)
@@ -1183,26 +1188,6 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         if self.disabled:
             return False
 
-        bars = []
-
-        if self.has_scrollbar(0):
-            bars.append(self.scrollbar_x)
-
-        if self.has_scrollbar(1):
-            bars.append(self.scrollbar_y)
-
-        result, mouse_target, hover_target = handle_mouse_on_children(
-            action,
-            position,
-            self._mouse_target,
-            self._hover_target,
-            # TODO: We might be able to get away with just providing both regardless.
-            bars,
-        )
-
-        self._mouse_target = mouse_target
-        self._hover_target = hover_target
-
         self._apply_mouse_state(action)
 
         if "scroll" in action.value:
@@ -1224,6 +1209,26 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
 
                 if action is MouseAction.SCROLL_DOWN:
                     self.scroll = (self.scroll[0], self.scroll[1] + self.scroll_step)
+
+        bars = []
+
+        if self.has_scrollbar(0):
+            bars.append(self.scrollbar_x)
+
+        if self.has_scrollbar(1):
+            bars.append(self.scrollbar_y)
+
+        result, mouse_target, hover_target = handle_mouse_on_children(
+            action,
+            position,
+            self._mouse_target,
+            self._hover_target,
+            # TODO: We might be able to get away with just providing both regardless.
+            bars,
+        )
+
+        self._mouse_target = mouse_target
+        self._hover_target = hover_target
 
         if result:
             return True
