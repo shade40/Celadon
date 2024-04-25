@@ -1016,7 +1016,9 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
 
         return self._terminal
 
-    def timeout(self, delay_ms: int, callback: Callable[[], Any]) -> None:
+    def timeout(
+        self, delay_ms: int, callback: Callable[[], Any]
+    ) -> tuple[Callable[[], Any], int | float]:
         """Sets up a non-blocking timeout.
 
         Args:
@@ -1024,7 +1026,21 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
             callback: The callback to execute when the delay is up.
         """
 
-        self._timeouts.append((callback, delay_ms))
+        item = (callback, delay_ms)
+        self._timeouts.append(item)
+        return item
+
+    def clear_timeout(self, timeout: tuple[Callable[[], Any], int | float]) -> None:
+        """Clears a previously added timeout.
+
+        Args:
+            timeout: The timeout object obtained when calling `timeout()`.
+        """
+
+        if timeout not in self._timeouts:
+            raise ValueError("cannot remove non-registered timeout {timeout!r}")
+
+        self._timeouts.remove(timeout)
 
     def find_all(
         self, query: str | Selector, scope: Container | None = None
