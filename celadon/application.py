@@ -881,9 +881,9 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
         _ = self.terminal.foreground_color
         _ = self.terminal.background_color
 
-    def __enter__(self) -> Application:
         Widget.app = self
 
+    def __enter__(self) -> Application:
         return self
 
     def __exit__(
