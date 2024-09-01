@@ -1070,7 +1070,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
 
         (left, top), (right, bottom) = rect
 
-        return left < position[0] <= right and top < position[1] <= bottom
+        return left <= position[0] <= right and top <= position[1] <= bottom
 
     def move_to(self, x: int, y: int) -> None:
         """Moves the widget to the given position."""
