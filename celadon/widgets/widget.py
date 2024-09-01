@@ -328,7 +328,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         from .slider import Slider
 
         if self._scrollbar_x is None:
-            self._scrollbar_x = Slider(groups=("-scroll", "x"))
+            self._scrollbar_x = Slider(groups=("-scroll", "-scroll-x"))
 
             self._scrollbar_x.parent = self
             self._scrollbar_x.on_change += (
@@ -342,7 +342,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         from .slider import VerticalSlider
 
         if self._scrollbar_y is None:
-            self._scrollbar_y = VerticalSlider(groups=("-scroll", "y"))
+            self._scrollbar_y = VerticalSlider(groups=("-scroll", "-scroll-y"))
 
             self._scrollbar_y.parent = self
             self._scrollbar_y.on_change += (

@@ -40,11 +40,11 @@ class Slider(Widget):
             cursor_style: .panel1-1
             content_style: .panel1-1
 
-        .-scroll.x:
+        .-scroll-x:
             rail: " "
             cursor: "▅"
 
-        .-scroll.y:
+        .-scroll-y:
             rail: " "
             cursor: "█"
 
