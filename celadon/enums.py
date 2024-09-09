@@ -20,6 +20,19 @@ class Alignment(Enum):
     """Align to the end of the area (right or bottom)."""
 
 
+class Anchor(Enum):
+    """An enum to determine a widget's positioning strategy."""
+
+    NONE = "none"
+    """Use flow-vise arrangement."""
+
+    PARENT = "parent"
+    """Position at parent.position + self.offset."""
+
+    SCREEN = "screen"
+    """Position at terminal.origin + self.offset."""
+
+
 class Overflow(Enum):
     """An enum used to select overflow strategy."""
 
@@ -41,16 +54,6 @@ class Direction(Enum):
 
     VERTICAL = "vertical"
     """Flow content vertically."""
-
-
-class Positioning(Enum):
-    """An enum used to represent a positioning strategy."""
-
-    DYNAMIC = "dynamic"
-    """Widget should be arranged by its parent."""
-
-    STATIC = "static"
-    """Widget should be excluded from parent's arrangement, except for sizing."""
 
 
 class MouseAction(Enum):

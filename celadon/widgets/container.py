@@ -4,7 +4,7 @@ from typing import Any, Iterable, Iterator
 
 from slate import Key, Span
 
-from ..enums import Alignment, Direction, MouseAction
+from ..enums import Alignment, Direction, MouseAction, Anchor
 from .widget import Widget, _compute, handle_mouse_on_children
 
 __all__ = [
@@ -325,98 +325,140 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
             y: The origin's vertical coordinate.
         """
 
-        origin = x, y
-
         children = self.visible_children
+        layouted_children = [
+            child for child in self.visible_children if child.anchor == Anchor.NONE
+        ]
+        layouted_count = len(layouted_children)
 
         width = self._framed_width - self.has_scrollbar(1)
         height = self._framed_height - self.has_scrollbar(0)
-        count = len(children) - len([child for child in children if child.is_static()])
 
-        horizontal = self.direction == Direction.HORIZONTAL
-        available = width if horizontal else height
+        is_horizontal = self.direction == Direction.HORIZONTAL
 
-        fills = 0
+        fill_buffer = width if is_horizontal else height
+        fill_count = 0
 
-        for child in children:
-            if self._is_fill(child, horizontal):
-                fills += 1
+        for child in layouted_children:
+            if self._is_fill(child, is_horizontal):
+                fill_count += 1
                 continue
 
             child.compute_dimensions(width, height)
 
-            if child.is_static():
-                continue
-
-            if horizontal:
-                available -= child.computed_width
+            if is_horizontal:
+                fill_buffer -= child.computed_width
             else:
-                available -= child.computed_height
+                fill_buffer -= child.computed_height
 
-        if fills != 0:
-            gap = self.fallback_gap
-            gap_extra = 0
+        gap = self.gap
+        gap_extra = 0
+
+        if gap is None:
+            gap = 0
+
+            if fill_count == 0:
+                gap, gap_extra = divmod(fill_buffer, max(layouted_count, 1))
 
         else:
-            # To avoid div by 0
-            fills = 1
+            fill_buffer -= (layouted_count - 1) * gap
 
-            gap, gap_extra = self._compute_gap(available, count)
+        fill_size, fill_remainder = divmod(fill_buffer, max(fill_count, 1))
 
-            if gap * (count - 1) >= available:
-                gap = self.fallback_gap
-                gap_extra = 0
+        x += self._clip_start[0]
+        y += self._clip_start[1]
 
-        available -= gap * (count - 1) + gap_extra
-
-        fill_size, fill_extra = divmod(available, fills)
-
-        this_gap = 0
-        align_extra = 0
+        t_width, t_height = self.terminal.size
+        t_ox, t_oy = self.terminal.origin
 
         for child in children:
-            if self._is_fill(child, horizontal):
-                this_fill = fill_size + (1 if fill_extra > 0 else 0)
-                fill_extra -= 1
+            if self._is_fill(child, is_horizontal):
+                fill_extra = 1 if fill_remainder > 0 else 0
 
-                if horizontal:
-                    child.compute_dimensions(this_fill, height)
+                if is_horizontal:
+                    child.compute_dimensions(fill_size + fill_extra, height)
+                else:
+                    child.compute_dimensions(width, fill_size)
+
+                fill_remainder -= 1
+
+            if child.anchor == Anchor.SCREEN:
+                child.compute_dimensions(width, height)
+
+                offset = list(child.offset)
+
+                if offset[0] == "end":
+                    offset[0] = self.computed_width - child.computed_width
+
+                elif child.offset[0] < 0:
+                    offset[0] -= -offset[0]
+
+                if offset[1] == "end":
+                    offset[1] = self.computed_height - child.computed_height
+
+                elif child.offset[1] < 0:
+                    offset[1] -= -offset[1]
+
+                child.move_to(x + offset[0], y + offset[1])
+
+            elif child.anchor == Anchor.PARENT:
+                child.compute_dimensions(width, height)
+
+                offset = list(child.offset)
+
+                if offset[0] == "end":
+                    offset[0] = t_width - child.computed_width
+
+                elif offset[0] < 0:
+                    offset[0] -= -offset[0]
+
+                if offset[1] < "end":
+                    offset[1] = t_height - child.computed_height
+
+                elif offset[1] < 0:
+                    offset[1] -= -offset[1]
+
+                child.move_to(t_ox + offset[0], t_oy + offset[1])
+
+            else:  # child.anchor == Anchor.NONE
+                # TODO: Some of these could be computed out of loop.
+                if is_horizontal:
+                    align_x, align_x_extra = _align(
+                        self.alignment[0],
+                        gap,
+                    )
+                    align_y, align_y_extra = _align(
+                        self.alignment[1],
+                        height - child.computed_height,
+                    )
+
+                    child.move_to(
+                        x + align_x + align_x_extra, y + align_y + align_y_extra
+                    )
+                    x += child.computed_width + gap + gap_extra
 
                 else:
-                    child.compute_dimensions(width, this_fill)
+                    align_x, align_x_extra = _align(
+                        self.alignment[0],
+                        width - child.computed_width,
+                    )
+                    align_y, align_y_extra = _align(
+                        self.alignment[1],
+                        gap,
+                    )
 
-            if child.is_static():
-                continue
+                    child.move_to(
+                        x + align_x + align_x_extra, y + align_y + align_y_extra
+                    )
+                    y += child.computed_height + gap + gap_extra
 
-            this_gap = gap + (1 if gap_extra > 0 else 0)
-            gap_extra -= 1
+                gap_extra = 0
 
-            if horizontal:
-                align_x, align_y, align_extra = self._compute_alignment_offsets(
-                    child, this_gap, height, horizontal
-                )
+        if is_horizontal:
+            self._outer_dimensions = [self.computed_width, min(y, self.computed_height)]
 
-            else:
-                align_x, align_y, align_extra = self._compute_alignment_offsets(
-                    child, width, this_gap, horizontal
-                )
-
-            child.move_to(x + align_x, y + align_y)
-
-            if horizontal:
-                x += child.computed_width + this_gap + align_extra
-                child.move_by(align_extra, 0)
-            else:
-                y += child.computed_height + this_gap + align_extra
-                child.move_by(0, align_extra)
-
-        if horizontal:
-            self._outer_dimensions = (x, self.computed_height - this_gap - align_extra)
         else:
-            self._outer_dimensions = (
-                self.computed_width - this_gap - align_extra,
-                y - origin[1],
-            )
+            self._outer_dimensions = [min(x, self.computed_width), y]
 
     def get_content(self) -> list[str]:
         """Calls our `arrange` method and returns a single empty line."""
@@ -425,7 +467,7 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
 
         # if layout_state != self._layout_state:
         start_x = self.position[0] + (self.frame.left != "")
-        start_y = self.position[1] + (self.frame.top != "") + (self._clip_start or 0)
+        start_y = self.position[1] + (self.frame.top != "")
 
         if self._should_layout:
             self.arrange(start_x - self.scroll[0], start_y - self.scroll[1])
@@ -485,8 +527,22 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
 
         yield self
 
+        (rx1, ry1), (rx2, ry2) = self.position, (
+            self.position[0] + self.computed_width,
+            self.position[1] + self.computed_height,
+        )
+
         for widget in sorted(self.children, key=lambda w: w.layer):
-            yield from widget.drawables()
+            for drawable in widget.drawables():
+                (dx1, dy1), (dx2, dy2) = drawable.position, (
+                    drawable.position[0] + drawable.computed_width,
+                    drawable.position[1] + drawable.computed_height,
+                )
+
+                if not (rx1 < dx2 and rx2 > dx1 and ry1 < dy2 and ry2 > dy1):
+                    continue
+
+                yield drawable
 
     def build(
         self, *, virt_width: int | None = None, virt_height: int | None = None

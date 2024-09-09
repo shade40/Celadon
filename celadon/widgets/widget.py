@@ -12,7 +12,7 @@ from slate import Event, Key, Span, Terminal
 from slate.span import EMPTY_SPAN
 from zenith.markup import FULL_RESET, zml_get_spans, zml_pre_process
 
-from ..enums import Alignment, MouseAction, Overflow, Positioning
+from ..enums import Alignment, MouseAction, Overflow, Anchor
 from ..frames import Frame, get_frame
 from ..state_machine import StateMachine
 from ..style_map import StyleMap
@@ -265,11 +265,13 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
 
         self.width: int | float | None = None
         self.height: int | float | None = None
+        self.offset: tuple[int, int] = (0, 0)
+
         # These conversions are handled in their properties
         self.frame = get_frame(None)  # type: ignore
         self.alignment = ("start", "start")  # type: ignore
         self.overflow = ("hide", "hide")  # type: ignore
-        self.positioning = Positioning.DYNAMIC
+        self.anchor = Anchor.NONE
         self.palette: str = "main"
 
         self._virtual_width = 0
@@ -278,8 +280,8 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self._selected_index: int | None = None
         self._selected: Widget | None = None
 
-        self._clip_start: int | None = None
-        self._clip_end: int | None = None
+        self._clip_start: tuple[int, int] = (0, 0)
+        self._clip_end: tuple[int, int] = (0, 0)
         self._bindings: dict[str, Event] = {}
 
         self.computed_width = 1
@@ -515,19 +517,19 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self._overflow = new
 
     @property
-    def positioning(self) -> Positioning:
-        """Returns and sets the positioning strategy."""
+    def anchor(self) -> Anchor:
+        """Returns and sets the widget's anchor."""
 
-        return self._positioning
+        return self._anchor
 
-    @positioning.setter
-    def positioning(self, new: str | Positioning) -> None:
-        """Sets the positioning strategy."""
+    @anchor.setter
+    def anchor(self, new: str | Anchor) -> None:
+        """Sets the widget's anchor."""
 
         if isinstance(new, str):
-            new = Positioning(new)
+            new = Anchor(new)
 
-        self._positioning = new
+        self._anchor = new
 
     @property
     def _framed_width(self) -> int:
@@ -923,16 +925,6 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self._last_query = query
         return value
 
-    def is_static(self) -> bool:
-        """Shorthand for `positioning is Positioning.STATIC`."""
-
-        return self.positioning is Positioning.STATIC
-
-    def is_dynamic(self) -> bool:
-        """Shorthand for `positioning is Positioning.DYNAMIC`."""
-
-        return self.positioning is Positioning.DYNAMIC
-
     def is_fill_width(self) -> bool:
         """Shorthand for `width is None`."""
 
@@ -1003,7 +995,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         if x_bar and y_bar:
             yield self.scrollbar_corner_fill
 
-    def clip_height(self, start: int | None, end: int | None) -> None:
+    def clip(self, start: tuple[int, int], end: tuple[int, int]) -> None:
         """Sets the clipping rectangle's coordinates."""
 
         self._clip_start = start
@@ -1284,7 +1276,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         if len(lines) > self.computed_height:
             lines = lines[: self.computed_height]
 
-        lines = lines[self._clip_start : self._clip_end]
+        lines = lines[self._clip_start[1] : -self._clip_end[1] or None]
 
         both = self.has_scrollbar(0) and self.has_scrollbar(1)
         self._update_scrollbars(width - both, height - both)

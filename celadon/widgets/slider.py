@@ -50,10 +50,10 @@ class Slider(Widget):
 
     Slider:
         height: 1
-        width: 1.0
+        width: null
 
     VerticalSlider:
-        height: 1.0
+        height: null
         width: 1
     """
 
