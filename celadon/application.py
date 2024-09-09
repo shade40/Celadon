@@ -951,7 +951,10 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
                         widget.compute_dimensions(width, height)
 
                         for child in widget.drawables():
-                            origin = child.position
+                            origin = (
+                                child.position[0] + child._clip_start[0],
+                                child.position[1] + child._clip_start[1],
+                            )
 
                             for i, line in enumerate(child.build()):
                                 write(line, cursor=(origin[0], origin[1] + i))

@@ -326,13 +326,14 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
         """
 
         children = self.visible_children
+
         layouted_children = [
             child for child in self.visible_children if child.anchor == Anchor.NONE
         ]
         layouted_count = len(layouted_children)
 
-        width = self._framed_width - self.has_scrollbar(1)
-        height = self._framed_height - self.has_scrollbar(0)
+        width = self._framed_width - self.has_scrollbar(0)
+        height = self._framed_height - self.has_scrollbar(1)
 
         is_horizontal = self.direction == Direction.HORIZONTAL
 
@@ -365,13 +366,14 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
 
         fill_size, fill_remainder = divmod(fill_buffer, max(fill_count, 1))
 
+        origin = x, y
         x += self._clip_start[0]
         y += self._clip_start[1]
 
         t_width, t_height = self.terminal.size
         t_ox, t_oy = self.terminal.origin
 
-        for child in children:
+        for i, child in enumerate(children):
             if self._is_fill(child, is_horizontal):
                 fill_extra = 1 if fill_remainder > 0 else 0
 
@@ -412,7 +414,7 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
                 elif offset[0] < 0:
                     offset[0] -= -offset[0]
 
-                if offset[1] < "end":
+                if offset[1] == "end":
                     offset[1] = t_height - child.computed_height
 
                 elif offset[1] < 0:
@@ -454,11 +456,50 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
 
                 gap_extra = 0
 
+                clip_start = [0, 0]
+                clip_end = [0, 0]
+
+                c_pos = child.position
+                c_end = (
+                    c_pos[0] + child.computed_width,
+                    c_pos[1] + child.computed_height,
+                )
+
+                s_pos = (
+                    self.position[0] + (self.frame.left != "") + self.scroll[0],
+                    self.position[1] + (self.frame.top != "") + self.scroll[0],
+                )
+
+                s_end = (
+                    s_pos[0] + self.computed_width,
+                    s_pos[1] + self.computed_height,
+                )
+
+                if c_pos[0] < s_pos[0]:
+                    clip_start[0] = s_pos[0] - c_pos[0]
+
+                elif c_end[0] > s_end[0]:
+                    clip_end[0] = c_end[0] - s_end[0]
+
+                if c_pos[1] < s_pos[1]:
+                    clip_start[1] = s_pos[1] - c_pos[1]
+
+                elif c_end[1] > s_end[1]:
+                    clip_end[1] = c_end[1] - s_end[1]
+
+                child.clip(clip_start, clip_end)
+
         if is_horizontal:
-            self._outer_dimensions = [self.computed_width, min(y, self.computed_height)]
+            self._outer_dimensions = [
+                x + self.scroll[0],
+                self.computed_height,
+            ]
 
         else:
-            self._outer_dimensions = [min(x, self.computed_width), y]
+            self._outer_dimensions = [
+                self.computed_width,
+                y + self.scroll[1],
+            ]
 
     def get_content(self) -> list[str]:
         """Calls our `arrange` method and returns a single empty line."""
@@ -525,11 +566,14 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
     def drawables(self) -> Iterator[Widget]:
         # TODO: Implement child-clipping
 
-        yield self
+        yield from super().drawables()
 
-        (rx1, ry1), (rx2, ry2) = self.position, (
-            self.position[0] + self.computed_width,
-            self.position[1] + self.computed_height,
+        (rx1, ry1), (rx2, ry2) = (
+            self.position[0] + (self.frame.left != ""),
+            self.position[1] + (self.frame.top != ""),
+        ), (
+            self.position[0] + self.computed_width - (self.frame.right != ""),
+            self.position[1] + self.computed_height - (self.frame.bottom != ""),
         )
 
         for widget in sorted(self.children, key=lambda w: w.layer):
@@ -540,6 +584,7 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
                 )
 
                 if not (rx1 < dx2 and rx2 > dx1 and ry1 < dy2 and ry2 > dy1):
+                    # pass
                     continue
 
                 yield drawable
