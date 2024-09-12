@@ -367,8 +367,6 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
         fill_size, fill_remainder = divmod(fill_buffer, max(fill_count, 1))
 
         origin = x, y
-        x += self._clip_start[0]
-        y += self._clip_start[1]
 
         t_width, t_height = self.terminal.size
         t_ox, t_oy = self.terminal.origin
@@ -456,35 +454,21 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
 
                 gap_extra = 0
 
-                clip_start = [0, 0]
-                clip_end = [0, 0]
+                clip_start, clip_end = [0, 0], [0, 0]
 
-                c_pos = child.position
-                c_end = (
-                    c_pos[0] + child.computed_width,
-                    c_pos[1] + child.computed_height,
-                )
+                s_start, s_end = self.inner_rect
+                c_start, c_end = child.outer_rect
 
-                s_pos = (
-                    self.position[0] + (self.frame.left != "") + self.scroll[0],
-                    self.position[1] + (self.frame.top != "") + self.scroll[0],
-                )
+                if c_start[0] < s_start[0]:
+                    clip_start[0] = s_start[0] - c_start[0]
 
-                s_end = (
-                    s_pos[0] + self.computed_width,
-                    s_pos[1] + self.computed_height,
-                )
-
-                if c_pos[0] < s_pos[0]:
-                    clip_start[0] = s_pos[0] - c_pos[0]
-
-                elif c_end[0] > s_end[0]:
+                if s_end[0] < c_end[0]:
                     clip_end[0] = c_end[0] - s_end[0]
 
-                if c_pos[1] < s_pos[1]:
-                    clip_start[1] = s_pos[1] - c_pos[1]
+                if c_start[1] < s_start[1]:
+                    clip_start[1] = s_start[1] - c_start[1]
 
-                elif c_end[1] > s_end[1]:
+                if s_end[1] < c_end[1]:
                     clip_end[1] = c_end[1] - s_end[1]
 
                 child.clip(clip_start, clip_end)
@@ -568,24 +552,26 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
 
         yield from super().drawables()
 
-        (rx1, ry1), (rx2, ry2) = (
-            self.position[0] + (self.frame.left != ""),
-            self.position[1] + (self.frame.top != ""),
-        ), (
-            self.position[0] + self.computed_width - (self.frame.right != ""),
-            self.position[1] + self.computed_height - (self.frame.bottom != ""),
-        )
-
         for widget in sorted(self.children, key=lambda w: w.layer):
+            yield from widget.drawables()
+            continue
+
             for drawable in widget.drawables():
-                (dx1, dy1), (dx2, dy2) = drawable.position, (
-                    drawable.position[0] + drawable.computed_width,
-                    drawable.position[1] + drawable.computed_height,
+                (dx1, dy1), (dx2, dy2) = drawable.clipped_position, (
+                    drawable.clipped_position[0] + drawable.computed_width,
+                    drawable.clipped_position[1] + drawable.computed_height,
                 )
 
                 if not (rx1 < dx2 and rx2 > dx1 and ry1 < dy2 and ry2 > dy1):
-                    # pass
                     continue
+
+                clip_start = [0, 0]
+                clip_end = [0, 0]
+
+                if dy2 > ry2:
+                    clip_end[1] = dy2 - ry2
+
+                drawable.clip(clip_start, clip_end)
 
                 yield drawable
 

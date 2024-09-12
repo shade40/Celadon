@@ -560,6 +560,51 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         else:
             self.state_machine.apply_action("ENABLED")
 
+    @property
+    def clipped_position(self) -> tuple[int, int]:
+        """Returns the current position offset by the current clip start position."""
+
+        return (
+            self.position[0] + self._clip_start[0],
+            self.position[1] + self._clip_start[1],
+        )
+
+    @property
+    def inner_rect(self) -> tuple[tuple[int, int], tuple[int, int]]:
+        """Returns the inner rect of this widget."""
+
+        x, y = (
+            self.clipped_position[0] + (self.frame.left != ""),
+            self.clipped_position[1] + (self.frame.top != ""),
+        )
+
+        inner_width = (
+            self.computed_width
+            - (self.frame.left != "")
+            - (self.frame.right != "")
+            - self.has_scrollbar(1)
+            - self._clip_end[0]
+        )
+
+        inner_height = (
+            self.computed_height
+            - (self.frame.top != "")
+            - (self.frame.bottom != "")
+            - self.has_scrollbar(0)
+            - self._clip_end[1]
+        )
+
+        return ((x, y), (x + inner_width, y + inner_height))
+
+    @property
+    def outer_rect(self) -> tuple[tuple[int, int], tuple[int, int]]:
+        """Returns the outer rect of this widget."""
+
+        return self.position, (
+            self.position[0] + self.computed_width,
+            self.position[1] + self.computed_height,
+        )
+
     @lru_cache(1024)
     def _parse_markup(self, markup: str) -> tuple[Span, ...]:
         """Parses some markup into a span of tuples.
@@ -1276,7 +1321,10 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         if len(lines) > self.computed_height:
             lines = lines[: self.computed_height]
 
-        lines = lines[self._clip_start[1] : -self._clip_end[1] or None]
+        lines = lines[self._clip_start[1] :]
+
+        if self._clip_end[1] > 0:
+            lines = lines[: -self._clip_end[1]]
 
         both = self.has_scrollbar(0) and self.has_scrollbar(1)
         self._update_scrollbars(width - both, height - both)
