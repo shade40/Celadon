@@ -1188,26 +1188,6 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
 
         self._apply_mouse_state(action)
 
-        if "scroll" in action.value:
-            can_scroll_x, can_scroll_y = self.has_scrollbar(0), self.has_scrollbar(1)
-
-            if can_scroll_x:
-                forward = [MouseAction.SCROLL_LEFT, MouseAction.SHIFT_SCROLL_UP]
-                backward = [MouseAction.SCROLL_RIGHT, MouseAction.SHIFT_SCROLL_DOWN]
-
-                if action in forward:
-                    self.scroll = (self.scroll[0] - self.scroll_step, self.scroll[1])
-
-                elif action in backward:
-                    self.scroll = (self.scroll[0] + self.scroll_step, self.scroll[1])
-
-            if can_scroll_y:
-                if action is MouseAction.SCROLL_UP:
-                    self.scroll = (self.scroll[0], self.scroll[1] - self.scroll_step)
-
-                if action is MouseAction.SCROLL_DOWN:
-                    self.scroll = (self.scroll[0], self.scroll[1] + self.scroll_step)
-
         bars = []
 
         if self.has_scrollbar(0):
@@ -1230,6 +1210,30 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
 
         if result:
             return True
+
+        if "scroll" in action.value:
+            can_scroll_x, can_scroll_y = self.has_scrollbar(0), self.has_scrollbar(1)
+
+            if can_scroll_x:
+                forward = [MouseAction.SCROLL_LEFT, MouseAction.SHIFT_SCROLL_UP]
+                backward = [MouseAction.SCROLL_RIGHT, MouseAction.SHIFT_SCROLL_DOWN]
+
+                if action in forward and self.scroll[0] > 0:
+                    self.scroll = (self.scroll[0] - self.scroll_step, self.scroll[1])
+                    return True
+
+                if action in backward and self.scroll[0] + self.computed_width < self._virtual_width:
+                    self.scroll = (self.scroll[0] + self.scroll_step, self.scroll[1])
+                    return True
+
+            if can_scroll_y:
+                if action is MouseAction.SCROLL_UP and self.scroll[1] > 0:
+                    self.scroll = (self.scroll[0], self.scroll[1] - self.scroll_step)
+                    return True
+
+                if action is MouseAction.SCROLL_DOWN and self.scroll[1] + self.computed_height < self._virtual_height:
+                    self.scroll = (self.scroll[0], self.scroll[1] + self.scroll_step)
+                    return True
 
         for name in _MOUSE_ACTION_NAME_OPTIONS[action]:
             if (handle := getattr(self, f"on_{name}", None)) is not None:
@@ -1400,9 +1404,15 @@ def handle_mouse_on_children(
     ):
         return True, mouse_target, hover_target
 
-    if is_hover and hover_target is not None and not hover_target.contains(position):
-        hover_target.handle_mouse(*release)
-        hover_target = None
+    scroll_actions = [MouseAction.SCROLL_UP, MouseAction.SCROLL_DOWN, MouseAction.SCROLL_LEFT, MouseAction.SCROLL_RIGHT]
+
+    if hover_target is not None:
+        if action in scroll_actions and hover_target.handle_mouse(action, position):
+            return True, mouse_target, hover_target
+
+        if is_hover and not hover_target.contains(position):
+            hover_target.handle_mouse(*release)
+            hover_target = None
 
     for child in children:
         if not child.contains(position):
