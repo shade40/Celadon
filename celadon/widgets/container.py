@@ -158,7 +158,9 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
 
     def _compute_shrink_width(self) -> int:
         if self.direction is Direction.VERTICAL:
-            return max([child.computed_width for child in self.children], default=0)
+            return self.frame.height + max(
+                [child.computed_width for child in self.children], default=0
+            )
 
         gap = 0
 
@@ -166,11 +168,17 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
             gap = self.gap
 
         # TODO: This isn't accurate - fallback gap and all. Revisit with better layout.
-        return sum(child.computed_width + gap for child in self.children) - gap
+        return (
+            self.frame.width
+            + sum(child.computed_width + gap for child in self.children)
+            - gap
+        )
 
     def _compute_shrink_height(self) -> int:
         if self.direction is Direction.HORIZONTAL:
-            return max([child.computed_height for child in self.children], default=0)
+            return self._frame.width + max(
+                [child.computed_height for child in self.children], default=0
+            )
 
         # TODO: This isn't accurate - fallback gap and all. Revisit with better layout.
         gap = 0
@@ -178,7 +186,11 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
         if isinstance(self.gap, int):
             gap = self.gap
 
-        return sum(child.computed_height + gap for child in self.children) - gap
+        return (
+            self._frame.height
+            + sum(child.computed_height + gap for child in self.children)
+            - gap
+        )
 
     @property
     def selected(self) -> Widget | None:
@@ -332,8 +344,8 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
         ]
         layouted_count = len(layouted_children)
 
-        width = self._framed_width - self.has_scrollbar(0)
-        height = self._framed_height - self.has_scrollbar(1)
+        width = self._framed_width - self.has_scrollbar(1)
+        height = self._framed_height - self.has_scrollbar(0)
 
         is_horizontal = self.direction == Direction.HORIZONTAL
 
@@ -370,6 +382,8 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
 
         t_width, t_height = self.terminal.size
         t_ox, t_oy = self.terminal.origin
+
+        s_start, s_end = self.inner_rect
 
         for i, child in enumerate(children):
             if self._is_fill(child, is_horizontal):
@@ -435,7 +449,7 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
                     child.move_to(
                         x + align_x + align_x_extra, y + align_y + align_y_extra
                     )
-                    x += child.computed_width + gap + gap_extra
+                    x += child.computed_width + gap + (1 * gap_extra > 0)
 
                 else:
                     align_x, align_x_extra = _align(
@@ -450,13 +464,12 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
                     child.move_to(
                         x + align_x + align_x_extra, y + align_y + align_y_extra
                     )
-                    y += child.computed_height + gap + gap_extra
+                    y += child.computed_height + gap + (1 * gap_extra > 0)
 
-                gap_extra = 0
+                gap_extra -= 1
 
                 clip_start, clip_end = [0, 0], [0, 0]
 
-                s_start, s_end = self.inner_rect
                 c_start, c_end = child.outer_rect
 
                 if c_start[0] < s_start[0]:
@@ -468,21 +481,21 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
                 if c_start[1] < s_start[1]:
                     clip_start[1] = s_start[1] - c_start[1]
 
-                if s_end[1] < c_end[1]:
+                if s_end[1] <= c_end[1]:
                     clip_end[1] = c_end[1] - s_end[1]
 
                 child.clip(clip_start, clip_end)
 
         if is_horizontal:
             self._outer_dimensions = [
-                x + self.scroll[0],
+                self._compute_shrink_width(),
                 self.computed_height,
             ]
 
         else:
             self._outer_dimensions = [
                 self.computed_width,
-                y + self.scroll[1],
+                self._compute_shrink_height(),
             ]
 
     def get_content(self) -> list[str]:
@@ -554,26 +567,6 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
 
         for widget in sorted(self.children, key=lambda w: w.layer):
             yield from widget.drawables()
-            continue
-
-            for drawable in widget.drawables():
-                (dx1, dy1), (dx2, dy2) = drawable.clipped_position, (
-                    drawable.clipped_position[0] + drawable.computed_width,
-                    drawable.clipped_position[1] + drawable.computed_height,
-                )
-
-                if not (rx1 < dx2 and rx2 > dx1 and ry1 < dy2 and ry2 > dy1):
-                    continue
-
-                clip_start = [0, 0]
-                clip_end = [0, 0]
-
-                if dy2 > ry2:
-                    clip_end[1] = dy2 - ry2
-
-                drawable.clip(clip_start, clip_end)
-
-                yield drawable
 
     def build(
         self, *, virt_width: int | None = None, virt_height: int | None = None

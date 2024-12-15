@@ -573,28 +573,33 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
     def inner_rect(self) -> tuple[tuple[int, int], tuple[int, int]]:
         """Returns the inner rect of this widget."""
 
-        x, y = (
-            self.clipped_position[0] + (self.frame.left != ""),
-            self.clipped_position[1] + (self.frame.top != ""),
-        )
+        frame_left = (self.frame.left != "") * (self._clip_start[0] == 0)
+        frame_right = (self.frame.right != "")
+        frame_top = (self.frame.top != "") * (self._clip_start[1] == 0)
+        frame_bottom = (self.frame.bottom != "")
 
-        inner_width = (
-            self.computed_width
-            - (self.frame.left != "")
-            - (self.frame.right != "")
-            - self.has_scrollbar(1)
-            - self._clip_end[0]
+        return (
+            (
+                self.position[0] + self._clip_start[0] + frame_left,
+                self.position[1] + self._clip_start[1] + frame_top,
+            ),
+            (
+                (
+                    self.position[0]
+                    + self.computed_width
+                    - frame_right
+                    - self._clip_end[0]
+                    - self.has_scrollbar(1)
+                ),
+                (
+                    self.position[1]
+                    + self.computed_height
+                    - frame_bottom
+                    - self._clip_end[1]
+                    - self.has_scrollbar(0)
+                ),
+            ),
         )
-
-        inner_height = (
-            self.computed_height
-            - (self.frame.top != "")
-            - (self.frame.bottom != "")
-            - self.has_scrollbar(0)
-            - self._clip_end[1]
-        )
-
-        return ((x, y), (x + inner_width, y + inner_height))
 
     @property
     def outer_rect(self) -> tuple[tuple[int, int], tuple[int, int]]:
@@ -633,18 +638,15 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.scrollbar_x.compute_dimensions(width, 1)
         self.scrollbar_y.compute_dimensions(1, height)
 
-        self.scrollbar_x.position = (
-            self.position[0] + (self.frame.left != ""),
-            self.position[1] + self.computed_height - 1 - (self.frame.bottom != ""),
-        )
-        self.scrollbar_y.position = (
-            self.position[0] + self.computed_width - 1 - (self.frame.right != ""),
-            self.position[1] + (self.frame.top != ""),
-        )
-        self.scrollbar_corner_fill.position = (
-            self.position[0] + self.computed_width - 1 - (self.frame.right != ""),
-            self.position[1] + self.computed_height - 1 - (self.frame.bottom != ""),
-        )
+        [start_x, start_y], [end_x, end_y] = self.inner_rect
+
+        self.scrollbar_x.position = (start_x, end_y)
+        self.scrollbar_x.clip(self._clip_start, self._clip_end)
+
+        self.scrollbar_y.position = (end_x, start_y)
+        self.scrollbar_y.clip(self._clip_start, self._clip_end)
+
+        self.scrollbar_corner_fill.position = (end_x, end_y)
 
         self.scrollbar_x.cursor_size = _get_size(
             self.computed_width, self._virtual_width, width
@@ -1296,9 +1298,9 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
 
         self.on_content(self)
 
-        self._virtual_height = virt_height or len(lines)
+        self._virtual_height = virt_height or len(lines) or 1
         self._virtual_width = virt_width or max(
-            sum(len(span) for span in line) for line in lines
+            (sum(len(span) for span in line) for line in lines), default=1
         )
 
         # Clip into vertical size
