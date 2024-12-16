@@ -383,7 +383,7 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
         t_width, t_height = self.terminal.size
         t_ox, t_oy = self.terminal.origin
 
-        s_start, s_end = self.inner_rect
+        s_start, s_end = [list(val) for val in self.inner_rect]
 
         for i, child in enumerate(children):
             if self._is_fill(child, is_horizontal):
@@ -475,13 +475,15 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
                 if c_start[0] < s_start[0]:
                     clip_start[0] = s_start[0] - c_start[0]
 
-                if s_end[0] < c_end[0]:
-                    clip_end[0] = c_end[0] - s_end[0]
-
                 if c_start[1] < s_start[1]:
                     clip_start[1] = s_start[1] - c_start[1]
 
-                if s_end[1] <= c_end[1]:
+                # The math here doesnt work, inner children are clipped based on already clipped rect?
+                
+                if s_end[0] < c_end[0]:
+                    clip_end[0] = c_end[0] - s_end[0]
+
+                if s_end[1] < c_end[1]:
                     clip_end[1] = c_end[1] - s_end[1]
 
                 child.clip(clip_start, clip_end)

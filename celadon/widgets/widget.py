@@ -576,7 +576,10 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         frame_left = (self.frame.left != "") * (self._clip_start[0] == 0)
         frame_right = (self.frame.right != "")
         frame_top = (self.frame.top != "") * (self._clip_start[1] == 0)
-        frame_bottom = (self.frame.bottom != "")
+        frame_bottom = (self.frame.bottom != "") * (self._clip_end[1] == 0)
+
+        right_bar = self.has_scrollbar(1) * (self._clip_end[0] < (1 + frame_right))
+        bottom_bar = self.has_scrollbar(0) * (self._clip_end[1] < (1 + frame_bottom))
 
         return (
             (
@@ -589,14 +592,14 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                     + self.computed_width
                     - frame_right
                     - self._clip_end[0]
-                    - self.has_scrollbar(1)
+                    - right_bar
                 ),
                 (
                     self.position[1]
                     + self.computed_height
                     - frame_bottom
                     - self._clip_end[1]
-                    - self.has_scrollbar(0)
+                    - bottom_bar
                 ),
             ),
         )
@@ -609,6 +612,17 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             self.position[0] + self.computed_width,
             self.position[1] + self.computed_height,
         )
+
+        """
+        return (
+            self.position[0] + self._clip_start[0],
+            self.position[1] + self._clip_start[1],
+        ), (
+            self.position[0] + self.computed_width - self._clip_end[0],
+            self.position[1] + self.computed_height - self._clip_end[1],
+        )
+        """
+
 
     @lru_cache(1024)
     def _parse_markup(self, markup: str) -> tuple[Span, ...]:
@@ -638,13 +652,33 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.scrollbar_x.compute_dimensions(width, 1)
         self.scrollbar_y.compute_dimensions(1, height)
 
-        [start_x, start_y], [end_x, end_y] = self.inner_rect
+        frame_left = self.frame.left != ""
+        frame_top = self.frame.top != ""
+        frame_right = self.frame.right != ""
+        frame_bottom = self.frame.bottom != ""
+
+        clip_start = list(self._clip_start)
+        clip_end = list(self._clip_end)
+
+        [start_x, start_y], [end_x, end_y] = self.outer_rect
+
+        clip_start[0] = max(0, clip_start[0] - frame_left)
+        clip_start[1] = max(0, clip_start[1] - frame_top)
+
+        start_x += self.frame.left != ""
+        start_y += self.frame.top != ""
+
+        clip_end[0] = max(0, clip_end[0] - frame_right)
+        clip_end[1] = max(0, clip_end[1] - frame_bottom)
+
+        end_x -= frame_right + 1
+        end_y -= frame_bottom + 1
 
         self.scrollbar_x.position = (start_x, end_y)
-        self.scrollbar_x.clip(self._clip_start, self._clip_end)
+        self.scrollbar_x.clip(clip_start, clip_end)
 
         self.scrollbar_y.position = (end_x, start_y)
-        self.scrollbar_y.clip(self._clip_start, self._clip_end)
+        self.scrollbar_y.clip(clip_start, clip_end)
 
         self.scrollbar_corner_fill.position = (end_x, end_y)
 
@@ -1240,6 +1274,15 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         for name in _MOUSE_ACTION_NAME_OPTIONS[action]:
             if (handle := getattr(self, f"on_{name}", None)) is not None:
                 return handle(action, position)
+
+        # TODO: Scroll propagation algorithm:
+        #
+        #       on start scroll:
+        #           is scrollable? return True
+        #           return False
+        #
+        #       while continuously scrolling:
+        #           return True
 
         return False
 
