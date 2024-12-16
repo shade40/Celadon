@@ -1224,7 +1224,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                     self.scroll = (self.scroll[0] - self.scroll_step, self.scroll[1])
                     return True
 
-                if action in backward and self.scroll[0] + self.computed_width < self._virtual_width:
+                if action in backward and self.scroll[0] + self.computed_width - can_scroll_y <= self._virtual_width:
                     self.scroll = (self.scroll[0] + self.scroll_step, self.scroll[1])
                     return True
 
@@ -1233,7 +1233,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                     self.scroll = (self.scroll[0], self.scroll[1] - self.scroll_step)
                     return True
 
-                if action is MouseAction.SCROLL_DOWN and self.scroll[1] + self.computed_height < self._virtual_height:
+                if action is MouseAction.SCROLL_DOWN and self.scroll[1] + self.computed_height - can_scroll_x < self._virtual_height:
                     self.scroll = (self.scroll[0], self.scroll[1] + self.scroll_step)
                     return True
 
