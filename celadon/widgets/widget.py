@@ -573,13 +573,23 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
     def inner_rect(self) -> tuple[tuple[int, int], tuple[int, int]]:
         """Returns the inner rect of this widget."""
 
-        frame_left = (self.frame.left != "") * (self._clip_start[0] == 0)
-        frame_right = (self.frame.right != "")
-        frame_top = (self.frame.top != "") * (self._clip_start[1] == 0)
-        frame_bottom = (self.frame.bottom != "") * (self._clip_end[1] == 0)
+        frame = self.frame
+        frame_bottom_raw = self.frame.bottom != ""
+        frame_right_raw = self.frame.right != ""
 
-        right_bar = self.has_scrollbar(1) * (self._clip_end[0] < (1 + frame_right))
-        bottom_bar = self.has_scrollbar(0) * (self._clip_end[1] < (1 + frame_bottom))
+        frame_left = (frame.left != "") * (self._clip_start[0] == 0)
+        frame_right = frame_right_raw * (self._clip_end[0] == 0)
+        frame_top = (frame.top != "") * (self._clip_start[1] == 0)
+        frame_bottom = frame_bottom_raw * (self._clip_end[1] == 0)
+
+        # Only add space for bars if they are clipped
+        right_bar = self.has_scrollbar(1)
+        if self._clip_end[1] > frame_right_raw:
+            right_bar = 0
+
+        bottom_bar = self.has_scrollbar(0)
+        if self._clip_end[1] > frame_bottom_raw:
+            bottom_bar = 0
 
         return (
             (
@@ -593,6 +603,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                     - frame_right
                     - self._clip_end[0]
                     - right_bar
+                    -1
                 ),
                 (
                     self.position[1]
@@ -612,17 +623,6 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             self.position[0] + self.computed_width,
             self.position[1] + self.computed_height,
         )
-
-        """
-        return (
-            self.position[0] + self._clip_start[0],
-            self.position[1] + self._clip_start[1],
-        ), (
-            self.position[0] + self.computed_width - self._clip_end[0],
-            self.position[1] + self.computed_height - self._clip_end[1],
-        )
-        """
-
 
     @lru_cache(1024)
     def _parse_markup(self, markup: str) -> tuple[Span, ...]:
@@ -675,12 +675,16 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         end_y -= frame_bottom + 1
 
         self.scrollbar_x.position = (start_x, end_y)
-        self.scrollbar_x.clip(clip_start, clip_end)
+        self.scrollbar_x.clip(
+            (max(0, clip_start[0] - width), max(0, clip_start[1] - height)),
+            (max(0, clip_end[0] - width), max(0, clip_end[1])),
+        )
 
         self.scrollbar_y.position = (end_x, start_y)
         self.scrollbar_y.clip(clip_start, clip_end)
 
         self.scrollbar_corner_fill.position = (end_x, end_y)
+        self.scrollbar_corner_fill.clip(clip_start, clip_end)
 
         self.scrollbar_x.cursor_size = _get_size(
             self.computed_width, self._virtual_width, width
@@ -721,18 +725,18 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             lines.insert(
                 0,
                 (
-                    *_style(left_top, outer=c_outer),
+                    *_style(left_top or (left != "") * top, outer=c_outer),
                     *_style(top * width, outer=h_outer),
-                    *_style(right_top, outer=c_outer),
+                    *_style(right_top or (right != "") * top, outer=c_outer),
                 ),
             )
 
         if left_bottom + bottom + right_bottom != "":
             lines.append(
                 (
-                    *_style(left_bottom, outer=c_outer),
+                    *_style(left_bottom or (left != "") * bottom, outer=c_outer),
                     *_style(bottom * width, outer=h_outer),
-                    *_style(right_bottom, outer=c_outer),
+                    *_style(right_bottom or (right != "") * bottom, outer=c_outer),
                 )
             )
 

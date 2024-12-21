@@ -46,8 +46,9 @@ class Frame:  # pylint: disable=too-many-instance-attributes
 
         assert self.borders is not None and self.corners is not None
 
-        self.width = len(self.borders[0] + self.borders[2])
-        self.height = (self.borders[1] != "") + (self.borders[3] != "")
+        self.width_components = (
+            f"'{self.borders[0]}' or ('{self.corners[0]}' + '{self.corners[1]}')"
+        )
 
         self.left, self.top, self.right, self.bottom = self.borders
         (
@@ -55,7 +56,11 @@ class Frame:  # pylint: disable=too-many-instance-attributes
             self.right_top,
             self.right_bottom,
             self.left_bottom,
-        ) = self.borders
+        ) = self.corners
+
+        self.width = len(self.left + self.right)
+        self.height = (self.borders[1] != "") + (self.borders[3] != "")
+
 
     def _parse_descriptor(self) -> tuple[CharTuple, CharTuple]:
         """Parses the descriptor into tuples of chartuples."""
@@ -100,7 +105,7 @@ class Frame:  # pylint: disable=too-many-instance-attributes
             borders.append(side().borders[i])
 
         frame.borders = tuple(borders)  # type: ignore
-        frame.corners = borders[1], borders[1], borders[3], borders[3]  # type: ignore
+        # frame.corners = borders[1], borders[1], borders[3], borders[3]  # type: ignore
         frame.__init__()  # type: ignore # pylint: disable=unnecessary-dunder-call
 
         return frame
