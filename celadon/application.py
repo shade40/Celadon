@@ -959,7 +959,7 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
                     self._should_draw = False
                     did_draw = True
 
-                write(str(self.fps), cursor=self._terminal.origin)
+                #write(str(self.fps), cursor=self._terminal.origin)
                 draw()
 
                 on_frame_drawn(self)

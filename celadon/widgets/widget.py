@@ -603,7 +603,6 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                     - frame_right
                     - self._clip_end[0]
                     - right_bar
-                    -1
                 ),
                 (
                     self.position[1]
@@ -676,12 +675,15 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
 
         self.scrollbar_x.position = (start_x, end_y)
         self.scrollbar_x.clip(
-            (max(0, clip_start[0] - width), max(0, clip_start[1] - height)),
-            (max(0, clip_end[0] - width), max(0, clip_end[1])),
+            (clip_start[0], max(0, clip_start[1] - height)),
+            clip_end
         )
 
         self.scrollbar_y.position = (end_x, start_y)
-        self.scrollbar_y.clip(clip_start, clip_end)
+        self.scrollbar_y.clip(
+            (max(0, clip_start[0] - width), clip_start[1]),
+            clip_end
+        )
 
         self.scrollbar_corner_fill.position = (end_x, end_y)
         self.scrollbar_corner_fill.clip(clip_start, clip_end)
@@ -1364,8 +1366,14 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             lines[i] = self._horizontal_align(line, width)
 
         # Clip into horizontal size
+        if self.eid == "second":
+            print(self._clip_start, self._clip_end)
+
         lines = [
-            self._slice_line(line, self.scroll[0], self.scroll[0] + width)
+            self._slice_line(line,
+                self.scroll[0],
+                self.scroll[0] + width
+            )
             for line in lines
         ]
 
@@ -1373,6 +1381,19 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
 
         if len(lines) > self.computed_height:
             lines = lines[: self.computed_height]
+
+        # TODO: This double-slice could be done in one:
+        #
+        #         slice scroll + clip (offset by frame?)
+        #         remove frame if clipped?
+
+        lines = [
+            self._slice_line(line,
+                self._clip_start[0],
+                self.computed_width - self._clip_end[0]
+            )
+            for line in lines
+        ]
 
         lines = lines[self._clip_start[1] :]
 
@@ -1383,6 +1404,12 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self._update_scrollbars(width - both, height - both)
 
         self.on_build(self)
+
+        if (
+            self._clip_start[0] + self._clip_end[0] >= self.computed_width
+            or self._clip_start[1] + self._clip_end[1] >= self.computed_height
+        ):
+            return []
 
         return lines
 

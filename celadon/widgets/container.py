@@ -187,8 +187,7 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
             gap = self.gap
 
         return (
-            self._frame.height
-            + sum(child.computed_height + gap for child in self.children)
+            sum(child.computed_height + gap for child in self.children)
             - gap
         )
 
@@ -372,6 +371,10 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
 
             if fill_count == 0:
                 gap, gap_extra = divmod(fill_buffer, max(layouted_count, 1))
+                
+                if gap < 0:
+                    gap = 0
+                    gap_extra = 0
 
         else:
             fill_buffer -= (layouted_count - 1) * gap
@@ -385,7 +388,7 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
 
         s_start, s_end = [list(val) for val in self.inner_rect]
 
-        for i, child in enumerate(children):
+        for child in children:
             if self._is_fill(child, is_horizontal):
                 fill_extra = 1 if fill_remainder > 0 else 0
 
@@ -478,8 +481,6 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
                 if c_start[1] < s_start[1]:
                     clip_start[1] = s_start[1] - c_start[1]
 
-                # The math here doesnt work, inner children are clipped based on already clipped rect?
-                
                 if s_end[0] < c_end[0]:
                     clip_end[0] = c_end[0] - s_end[0]
 
@@ -563,8 +564,6 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
         return super().handle_mouse(action, position)
 
     def drawables(self) -> Iterator[Widget]:
-        # TODO: Implement child-clipping
-
         yield from super().drawables()
 
         for widget in sorted(self.children, key=lambda w: w.layer):
