@@ -149,10 +149,14 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
 
         return x, y, extra
 
+    # TODO: Revisit shrink calculations
+    #
+    #       They either add or remove extra space (==frame.dimension), but always the wrong
+    #       one of the two.
     def _compute_shrink_width(self) -> int:
         if self.direction is Direction.VERTICAL:
             return self.frame.width + max(
-                [child.computed_width for child in self.children], default=0
+                [child.computed_width for child in self.visible_children], default=0
             )
 
         gap = 0
@@ -160,12 +164,14 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
         if isinstance(self.gap, int):
             gap = self.gap
 
-        return self.frame.width + sum(child.computed_width + gap for child in self.children) - gap
+        return self.frame.width + sum(
+            child.computed_width + gap for child in self.visible_children
+        ) - gap
 
     def _compute_shrink_height(self) -> int:
         if self.direction is Direction.HORIZONTAL:
             return self.frame.height + max(
-                [child.computed_height for child in self.children], default=0
+                [child.computed_height for child in self.visible_children], default=0
             )
 
         gap = 0
@@ -173,7 +179,9 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
         if isinstance(self.gap, int):
             gap = self.gap
 
-        return self.frame.height + sum(child.computed_height + gap for child in self.children) - gap
+        return self.frame.height + sum(
+            child.computed_height + gap for child in self.visible_children
+        ) - gap
 
     @property
     def selected(self) -> Widget | None:
