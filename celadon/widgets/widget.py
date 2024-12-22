@@ -77,7 +77,7 @@ def _overflows(real: int, virt: int) -> bool:
 
 
 def to_widget_space(pos: tuple[int, int], widget: Widget) -> tuple[int, int]:
-    """Computes a position as an offset from the widgets origin.
+    """Computes a position as an offset from the widget's origin.
 
     This doesn't account for positions _outside_ of a widget.
     """
@@ -1056,14 +1056,20 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             index: The axis to check. 0 for horizontal scrolling, 1 for vertical.
         """
 
+        overflow = self.overflow[index]
+
+        if overflow is Overflow.SCROLL:
+            return True
+
+        if overflow is Overflow.HIDE:
+            return False
+
         real, virt = [
             (self._framed_width, self._virtual_width),
             (self._framed_height, self._virtual_height),
         ][index]
 
-        return self.overflow[index] is Overflow.SCROLL or (
-            self.overflow[index] is Overflow.AUTO and virt > real
-        )
+        return virt > real
 
     def drawables(self) -> Iterable[Widget]:
         """Yields all contained widgets that should be drawn."""
@@ -1366,9 +1372,6 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             lines[i] = self._horizontal_align(line, width)
 
         # Clip into horizontal size
-        if self.eid == "second":
-            print(self._clip_start, self._clip_end)
-
         lines = [
             self._slice_line(line,
                 self.scroll[0],

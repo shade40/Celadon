@@ -149,16 +149,9 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
 
         return x, y, extra
 
-    def _compute_gap(self, available: int, count: int) -> tuple[int, int]:
-        """Computes a gap based on available // count."""
-
-        per_widget, extra = divmod(available, count or 1)
-
-        return _compute(self.gap, per_widget), extra
-
     def _compute_shrink_width(self) -> int:
         if self.direction is Direction.VERTICAL:
-            return self.frame.height + max(
+            return self.frame.width + max(
                 [child.computed_width for child in self.children], default=0
             )
 
@@ -167,29 +160,20 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
         if isinstance(self.gap, int):
             gap = self.gap
 
-        # TODO: This isn't accurate - fallback gap and all. Revisit with better layout.
-        return (
-            self.frame.width
-            + sum(child.computed_width + gap for child in self.children)
-            - gap
-        )
+        return self.frame.width + sum(child.computed_width + gap for child in self.children) - gap
 
     def _compute_shrink_height(self) -> int:
         if self.direction is Direction.HORIZONTAL:
-            return self._frame.width + max(
+            return self.frame.height + max(
                 [child.computed_height for child in self.children], default=0
             )
 
-        # TODO: This isn't accurate - fallback gap and all. Revisit with better layout.
         gap = 0
 
         if isinstance(self.gap, int):
             gap = self.gap
 
-        return (
-            sum(child.computed_height + gap for child in self.children)
-            - gap
-        )
+        return self.frame.height + sum(child.computed_height + gap for child in self.children) - gap
 
     @property
     def selected(self) -> Widget | None:
@@ -489,17 +473,10 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
 
                 child.clip(clip_start, clip_end)
 
-        if is_horizontal:
-            self._outer_dimensions = [
-                self._compute_shrink_width(),
-                self.computed_height,
-            ]
-
-        else:
-            self._outer_dimensions = [
-                self.computed_width,
-                self._compute_shrink_height(),
-            ]
+        self._outer_dimensions = [
+            self._compute_shrink_width(),
+            self._compute_shrink_height(),
+        ]
 
     def get_content(self) -> list[str]:
         """Calls our `arrange` method and returns a single empty line."""
