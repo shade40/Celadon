@@ -22,7 +22,7 @@ class Text(Widget):
         height: shrink
     """
 
-    def __init__(self, content: str, **widget_args: Any) -> None:
+    def __init__(self, content: str = "", **widget_args: Any) -> None:
         super().__init__(**widget_args)
 
         self.content = content
