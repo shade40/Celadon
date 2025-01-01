@@ -86,6 +86,7 @@ class Field(Widget):
 
     def _get_cursorline(self, x_offset=0, y_offset=0) -> tuple[str, str, str]:
         """Gets the line (left, cursor, right) at the current cursor + given offset."""
+
         x, y = self.cursor
         x += x_offset
         y += y_offset
@@ -320,7 +321,7 @@ class Field(Widget):
 
     def serialize(self) -> dict[str, Any]:
         if self.name is None:
-            raise ValueError(f"field {self!r} cannot be serialized without a name.")
+            return {}
 
         return {self.name: self.value}
 
