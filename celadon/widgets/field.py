@@ -328,7 +328,7 @@ class Field(Widget):
         value = self.value or self.placeholder
 
         if not value:
-            return [" " + self.styles["cursor"](" ") + " "]
+            return [" " + self.styles["cursor"](" ") + "[/] "]
 
         content_style = self.styles["content"]
         cursor_style = self.styles["cursor"]

@@ -106,7 +106,7 @@ class Slider(Widget):
 
     def serialize(self) -> dict[str, Any]:
         if self.name is None:
-            raise ValueError(f"slider {self!r} cannot be serialized without a name.")
+            return {}
 
         return {self.name: self.value}
 

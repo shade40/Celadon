@@ -65,7 +65,7 @@ class Dropdown(Tower):
 
     def serialize(self) -> dict[str, Any]:
         if self.name is None:
-            raise ValueError(f"dropdown {self!r} cannot be serialized without a name.")
+            return {}
 
         return {self.name: self.value}
 
