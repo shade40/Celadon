@@ -61,7 +61,6 @@ class Frame:  # pylint: disable=too-many-instance-attributes
         self.width = len(self.left + self.right)
         self.height = (self.borders[1] != "") + (self.borders[3] != "")
 
-
     def _parse_descriptor(self) -> tuple[CharTuple, CharTuple]:
         """Parses the descriptor into tuples of chartuples."""
 
