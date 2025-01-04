@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any, Callable, Generator, Iterable, Literal, T
 
 from slate import Event, Key, Span, Terminal
 from slate.span import EMPTY_SPAN
-from zenith.markup import FULL_RESET, zml_get_spans, zml_pre_process
+from zenith.markup import FULL_RESET, zml_get_spans, zml_pre_process, preserve_escapes
 
 from ..enums import Alignment, MouseAction, Overflow, Anchor
 from ..frames import Frame, get_frame
@@ -640,9 +640,12 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
 
         # Replace full unsetters with full unsetter + content style
         markup = RE_FULL_UNSETTER.sub("/ " + content_style, markup)
-        markup = zml_pre_process(markup)
 
-        return tuple(span for span in zml_get_spans(markup) if span is not FULL_RESET)
+        markup = zml_pre_process(preserve_escapes(markup))
+
+        return tuple(
+            span for span in zml_get_spans(markup) if span is not FULL_RESET
+        )
 
     def _update_scrollbars(self, width: int, height: int) -> None:
         def _get_size(computed: int, virtual: int, framed: int) -> int:
