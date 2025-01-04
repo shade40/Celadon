@@ -751,7 +751,7 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         alignment = self.alignment[0]
 
         width = max(width, self._virtual_width)
-        length = sum(len(span.text) for span in line)
+        length = sum(len(span) for span in line)
         diff = width - length
 
         style = self.styles["content"]
@@ -1351,7 +1351,9 @@ class Widget:  # pylint: disable=too-many-instance-attributes,too-many-public-me
 
         content_style = self.styles["content"]
         lines: list[tuple[Span, ...]] = [
-            self._parse_markup(content_style(line)) for line in self.get_content()
+            self._parse_markup(
+                content_style(preserve_escapes(line))
+            ) for line in self.get_content()
         ]
 
         self.on_content(self)

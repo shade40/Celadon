@@ -2,7 +2,7 @@ import string
 from typing import Any, Iterator
 
 from slate import Key
-from zenith import zml_wrap
+from zenith import zml_wrap, zml_escape
 
 from ..enums import MouseAction
 from .widget import Widget, to_widget_space
@@ -213,10 +213,6 @@ class Field(Widget):
     def handle_keyboard(self, key: Key) -> bool:
         binds = super().handle_keyboard(key)
 
-        # TODO: Properly handle markup in field value
-        if str(key) in "[]":
-            return True
-
         if key == "left":
             self.move_cursor(x=-1)
             return True
@@ -341,11 +337,16 @@ class Field(Widget):
                 cursor_style = content_style
 
         style = self.styles["placeholder" if not self.value else "content"]
-        left, cursor, right = self._get_cursorline()
+
+        left, cursor, right = (
+            zml_escape(part.replace("\\", "⧵"))
+            for part in self._get_cursorline()
+        )
+
         if cursor == "":
             cursor = " "
 
-        lines = self.lines
+        lines = [zml_escape(line) for line in self.lines]
         y = self.cursor[1]
 
         styled_cursor_line = " " + left + cursor_style(cursor) + "[/]" + right + " "

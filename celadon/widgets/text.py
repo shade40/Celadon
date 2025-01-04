@@ -29,7 +29,7 @@ class Text(Widget):
 
         self._wrapped_content = []
 
-        def _wrap_content(_: Widget) -> bool:
+        def _wrap_content(_ = None) -> bool:
             if self.wrap:
                 self._wrapped_content = zml_wrap(self.content, width=self._framed_width)
             else:
@@ -38,6 +38,7 @@ class Text(Widget):
             return True
 
         self.pre_content += _wrap_content
+        _wrap_content()
 
     def _compute_shrink_width(self) -> int:
         return max(
