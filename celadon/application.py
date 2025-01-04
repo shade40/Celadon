@@ -1126,6 +1126,14 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
         super().append(widget)
         self._mouse_target = widget
 
+    def unpin_last(self) -> Widget | None:
+        """Removes the most recently pinned widget and returns it."""
+
+        if len(self._children):
+            return self._children.pop()
+
+        return None
+
     def apply_rules(self) -> bool:
         page_applied = False
 
