@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 
 __all__ = ["Widget", "widget_types", "handle_mouse_on_children"]
 
-RE_FULL_UNSETTER = re.compile(r"(?<=\[)[^\]]*(\/)")
+RE_FULL_UNSETTER = re.compile(r"(?<=\[)[^\]]*(\/) ")
 
 
 def _get_mouse_action_name_options(action: MouseAction) -> tuple[str, ...]:
