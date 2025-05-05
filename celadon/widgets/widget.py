@@ -1498,7 +1498,7 @@ def handle_mouse_on_children(
             hover_target.handle_mouse(*release)
             hover_target = None
 
-    for child in children:
+    for child in sorted(children, key=lambda w: w.layer):
         if not child.contains(position):
             continue
 

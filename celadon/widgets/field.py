@@ -323,11 +323,11 @@ class Field(Widget):
 
     def get_content(self) -> list[str]:
         value = self.value or self.placeholder
+        content_style = self.styles["content"]
 
         if not value:
-            return [" " + self.styles["cursor"](" ") + "[/] "]
+            return [content_style(" ") + self.styles["cursor"](" ") + "[/]" + content_style(" ")]
 
-        content_style = self.styles["content"]
         cursor_style = self.styles["cursor"]
 
         if self.value == "":
@@ -349,7 +349,7 @@ class Field(Widget):
         lines = [zml_escape(line) for line in self.lines]
         y = self.cursor[1]
 
-        styled_cursor_line = " " + left + cursor_style(cursor) + "[/]" + right + " "
+        styled_cursor_line = " " + content_style(left) + cursor_style(cursor) + "[/]" + content_style(right) + " "
 
         return [
             *(f" {line} " for line in lines[:y]),

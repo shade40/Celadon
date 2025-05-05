@@ -9,6 +9,11 @@ class Link(Text):
     rules = """
     Link:
         height: 1
+        width: shrink
+        content_style: 'main.primary-1 underline'
+
+        /hover:
+            content_style: 'main.primary bold underline'
     """
 
     def __init__(self, content: str, to: str | None = None, **widget_args: Any) -> None:

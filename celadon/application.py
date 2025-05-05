@@ -948,9 +948,12 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
                     )
 
                     for widget in items:
+                        with open("log", "a") as f:
+                            f.write(str(widget) + "\n")
+
                         widget.compute_dimensions(width, height)
 
-                        for child in widget.drawables():
+                        for child in sorted(widget.drawables(), key=lambda w: w.layer):
                             origin = child.clipped_position
 
                             for i, line in enumerate(child.build()):
@@ -959,7 +962,7 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
                     self._should_draw = False
                     did_draw = True
 
-                write(str(self.fps), cursor=self._terminal.origin)
+                write(str(self.fps), cursor=(self.terminal.width - 3, self.terminal.height - 1))
                 draw()
 
                 on_frame_drawn(self)

@@ -187,6 +187,12 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
     def selected(self) -> Widget | None:
         return self._selected
 
+    def contains(self, position: tuple[int, int]) -> bool:
+        if any(child.contains(position) for child in filter(lambda c: c.anchor is not None, self.children)):
+            return True
+
+        return super().contains(position)
+
     def select(self, index: int | None = None) -> int | None:
         if index == 0 or self.selectable_count == 0:
             return index
@@ -330,11 +336,6 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
 
         children = self.visible_children
 
-        layouted_children = [
-            child for child in self.visible_children if child.anchor == Anchor.NONE
-        ]
-        layouted_count = len(layouted_children)
-
         width = self._framed_width - self.has_scrollbar(1)
         height = self._framed_height - self.has_scrollbar(0)
 
@@ -343,17 +344,25 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
         fill_buffer = width if is_horizontal else height
         fill_count = 0
 
-        for child in layouted_children:
-            if self._is_fill(child, is_horizontal):
-                fill_count += 1
-                continue
+        layouted_count = 0
 
-            child.compute_dimensions(width, height)
+        for child in self.visible_children:
+            if child.anchor == Anchor.NONE:
+                layouted_count += 1
 
-            if is_horizontal:
-                fill_buffer -= child.computed_width
+                if self._is_fill(child, is_horizontal):
+                    fill_count += 1
+                    continue
+
+                child.compute_dimensions(width, height)
+
+                if is_horizontal:
+                    fill_buffer -= child.computed_width
+                else:
+                    fill_buffer -= child.computed_height
+
             else:
-                fill_buffer -= child.computed_height
+                child.compute_dimensions(self.terminal.width, self.terminal.height)
 
         gap = self.gap
         gap_extra = 0
@@ -397,18 +406,25 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
                 offset = list(child.offset)
 
                 if offset[0] == "end":
-                    offset[0] = self.computed_width - child.computed_width
+                    offset[0] = self.terminal.width - child.computed_width
+
+                elif offset[0] == "start":
+                    offset[0] = 0
 
                 elif child.offset[0] < 0:
                     offset[0] -= -offset[0]
 
                 if offset[1] == "end":
-                    offset[1] = self.computed_height - child.computed_height
+                    offset[1] = self.terminal.height - child.computed_height
+
+                elif offset[1] == "start":
+                    offset[1] = 0
 
                 elif child.offset[1] < 0:
                     offset[1] -= -offset[1]
 
-                child.move_to(x + offset[0], y + offset[1])
+                child.move_to(offset[0], offset[1])
+                child.clip([0, 0], [0, 0])
 
             elif child.anchor == Anchor.PARENT:
                 child.compute_dimensions(width, height)
@@ -428,6 +444,7 @@ class Container(Widget):  # pylint: disable=too-many-public-methods
                     offset[1] -= -offset[1]
 
                 child.move_to(t_ox + offset[0], t_oy + offset[1])
+                child.clip([0, 0], [0, 0])
 
             else:  # child.anchor == Anchor.NONE
                 # TODO: Some of these could be computed out of loop.
