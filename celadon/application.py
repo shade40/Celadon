@@ -1226,8 +1226,8 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
                     self.process_input(inp)
 
                 except Exception as exc:  # pylint: disable=broad-exception-caught
-                    self.stop()
                     self._raised = exc
+                    self.stop()
                     break
 
             thread.join()
