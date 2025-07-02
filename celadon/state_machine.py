@@ -43,17 +43,25 @@ def deep_merge(
 class StateMachine:
     """A state manager to manage widget state."""
 
-    on_change: Event
+    on_change: Event[str]
     """Called when the state changes.
 
     Args:
         state: The new (changed-to) state.
     """
 
+    on_action: Event[str]
+    """Called when an action is applied.
+
+    Args:
+        action: The action.
+    """
+
     def __init__(
         self, states: tuple[str, ...], *, transitions: dict[str, dict[str, str]]
     ) -> None:
-        self.on_change = Event("State Changed")
+        self.on_change = Event("on state changed")
+        self.on_action = Event("on action")
 
         self.states = states
         self._transitions = transitions
@@ -122,6 +130,8 @@ class StateMachine:
         Args:
             action: An action name.
         """
+
+        self.on_action(action)
 
         if action.startswith("SUBSTATE_"):
             transitions = self._transitions[self._substate]

@@ -2,6 +2,7 @@ from enum import Enum
 
 __all__ = [
     "Alignment",
+    "Anchor",
     "Overflow",
     "MouseAction",
 ]
