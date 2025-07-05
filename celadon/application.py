@@ -75,12 +75,17 @@ class Application:
 
     def run(self) -> None:
         def _draw_loop() -> None:
+            framecount = 0
             framerates = []
             fps_sample = 5
             target_frametime = 1 / 60
 
+            last_lines = []
+
             with terminal.no_echo(), terminal.alt_buffer():
                 while self._is_running:
+                    framecount += 1
+
                     start = perf_counter()
 
                     changes = 0
@@ -89,15 +94,27 @@ class Application:
                     for widget in self.page.get_widgets():
                         origin = widget.clipped_position
 
+                        widget_lines = []
                         for i, line in enumerate(widget.build()):
-                            lines.append(((origin[0], origin[1] + i), line))
+                            widget_lines.append(((origin[0], origin[1] + i), line))
+
+                        lines.extend(widget_lines)
 
                     with terminal.batch():
-                        changes = terminal.write_bulk(lines) 
+                        changes = 0
+
+                        if lines != last_lines:
+                            changes = terminal.write_bulk(lines) 
+
+                        last_lines = lines
+
+                        write_start = perf_counter()
+                        perc = round((perf_counter() - write_start) / target_frametime * 100, 1)
 
                         terminal.write(f"FPS / Frametime: {self.fps} / {self.frametime}", (0, 0))
                         terminal.write(f"Changes (excl. debug info): {changes}    ", (0, 1))
 
+                        draw_start = perf_counter()
                         terminal.draw()
 
                     # FPS management
@@ -125,6 +142,10 @@ class Application:
             if inp == "ctrl-c":
                 self.stop()
                 break
+
+            if inp == "ctrl-l":
+                terminal.clear()
+                continue
 
             try:
                 self.process_input(inp)
@@ -191,19 +212,11 @@ if __name__ == "__main__":
             if not state["active"]:
                 return
 
-            if original is None:
-                original = widget.position[1]
-
             offset = int(sin(frames / 60 * 2 * pi) * 10)
-            widget.position = widget.position[0], original + offset
+            widget.offset = 30, 12 + offset
 
             frames += 1
-
-            if offset % 20 == 0:
-                if widget.state_machine() == "idle":
-                    widget.state_machine.apply_action("SELECTED")
-                else:
-                    widget.state_machine.apply_action("UNSELECTED")
+            widget.dirty = True
 
         widget.on_build_start += _jump
 
@@ -225,10 +238,10 @@ if __name__ == "__main__":
     row.gap = 1
     row.width = 100
     row.alignment = tuple([Alignment.CENTER] * 2)
-    opt_box = Tower([Text("Some options"), row])
+    opt_box = Tower([Text("Some options" * 2), row])
     opt_box.frame = frames.Rounded()
-    opt_box.style_map["idle"]["background"] = "@.primary"
-    opt_box.style_map["selected"]["background"] = "@.secondary"
+    opt_box.style_map["idle"]["background"] = "@.secondary"
+    # opt_box.style_map["selected"]["background"] = "@.secondary"
 
     t = Text("My first container")
     root = Tower([t, opt_box])
@@ -238,6 +251,7 @@ if __name__ == "__main__":
     root.compute_dimensions(terminal.width, terminal.height - 2)
     root.frame = frames.Heavy()
     root.position = 0, 2
+    # root.style_map["idle"]["background"] = "@" + terminal.background_color.hex
 
     s = Slider(name="slider", value=0.2, chars=("│", "█"), thumb_size=3)
     s.vertical = True
@@ -254,20 +268,22 @@ if __name__ == "__main__":
     st.gap = 0
     root.append(st)
 
-    root.style_map["idle"]["background"] = "@.panel2-3"
+    # root.style_map["idle"]["background"] = "@.panel2-3"
 
     open("log.txt", "w").close()
     open("size_log.txt", "w").close()
 
-    floating = Tower([Text("Hello!")])
+    floating = Tower([Text("Hello!"), Slider(value=0.7)])
     floating.frame = frames.Light()
 
     floating.anchor = Anchor.SCREEN
-    floating.offset = (20, 2)
+    floating.offset = (30, 2)
     floating.alignment = (Alignment.CENTER, Alignment.CENTER)
     floating.width = 40
     floating.height = 20
-    floating.style_map["idle"]["background"] = "@.panel1*0.5"
+    floating.style_map["idle"]["background"] = "@.primary*0.7"
+    floating.style_map["selected"]["background"] = "@.secondary*0.7"
+    floating.add_behaviour(jump_behaviour)
 
     root.append(floating)
 

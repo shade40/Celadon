@@ -489,8 +489,6 @@ class Widget:
 
     def get_contents(self) -> list[str]:
         return []
-    
-
 
     def is_root(self) -> bool:
         return self.parent is not None and not isinstance(self.parent, Widget)

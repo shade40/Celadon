@@ -55,6 +55,7 @@ def button(widget: Widget):
         widget.style_map[k]["frame"] = ".primary-1"
         widget.style_map[k]["background"] = "@.panel1-1"
 
+    widget.style_map["selected"]["content"] = "bold"
     widget.style_map["selected"]["background"] = "@.panel1+1"
 
     widget.frame = frames.Frame.compose([
@@ -110,6 +111,7 @@ def container(direction: Direction, widget: Widget) -> dict[str, Any]:
     @widget.on_build_start.append
     def set_active_children(self):
         self.active_children = [child for child in self.children if not child.inert]
+        self.inert = all(child.inert for child in self.active_children)
 
     @widget.on_build_start.append
     def arrange(self):
