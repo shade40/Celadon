@@ -282,7 +282,7 @@ class Widget:
             parent = parent.parent
 
         background = _fill_palette(background)
-        styles = { "background": background if raw else lambda text, bg=background: f"[{bg}]{text}[/]" }
+        styles = { "background": background if raw else lambda text, bg=background: f"[{bg}]{text}[/bg]" }
 
         for name, style in values.items():
             if name == "background":
@@ -293,7 +293,7 @@ class Widget:
             if raw:
                 styles[name] = style
             else:
-                styles[name] = lambda text, style=style: f"[{style}]{text}[/]"
+                styles[name] = lambda text, style=style: f"[{style}]{text}[/fg]"
 
         self._cached_styles[raw] = styles
 

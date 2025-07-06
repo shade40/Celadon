@@ -261,6 +261,16 @@ def container(direction: Direction, widget: Widget) -> dict[str, Any]:
         self, key = args
         up, down = [["arrow-up", "arrow-left"], ["arrow-down", "arrow-right"]]
 
+        if key in ["tab", "shift-tab"]:
+            self.selected.state_machine.apply_action("UNSELECTED")
+            self.selected_index = min(
+                max(self.selected_index + (-1 if "shift" in key else 1), 0),
+                len(widget.active_children) - 1
+            )
+            self.selected = self.active_children[self.selected_index]
+            self.state_machine.apply_action("SELECTED")
+            return True
+
         if key not in [*up, *down]:
             return self.selected is not None and self.selected.handle_keyboard(key)
 
@@ -308,6 +318,7 @@ def form_item(widget: Widget):
     def initialize(self, value: ValueType, name: str = "") -> None:
         self.name = name
         self.value = value
+        self.on_change: Event[Widget] = Event("on value change")
 
     @widget.bind
     def serialize(self) -> dict[str, ValueType]:
@@ -353,8 +364,12 @@ def slider(widget: Widget):
         self.value = max(0, self.value)
         self.value = min(self.value, 1)
         self.value = round(self.value, 1)
+        changed = round(original, 1) == round(self.value, 1)
 
-        return round(original, 1) == round(self.value, 1)
+        if changed:
+            self.on_change(self)
+
+        return changed
 
     @widget.bind
     def get_contents(self):
@@ -389,3 +404,77 @@ def slider(widget: Widget):
     widget.style_map["selected"]["frame"] = ".primary"
 
 Slider = Widget.create_type("Slider", behaviours=[ form_item, drag_event, slider ])
+
+def cursor(widget: Widget):
+    @widget.add_initializer
+    def initialize(self, value: tuple[int, int] = (0, 0)):
+        self._capturing = False
+        self._last: Key | None = None
+        self.value = value
+
+    @widget.bind
+    def get_contents(self) -> list[str]:
+        styles = self.get_styles()
+
+        def _style(char, key):
+            if self._last == key:
+                return styles["content"](char)
+
+            return styles["frame"](char)
+
+        center = _style("o", None) if self._capturing else _style(".", None)
+        up = _style("ʌ", "up")
+        left = _style("<", "left")
+        right = _style(">", "right")
+        down = _style("v", "down")
+
+        return [
+            f"  {up}  ",
+            f"{left} {center} {right}",
+            f"  {down}  ",
+        ]
+
+    @widget.on_key.append
+    def handle(args):
+        self, key = args
+
+        if key == " ":
+            self._capturing = not self._capturing
+            return True
+
+        if not self._capturing:
+            self._last = None
+            return False
+
+        if key not in ("arrow-left", "arrow-right", "arrow-up", "arrow-down"):
+            return False
+
+        x = self.value[0]
+        y = self.value[1]
+
+        if "left" in key:
+            x -= 0.1
+        elif "right" in key:
+            x += 0.1
+        elif "up" in key:
+            y -= 0.1
+        elif "down" in key:
+            y += 0.1
+
+        self._last = key
+
+        original = (x, y)
+        self.value = (max(min(x, 1), 0), max(min(y, 1), 0))
+
+        self.on_change(self)
+
+        return True
+
+    widget.width = -1
+    widget.height = -1
+
+    widget.style_map["idle"]["content"] = ".panel1-1"
+    widget.style_map["selected"]["content"] = ".primary bold"
+
+
+Cursor = Widget.create_type("Cursor", behaviours=[ form_item, cursor ])

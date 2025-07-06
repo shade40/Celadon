@@ -231,80 +231,78 @@ if __name__ == "__main__":
         widget.on_key += _pause
 
 
-    from celadon import Slider, Tower, Row, Button, Text, frames, enums, Alignment, Anchor
+    from celadon import Slider, Tower, Row, Button, Text, frames, enums, Alignment, Anchor, Cursor
 
-    # """
-    row = Row([Button("Crash", submit_callback=lambda _: 1/0), Button("Fail"), Button("Third option")])
-    row.gap = 1
-    row.width = 100
-    row.alignment = tuple([Alignment.CENTER] * 2)
-    opt_box = Tower([Text("Some options" * 2), row])
-    opt_box.frame = frames.Rounded()
-    opt_box.style_map["idle"]["background"] = "@.secondary"
-    # opt_box.style_map["selected"]["background"] = "@.secondary"
-
-    t = Text("My first container")
-    root = Tower([t, opt_box])
+    root = Tower([])
     root.width = 1.0
     root.height = 1.0
-    root.alignment = (Alignment.CENTER, Alignment.CENTER)
-    root.compute_dimensions(terminal.width, terminal.height - 2)
-    root.frame = frames.Heavy()
     root.position = 0, 2
-    # root.style_map["idle"]["background"] = "@" + terminal.background_color.hex
+    root.frame = frames.Rounded()
+    root.compute_dimensions(terminal.width, terminal.height - 2)
+    root.alignment = (Alignment.CENTER, Alignment.CENTER)
 
-    s = Slider(name="slider", value=0.2, chars=("│", "█"), thumb_size=3)
-    s.vertical = True
-    s.height = 1.0
-    s.width = 1
-    s.frame = frames.Frame.compose((frames.Frameless, frames.Light, frames.Frameless, frames.Light))
+    opt_box = Tower([Text("Some options " * 2), Row([Button("One"), Button("Two"), Button("Three")])])
+    opt_box.frame = frames.VerticalOuter()
+    opt_box.style_map["idle"]["background"] = "@.panel1"
+    opt_box.style_map["selected"]["background"] = "@.panel1"
+    opt_box.width = 80
+    opt_box.alignment = (Alignment.CENTER, Alignment.CENTER)
+    slider = Slider(value=0.5)
+    opt_box.append(slider)
+    root.append(opt_box)
 
-    r = Row([Slider(value=0.5, thumb_size=5), Text("o")])
-    r.width = 1.0
-    st = Tower([r, s])
-    st.alignment = (Alignment.END, Alignment.START)
-    st.height = 1.0
-    st.width = 1.0
-    st.gap = 0
-    root.append(st)
+    cursor = Cursor(value=(0, 0))
 
-    # root.style_map["idle"]["background"] = "@.panel2-3"
+    @cursor.on_change.append
+    def move(self):
+        rng_x = terminal.width - floating.computed_width
+        rng_y = terminal.height - floating.computed_height
+        floating.offset = (round(rng_x * self.value[0]), round(rng_y * self.value[1]))
+        floating.offset = 20 + int(self.value[0] * 10), 10 + int(self.value[1] * 10)
+        
 
-    open("log.txt", "w").close()
-    open("size_log.txt", "w").close()
-
-    floating = Tower([Text("Hello!"), Slider(value=0.7)])
-    floating.frame = frames.Light()
-
+    floating = Tower([Text("Floating   window"), cursor])
+    floating.frame = frames.Padded()
+    floating.width = 60
     floating.anchor = Anchor.SCREEN
-    floating.offset = (30, 2)
+    floating.offset = 25, 10
     floating.alignment = (Alignment.CENTER, Alignment.CENTER)
-    floating.width = 40
-    floating.height = 20
-    floating.style_map["idle"]["background"] = "@.primary*0.7"
-    floating.style_map["selected"]["background"] = "@.secondary*0.7"
-    floating.add_behaviour(jump_behaviour)
+
+    opacity = 0
+    direction = 1
+
+    @floating.on_build_start.append
+    def swipe_opacity(self):
+        global opacity, direction
+
+        opacity += direction * 0.01
+
+        if opacity < 0:
+            direction = 1
+            opacity = 0
+        elif opacity > 1:
+            direction = -1
+            opacity = 1
+
+        if not (0 <= opacity <= 1.0):
+            opacity = 0
+
+        floating.style_map["idle"]["background"] = f"@black*{opacity}"
+        floating.style_map["selected"]["background"] = f"@black*{opacity}"
+
+    floating.style_map["idle"]["background"] = f"@black*0"
+    floating.style_map["selected"]["background"] = f"@black*0"
+
+    # @slider.on_change.append
+    # def set_opacity(self):
+    #     floating.style_map["idle"]["background"] = f"@black*{round(self.value, 1)}"
+    #     floating.style_map["selected"]["background"] = f"@black*{round(self.value, 1)}"
+
+    # set_opacity(slider)
 
     root.append(floating)
 
     app = Application()
-
-    """
-    open("log.txt", "w").close()
-    app = Application()
-
-    t = Text("01234567890")
-    i = Tower([Text("hello")])
-    i.frame = frames.Heavy()
-    root = Tower([t, Button("cap")])
-    root.style_map["idle"]["background"] = "@red"
-    root.style_map["selected"]["background"] = ""
-    root.width = 1.0
-    root.height = 1.0
-    root.position = 0, 2
-    root.frame = frames.Light()
-    root.compute_dimensions(terminal.width, terminal.height - 2)
-    """
 
     app.add(Page("/", root))
     app.navigate("/")
