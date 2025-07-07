@@ -920,6 +920,7 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
         frametime = 1 / self._framerate
 
         clear = self._terminal.clear
+        write_bulk = self._terminal.write_bulk
         write = self._terminal.write
         draw = self._terminal.draw
 
@@ -940,27 +941,26 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
                 width, height = self._terminal.size
 
                 if self.apply_rules() or self._should_draw:
-                    clear()
-
                     items = sorted(  # type: ignore
                         [*self._page, *self._children],
                         key=lambda w: w.layer,
                     )
+                    
+                    lines = []
 
                     for widget in items:
-                        with open("log", "a") as f:
-                            f.write(str(widget) + "\n")
-
                         widget.compute_dimensions(width, height)
 
                         for child in sorted(widget.drawables(), key=lambda w: w.layer):
                             origin = child.clipped_position
 
                             for i, line in enumerate(child.build()):
-                                write(line, cursor=(origin[0], origin[1] + i))
+                                lines.append(((origin[0], origin[1] + i), line))
 
                     self._should_draw = False
                     did_draw = True
+
+                changes = write_bulk(lines)
 
                 write(str(self.fps), cursor=(self.terminal.width - 3, self.terminal.height - 1))
                 draw()
@@ -970,7 +970,6 @@ class Application(Page):  # pylint: disable=too-many-instance-attributes
 
                 # Calculate & manage FPS
                 elapsed = perf_counter() - start
-
                 if did_draw:
                     framerates.append(1 / elapsed)
 
