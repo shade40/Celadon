@@ -100,21 +100,17 @@ class Application:
 
                         lines.extend(widget_lines)
 
+                    changes = 0
+
+                    if lines != last_lines:
+                        changes = terminal.write_bulk(lines) 
+
+                    last_lines = lines
+
+                    terminal.write(f"FPS / Frametime: {self.fps} / {self.frametime}", (0, 0))
+                    terminal.write(f"Changes (excl. debug info): {changes}    ", (0, 1))
+
                     with terminal.batch():
-                        changes = 0
-
-                        if lines != last_lines:
-                            changes = terminal.write_bulk(lines) 
-
-                        last_lines = lines
-
-                        write_start = perf_counter()
-                        perc = round((perf_counter() - write_start) / target_frametime * 100, 1)
-
-                        terminal.write(f"FPS / Frametime: {self.fps} / {self.frametime}", (0, 0))
-                        terminal.write(f"Changes (excl. debug info): {changes}    ", (0, 1))
-
-                        draw_start = perf_counter()
                         terminal.draw()
 
                     # FPS management
@@ -259,9 +255,8 @@ if __name__ == "__main__":
         rng_y = terminal.height - floating.computed_height
         floating.offset = (round(rng_x * self.value[0]), round(rng_y * self.value[1]))
         floating.offset = 20 + int(self.value[0] * 10), 10 + int(self.value[1] * 10)
-        
 
-    floating = Tower([Text("Floating   window"), cursor])
+    floating = Tower([Text("Floating window"), cursor])
     floating.frame = frames.Padded()
     floating.width = 60
     floating.anchor = Anchor.SCREEN
@@ -271,34 +266,12 @@ if __name__ == "__main__":
     opacity = 0
     direction = 1
 
-    @floating.on_build_start.append
-    def swipe_opacity(self):
-        global opacity, direction
+    @slider.on_change.append
+    def set_opacity(self):
+        floating.style_map["idle"]["background"] = f"@black*{round(self.value, 1)}"
+        floating.style_map["selected"]["background"] = f"@black*{round(self.value, 1)}"
 
-        opacity += direction * 0.01
-
-        if opacity < 0:
-            direction = 1
-            opacity = 0
-        elif opacity > 1:
-            direction = -1
-            opacity = 1
-
-        if not (0 <= opacity <= 1.0):
-            opacity = 0
-
-        floating.style_map["idle"]["background"] = f"@black*{opacity}"
-        floating.style_map["selected"]["background"] = f"@black*{opacity}"
-
-    floating.style_map["idle"]["background"] = f"@black*0"
-    floating.style_map["selected"]["background"] = f"@black*0"
-
-    # @slider.on_change.append
-    # def set_opacity(self):
-    #     floating.style_map["idle"]["background"] = f"@black*{round(self.value, 1)}"
-    #     floating.style_map["selected"]["background"] = f"@black*{round(self.value, 1)}"
-
-    # set_opacity(slider)
+    set_opacity(slider)
 
     root.append(floating)
 

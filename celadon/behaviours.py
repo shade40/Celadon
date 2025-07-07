@@ -13,7 +13,7 @@ def text(widget: Widget):
     widget.width = -1
 
     for state in widget.style_map.keys():
-        widget.style_map[state]["content"] = ""
+        widget.style_map[state]["content"] = "opaque"
 
     @widget.add_initializer
     def initialize(self, text: str) -> list[str]:
@@ -429,9 +429,9 @@ def cursor(widget: Widget):
         down = _style("v", "down")
 
         return [
-            f"  {up}  ",
-            f"{left} {center} {right}",
-            f"  {down}  ",
+            f"   {up}  ",
+            f"[opaque] {left} {center} {right} ",
+            f"   {down}  ",
         ]
 
     @widget.on_key.append
