@@ -227,53 +227,22 @@ if __name__ == "__main__":
         widget.on_key += _pause
 
 
-    from celadon import Slider, Tower, Row, Button, Text, frames, enums, Alignment, Anchor, Cursor
+    from celadon import Slider, Tower, Row, Button, Text, frames, enums, Alignment, Anchor, Cursor, TextField, Overflow
 
-    root = Tower([])
+    root = Tower([Text("Hey!")])
     root.width = 1.0
     root.height = 1.0
     root.position = 0, 2
     root.frame = frames.Rounded()
     root.compute_dimensions(terminal.width, terminal.height - 2)
     root.alignment = (Alignment.CENTER, Alignment.CENTER)
+    root.overflow = (Overflow.HIDE, Overflow.HIDE)
 
-    opt_box = Tower([Text("Some options " * 2), Row([Button("One"), Button("Two"), Button("Three")])])
-    opt_box.frame = frames.VerticalOuter()
-    opt_box.style_map["idle"]["background"] = "@.panel1"
-    opt_box.style_map["selected"]["background"] = "@.panel1"
-    opt_box.width = 80
-    opt_box.alignment = (Alignment.CENTER, Alignment.CENTER)
-    slider = Slider(value=0.5)
-    opt_box.append(slider)
-    root.append(opt_box)
-
-    cursor = Cursor(value=(0, 0))
-
-    @cursor.on_change.append
-    def move(self):
-        rng_x = terminal.width - floating.computed_width
-        rng_y = terminal.height - floating.computed_height
-        floating.offset = (round(rng_x * self.value[0]), round(rng_y * self.value[1]))
-        floating.offset = 20 + int(self.value[0] * 10), 10 + int(self.value[1] * 10)
-
-    floating = Tower([Text("Floating window"), cursor])
-    floating.frame = frames.Padded()
-    floating.width = 60
-    floating.anchor = Anchor.SCREEN
-    floating.offset = 25, 10
-    floating.alignment = (Alignment.CENTER, Alignment.CENTER)
-
-    opacity = 0
-    direction = 1
-
-    @slider.on_change.append
-    def set_opacity(self):
-        floating.style_map["idle"]["background"] = f"@black*{round(self.value, 1)}"
-        floating.style_map["selected"]["background"] = f"@black*{round(self.value, 1)}"
-
-    set_opacity(slider)
-
-    root.append(floating)
+    for i in range(4):
+        child = Tower([Text(f"Submenu #{i}"), Row([Button("Accept"), Button("Deny"), Button("Cancel")]), TextField("Hello!")])
+        child.alignment = (Alignment.CENTER, Alignment.CENTER)
+        child.frame = frames.Light()
+        root.append(child)
 
     app = Application()
 

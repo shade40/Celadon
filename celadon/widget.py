@@ -108,8 +108,8 @@ class Widget:
         self.type_name = type_name
 
         self.position = (0, 0)
-        self.width = None
-        self.height = None
+        self.width = -1
+        self.height = -1
         self.computed_width = 1
         self.computed_height = 1
         self.scroll = (0, 0)
@@ -167,7 +167,7 @@ class Widget:
             },
             "selected": {
                 "background": "",
-                "frame": ".panel1+1",
+                "frame": ".panel1+2",
                 "content": ".text bold",
                 "scrollbar_x": "@.panel1-2",
                 "scrollbar_y": "@.panel1-2",

@@ -1,11 +1,33 @@
+import string
+
 from functools import partial
 from typing import Any, Callable, TypeVar
 
 from slate import Key, Event, Span, terminal
+from zenith import zml_escape
 
 from . import frames
 from .enums import Alignment, Direction, Anchor
 from .widget import Widget
+
+PRINTABLE_LIST = [*string.printable]
+
+def _find_word_end(line: str, direction: int = 1) -> int:
+    """Returns the distance from the next word boundary."""
+
+    # Consistent with unix shell behaviour:
+    # * Always delete first char, then remove any non-punctuation
+    # Note that the exact behaviour isn't standardized:
+    # * Python repl: until change in letter+digit & punctuation
+    # * Unix shells: only removes letter+digit
+    word_chars = string.ascii_letters + string.digits
+
+    if direction == -1:
+        strip_line = line.rstrip(word_chars)
+    else:
+        strip_line = line.lstrip(word_chars)
+
+    return -direction * (len(strip_line) - len(line)) + direction
 
 def text(widget: Widget):
     widget.inert = True
@@ -239,7 +261,6 @@ def container(direction: Direction, widget: Widget) -> dict[str, Any]:
 
     @widget.bind
     def get_contents(self) -> list[str]:
-        # return []
         return [self._virtual_width * " "] * self._virtual_height
 
     @widget.bind
@@ -259,19 +280,33 @@ def container(direction: Direction, widget: Widget) -> dict[str, Any]:
     @widget.on_key.append
     def handle_selection(args):
         self, key = args
-        up, down = [["arrow-up", "arrow-left"], ["arrow-down", "arrow-right"]]
 
         if key in ["tab", "shift-tab"]:
-            self.selected.state_machine.apply_action("UNSELECTED")
-            self.selected_index = min(
-                max(self.selected_index + (-1 if "shift" in key else 1), 0),
-                len(widget.active_children) - 1
-            )
+            if self.selected is not None:
+                self.selected.state_machine.apply_action("UNSELECTED")
+
+                self.selected_index = min(
+                    max(self.selected_index + (-1 if "shift" in str(key) else 1), 0),
+                    len(widget.active_children) - 1
+                )
+
             self.selected = self.active_children[self.selected_index]
             self.state_machine.apply_action("SELECTED")
             return True
 
-        if key not in [*up, *down]:
+        if key == "esc":
+            self.state_machine.apply_action("UNSELECTED")
+            self.selected_index = 0
+            self.selected = None
+            return True
+
+        is_horizontal = direction == Direction.HORIZONTAL
+        up, down = [
+            ["arrow-up", "arrow-left"][is_horizontal],
+            ["arrow-down", "arrow-right"][is_horizontal]
+        ]
+
+        if key not in [up, down]:
             return self.selected is not None and self.selected.handle_keyboard(key)
 
         original = self.selected_index
@@ -283,7 +318,7 @@ def container(direction: Direction, widget: Widget) -> dict[str, Any]:
             self.selected.state_machine.apply_action("UNSELECTED")
 
             self.selected_index = min(
-                max(self.selected_index + (1 if key in down else -1), 0),
+                max(self.selected_index + (1 if key == down else -1), 0),
                 len(widget.active_children) - 1
             )
 
@@ -476,5 +511,218 @@ def cursor(widget: Widget):
     widget.style_map["idle"]["content"] = ".panel1-1"
     widget.style_map["selected"]["content"] = ".primary bold"
 
-
 Cursor = Widget.create_type("Cursor", behaviours=[ form_item, cursor ])
+
+def text_field(widget: Widget):
+    widget.frame = frames.Frame.compose((frames.Double, frames.Frameless, frames.Frameless, frames.Frameless))
+    widget.width = 1.0
+
+    for state in widget.state_machine:
+        if state == "selected":
+            widget.style_map[state]["cursor"] = "@white"
+        else:
+            widget.style_map[state]["cursor"] = ""
+
+    @widget.add_initializer
+    def initialize(self, value: str = "", name: str = "", placeholder: str = ""):
+        self.value = value
+        self.name = name
+        self.placeholder = placeholder
+        self.cursor = (0, 0)
+
+        self.cursor_line = ("", "", "")
+        self._lines = []
+        self._eval_lines()
+        self.multiline = True
+
+    @widget.bind
+    def _eval_lines(self) -> None:
+        self._lines = self.value.split("\n")
+
+        x, y = self.cursor
+        line = self._lines[y]
+
+        left, right = line[:x], line[x + 1 :]
+        cursor = line[x] if x < len(line) else ""
+        self.cursor_line = left, cursor, right
+
+    @widget.bind
+    def move_cursor(self, x: int = 0, y: int = 0, absolute: bool = False) -> bool:
+        original = self.cursor
+
+        if not absolute:
+            x += self.cursor[0]
+            y += self.cursor[1]
+
+        y = max(0, min(len(self._lines) - 1, y))
+
+        line = self._lines[y]
+
+        x = max(0, min(len(line), x))
+
+        self.cursor = (x, y)
+        self._eval_lines()
+
+        return self.cursor != original
+
+    @widget.bind
+    def set_line(self, y: int, line: str) -> None:
+        self.value = "\n".join(
+            [
+                *self._lines[:y],
+                line,
+                *self._lines[y + 1 :],
+            ]
+        )
+
+        self._eval_lines()
+
+    @widget.bind
+    def delete_trailing_newline(self) -> None:
+        """Deletes a newline from the end of the current line.
+
+        No-op when y == 0.
+        """
+
+        x, y = self.cursor
+
+        if y == 0:
+            return
+
+        line = self._lines[y - 1]
+        left, right = line[:x], line[x + 1 :]
+        cursor = line[x] if x < len(line) else ""
+
+        # TODO: Must we copy?
+        self._lines[y - 1] += self._lines[y]
+        self._lines.pop(y)
+
+        self.value = "\n".join(self._lines)
+
+        # self.scroll = (self.scroll[0], self.scroll[1] - 1)
+        self.move_cursor(y=-1, x=len(left+cursor+right))
+        self._eval_lines()
+
+    @widget.on_key.append
+    def handle_input(args) -> bool:
+        self, key = args 
+
+        if key == "left":
+            return self.move_cursor(-1, 0)
+
+        if key == "right":
+            return self.move_cursor(1, 0)
+
+        if key == "up":
+            return self.move_cursor(0, -1)
+
+        if key == "down":
+            return self.move_cursor(0, 1)
+
+        x, y = self.cursor
+        left, cursor, right = self.cursor_line
+
+        if key == "alt-left":
+            return self.move_cursor(x=_find_word_end(left, direction=-1))
+
+        if key == "alt-right":
+            return self.move_cursor(x=_find_word_end(right + " "))
+
+        if key == "ctrl-left":
+            return self.move_cursor(0, y, absolute=True)
+
+        if key == "ctrl-right":
+            return self.move_cursor(len(left + cursor + right), y, absolute=True)
+
+        if key == "backspace":
+            if x == 0:
+                self.delete_trailing_newline()
+                return True
+
+            self.set_line(y, left[: -max(1, len(cursor))] + cursor + right)
+
+            self.move_cursor(x=-1)
+            return True
+
+        if key == "ctrl-backspace":
+            if x == 0:
+                self.delete_trailing_newline()
+                return True
+
+            self.set_line(y, cursor + right)
+            change = len(left)
+
+            self.move_cursor(x=-change)
+            return True
+
+        if key == "alt-backspace":
+            if x == 0:
+                self.delete_trailing_newline()
+                return True
+
+            distance = _find_word_end(left, direction=-1)
+
+            self.set_line(y, left[:distance] + right)
+            self.move_cursor(x=distance)
+
+            return True
+
+        if key == "return":
+            if not self.multiline:
+                return True
+
+            lines = self._lines
+
+            if cursor != "":
+                right = cursor + right
+
+            lines[y] = left
+
+            if len(lines) > y + 1:
+                lines.insert(y + 1, right)
+            else:
+                lines.append(right)
+
+            self.value = "\n".join(lines)
+            self.move_cursor(x=-self.cursor[0], y=1)
+            return True
+
+        if key in PRINTABLE_LIST:
+            self.set_line(y, left + str(key) + cursor + right)
+            self.move_cursor(x=1)
+            return True
+
+    @widget.bind
+    def get_contents(self) -> list[str]:
+        value = self.value or self.placeholder
+        styles = self.get_styles()
+        frame_style = styles["frame"]
+        content_style = styles["content"]
+        cursor_style = styles["cursor"]
+
+        if not value:
+            return [content_style(" ") + cursor_style(" ") + "[/]" + content_style(" ")]
+
+        if self.value == "":
+            content_style = frame_style
+
+        left, cursor, right = (
+            zml_escape(part.replace("\\", "⧵"))
+            for part in self.cursor_line
+        )
+
+        if cursor == "":
+            cursor = " "
+
+        lines = [zml_escape(line) for line in self._lines]
+        y = self.cursor[1]
+
+        styled_cursor_line = " " + content_style(left) + cursor_style(cursor) + "[/]" + content_style(right) + " "
+
+        return [
+            *(f" {line} " for line in lines[:y]),
+            styled_cursor_line,
+            *(f" {line} " for line in lines[y + 1 :]),
+        ]
+
+TextField = Widget.create_type("TextField", behaviours=[ form_item, text_field ])
