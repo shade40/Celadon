@@ -238,8 +238,15 @@ if __name__ == "__main__":
     root.alignment = (Alignment.CENTER, Alignment.CENTER)
     root.overflow = (Overflow.HIDE, Overflow.HIDE)
 
+    text = """\
+One two
+three four
+five
+
+six"""
+
     for i in range(4):
-        child = Tower([Text(f"Submenu #{i}"), Row([Button("Accept"), Button("Deny"), Button("Cancel")]), TextField("Hello!")])
+        child = Tower([Text(f"Submenu #{i}"), Row([Button("Accept"), Button("Deny"), Button("Cancel")]), TextField(text)])
         child.alignment = (Alignment.CENTER, Alignment.CENTER)
         child.frame = frames.Light()
         root.append(child)

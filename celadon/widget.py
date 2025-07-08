@@ -89,20 +89,6 @@ class Widget:
 
         return _construct
 
-    def bind(self, function: Callable) -> Callable:
-        bound = function.__get__(self, self.__class__)
-        setattr(self, function.__name__, bound)
-
-        return bound
-
-    def add_initializer(self, function: Callable) -> Callable:
-        self.initializers.append(self.bind(function))
-
-        return function
-
-    def add_behaviour(self, behaviour: Callable[[Widget], dict[str, Any]]) -> None:
-        behaviour(self)
-
     def __init__(self, *, eid: str | None = None, type_name: str = "Widget") -> None:
         self.eid = eid or str(uuid.uuid4())
         self.type_name = type_name
@@ -244,6 +230,20 @@ class Widget:
             self.position[0] + self._clip_start[0],
             self.position[1] + self._clip_start[1],
         )
+
+    def bind(self, function: Callable) -> Callable:
+        bound = function.__get__(self, self.__class__)
+        setattr(self, function.__name__, bound)
+
+        return bound
+
+    def add_initializer(self, function: Callable) -> Callable:
+        self.initializers.append(self.bind(function))
+
+        return function
+
+    def add_behaviour(self, behaviour: Callable[[Widget], dict[str, Any]]) -> None:
+        behaviour(self)
 
     def get_styles(self, raw: bool = False) -> dict[str, Callable[[str], str] | str]:
         # if self._cached_styles[raw] is not None:

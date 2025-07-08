@@ -529,6 +529,7 @@ def text_field(widget: Widget):
         self.name = name
         self.placeholder = placeholder
         self.cursor = (0, 0)
+        self._cursor_column_hint = 0
 
         self.cursor_line = ("", "", "")
         self._lines = []
@@ -547,12 +548,32 @@ def text_field(widget: Widget):
         self.cursor_line = left, cursor, right
 
     @widget.bind
-    def move_cursor(self, x: int = 0, y: int = 0, absolute: bool = False) -> bool:
-        original = self.cursor
+    def move_cursor(self, dx: int = 0, dy: int = 0, absolute: bool = False, smart: bool = False) -> bool:
+        cx, cy = self.cursor
+        reset_hint = False
 
-        if not absolute:
-            x += self.cursor[0]
-            y += self.cursor[1]
+        if absolute:
+            x, y = dx, dy
+
+        else:
+            if smart:
+                if dx < 0 and cx == 0 and cy <= len(self._lines):
+                    cx = 0
+                    dx = len(self._lines[cy - 1])
+                    dy -= 1
+
+                    reset_hint = True
+
+                elif 0 < dx and cx == len(self._lines[cy]) and dy == 0:
+                    cx = 0
+                    dx = 0
+                    dy += 1
+
+                    self._cursor_column_hint = 0
+                    reset_hint = True
+
+            x = max(cx + dx, self._cursor_column_hint)
+            y = cy + dy
 
         y = max(0, min(len(self._lines) - 1, y))
 
@@ -560,10 +581,15 @@ def text_field(widget: Widget):
 
         x = max(0, min(len(line), x))
 
+        if reset_hint:
+            self._cursor_column_hint = 0
+        else:
+            self._cursor_column_hint = max(self._cursor_column_hint, x)
+
         self.cursor = (x, y)
         self._eval_lines()
 
-        return self.cursor != original
+        return self.cursor != (cx, cy)
 
     @widget.bind
     def set_line(self, y: int, line: str) -> None:
@@ -600,7 +626,7 @@ def text_field(widget: Widget):
         self.value = "\n".join(self._lines)
 
         # self.scroll = (self.scroll[0], self.scroll[1] - 1)
-        self.move_cursor(y=-1, x=len(left+cursor+right))
+        self.move_cursor(dy=-1, dx=len(left+cursor+right))
         self._eval_lines()
 
     @widget.on_key.append
@@ -608,25 +634,33 @@ def text_field(widget: Widget):
         self, key = args 
 
         if key == "left":
-            return self.move_cursor(-1, 0)
+            self._cursor_column_hint = 0
+            return self.move_cursor(dx=-1, smart=True)
 
         if key == "right":
-            return self.move_cursor(1, 0)
+            self._cursor_column_hint = 0
+            return self.move_cursor(dx=1, smart=True)
 
         if key == "up":
-            return self.move_cursor(0, -1)
+            return self.move_cursor(dy=-1, smart=True)
 
         if key == "down":
-            return self.move_cursor(0, 1)
+            return self.move_cursor(dy=1, smart=True)
+
+        if key == "ctrl-up":
+            return self.move_cursor(dx=self.cursor[0], dy=0, absolute=True)
+
+        if key == "ctrl-down":
+            return self.move_cursor(dx=self.cursor[0], dy=len(self._lines) - 1, absolute=True)
 
         x, y = self.cursor
         left, cursor, right = self.cursor_line
 
         if key == "alt-left":
-            return self.move_cursor(x=_find_word_end(left, direction=-1))
+            return self.move_cursor(dx=_find_word_end(left, direction=-1))
 
         if key == "alt-right":
-            return self.move_cursor(x=_find_word_end(right + " "))
+            return self.move_cursor(dx=_find_word_end(right + " "))
 
         if key == "ctrl-left":
             return self.move_cursor(0, y, absolute=True)
@@ -641,7 +675,8 @@ def text_field(widget: Widget):
 
             self.set_line(y, left[: -max(1, len(cursor))] + cursor + right)
 
-            self.move_cursor(x=-1)
+            self._cursor_column_hint = 0
+            self.move_cursor(dx=-1)
             return True
 
         if key == "ctrl-backspace":
@@ -652,7 +687,8 @@ def text_field(widget: Widget):
             self.set_line(y, cursor + right)
             change = len(left)
 
-            self.move_cursor(x=-change)
+            self._cursor_column_hint = 0
+            self.move_cursor(dx=-change)
             return True
 
         if key == "alt-backspace":
@@ -662,8 +698,9 @@ def text_field(widget: Widget):
 
             distance = _find_word_end(left, direction=-1)
 
-            self.set_line(y, left[:distance] + right)
-            self.move_cursor(x=distance)
+            self.set_line(y, left[:distance] + cursor + right)
+            self._cursor_column_hint = 0
+            self.move_cursor(dx=distance)
 
             return True
 
@@ -684,12 +721,13 @@ def text_field(widget: Widget):
                 lines.append(right)
 
             self.value = "\n".join(lines)
-            self.move_cursor(x=-self.cursor[0], y=1)
+            self._cursor_column_hint = 0
+            self.move_cursor(dx=-self.cursor[0], dy=1)
             return True
 
         if key in PRINTABLE_LIST:
             self.set_line(y, left + str(key) + cursor + right)
-            self.move_cursor(x=1)
+            self.move_cursor(dx=1)
             return True
 
     @widget.bind
