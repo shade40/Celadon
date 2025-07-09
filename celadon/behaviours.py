@@ -315,15 +315,18 @@ def container(direction: Direction, widget: Widget) -> dict[str, Any]:
             if self.selected.handle_keyboard(key):
                 return True
 
-            self.selected.state_machine.apply_action("UNSELECTED")
-
+            # Only change selected index if we already have a selected -
+            # i.e. don't jump from unselected to selected==1
             self.selected_index = min(
                 max(self.selected_index + (1 if key == down else -1), 0),
-                len(widget.active_children) - 1
+                len(self.active_children) - 1
             )
 
         if self.selected_index == original and not self.is_root():
             return False
+
+        if self.selected is not None:
+            self.selected.state_machine.apply_action("UNSELECTED")
 
         self.selected = widget.active_children[self.selected_index]
         self.state_machine.apply_action("SELECTED")
@@ -557,7 +560,7 @@ def text_field(widget: Widget):
 
         else:
             if smart:
-                if dx < 0 and cx == 0 and cy <= len(self._lines):
+                if dx < 0 and cx == 0 and 0 < cy <= len(self._lines):
                     cx = 0
                     dx = len(self._lines[cy - 1])
                     dy -= 1
