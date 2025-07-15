@@ -108,30 +108,32 @@ class Application:
 
             while self._is_running:
                 if animation_budget > 0:
+                    # TODO: While animating we should run the renderer in a loop
+                    #       with sleeps for target frametime, or a better solution.
+                    #       This just doesn't work.
                     inp = getch_timeout(target_frametime)
                 else:
                     inp = getch()
 
-                if inp and str(inp) != "":
-                    if inp == "ctrl-c":
-                        self.stop()
-                        break
+                if inp == "ctrl-c":
+                    self.stop()
+                    break
 
-                    if inp == "ctrl-l":
-                        terminal.clear()
-                        self._start_render()
-                        continue
+                if inp == "ctrl-l":
+                    terminal.clear()
+                    self._start_render()
+                    continue
 
-                    try:
-                        self.process_input(inp)
-                        current_budget = _calculate_animation_budget()
-                        animation_budget = max(animation_budget, current_budget)
+                try:
+                    self.process_input(inp)
 
-                    except Exception as exc:
-                        self._raised = exc
-                        self.stop()
-                        break
+                except Exception as exc:
+                    self._raised = exc
+                    self.stop()
+                    break
 
+                current_budget = _calculate_animation_budget()
+                animation_budget = max(animation_budget, current_budget)
                 self._start_render()
 
                 if animation_budget > 0:
