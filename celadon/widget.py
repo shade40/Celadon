@@ -18,7 +18,7 @@ from .state_machine import StateMachine
 if TYPE_CHECKING:
     from .application import Application
 
-__all__ = ["Widget"]
+__all__ = ["Animation", "Widget"]
 
 
 def _compute(spec: int | float | None, hint: int) -> int:
@@ -50,6 +50,8 @@ def _apply_style(line: str, style: Callable[[str], str]) -> tuple[Span, ...]:
 class Animation:
     duration: int
     loop: bool
+
+    frame: int = 0
     on_frame: Event[tuple["Animation", "Widget"]] = None
 
     _initial_duration: int = 0
@@ -60,6 +62,8 @@ class Animation:
         self._initial_duration = self.duration
 
     def tick(self, widget: "Widget") -> bool:
+        self.frame = self._initial_duration - self.duration
+
         self.on_frame((self, widget))
         self.duration -= 1
 
