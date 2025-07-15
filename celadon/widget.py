@@ -4,6 +4,7 @@ import re
 import uuid
 from copy import deepcopy
 from functools import lru_cache
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable, Type
 
 from slate import Event, Span, Key
@@ -11,7 +12,7 @@ from slate.span import EMPTY_SPAN
 from zenith.markup import zml_get_spans, zml_pre_process, preserve_escapes, FULL_RESET
 
 from .enums import Alignment, Anchor, Overflow
-from .frames import Frame, get_frame
+from .frames import Frame, Frameless, get_frame
 from .state_machine import StateMachine
 
 if TYPE_CHECKING:
@@ -45,6 +46,33 @@ def _apply_style(line: str, style: Callable[[str], str]) -> tuple[Span, ...]:
         span for span in zml_get_spans(line) if span is not FULL_RESET
     )
 
+@dataclass
+class Animation:
+    duration: int
+    loop: bool
+    on_frame: Event[tuple[Animation, Widget]] = field(default_factory=lambda: Event("on animation frame"))
+
+    _initial_duration: int = 0
+    _queue_removal: bool = False
+
+    def __post_init__(self) -> None:
+        self._initial_duration = duration
+
+    def tick(self, widget: Widget) -> bool:
+        self.on_frame((self, widget))
+        self.duration -= 1
+
+        if self.duration == 0:
+            if not loop:
+                return True
+
+            self.duration = self._initial_duration
+
+        return False
+
+    def remove(self) -> None:
+        self._queue_removal = True
+
 
 class Widget:
     position: tuple[int, int]
@@ -59,6 +87,7 @@ class Widget:
     parts: list[Widget]
     palette: str
     inert: bool
+    animations: list[Animation]
 
     @classmethod
     def create_type(cls, name: str, behaviours: list[Callable[Widget]]) -> Callable[[Any, ...], Widget]:
@@ -98,12 +127,26 @@ class Widget:
         self.height = -1
         self.computed_width = 1
         self.computed_height = 1
-        self.scroll = (0, 0)
         self.layer = 0
         self.parent = None
-        self.parts = []
         self.dirty = True
         self.inert = False
+        self.parts = []
+        self.animations = []
+        self.frame = get_frame(None)()
+        self.alignment = (Alignment.START, Alignment.START)
+        self.overflow = (Overflow.HIDE, Overflow.HIDE)
+
+        self._cached_styles = [None, None]
+
+        self._virtual_width = 0
+        self._virtual_height = 0
+        self._clip_start = (0, 0)
+        self._clip_end = (0, 0)
+        self._last_build = None
+        self._scrollbars = tuple()
+        
+        self.scroll = (0, 0)
 
         self.anchor = Anchor.NONE
         self.offset = (0, 0)
@@ -180,19 +223,7 @@ class Widget:
                 "scrollbar_y": "@.panel1-3",
             }
         }
-
-        self.frame = get_frame(None)()
-        self.alignment = (Alignment.START, Alignment.START)
-        self.overflow = (Overflow.HIDE, Overflow.HIDE)
-     
-        self._cached_styles = [None, None]
-
-        self._virtual_width = 0
-        self._virtual_height = 0
-        self._clip_start = (0, 0)
-        self._clip_end = (0, 0)
-        self._last_build = None
-        
+ 
         self.on_init: Event[Widget] = Event("on init")
 
         self.on_content_start: Event[Widget] = Event("pre content")
@@ -229,6 +260,91 @@ class Widget:
         return (
             self.position[0] + self._clip_start[0],
             self.position[1] + self._clip_start[1],
+        )
+
+    @property
+    def clipped_height(self) -> int:
+        return self.computed_height - self._clip_start[0] - self._clip_end[0] - 1
+
+    @property
+    def inner_rect(self) -> tuple[tuple[int, int], tuple[int, int]]:
+        frame = self.frame
+        frame_bottom_raw = self.frame.bottom != ""
+        frame_right_raw = self.frame.right != ""
+
+        frame_left = (frame.left != "") * (self._clip_start[0] == 0)
+        frame_right = frame_right_raw * (self._clip_end[0] == 0)
+        frame_top = (frame.top != "") * (self._clip_start[1] == 0)
+        frame_bottom = frame_bottom_raw * (self._clip_end[1] == 0)
+
+        # Only add space for bars if they are clipped
+        right_bar = self.has_scrollbar(1)
+        if self._clip_end[1] > frame_right_raw:
+            right_bar = 0
+
+        bottom_bar = self.has_scrollbar(0)
+        if self._clip_end[1] > frame_bottom_raw:
+            bottom_bar = 0
+
+        return (
+            (
+                self.position[0] + self._clip_start[0] + frame_left,
+                self.position[1] + self._clip_start[1] + frame_top,
+            ),
+            (
+                (
+                    self.position[0]
+                    + self.computed_width
+                    - frame_right
+                    - self._clip_end[0]
+                    - right_bar
+                ),
+                (
+                    self.position[1]
+                    + self.computed_height
+                    - frame_bottom
+                    - self._clip_end[1]
+                    - bottom_bar
+                ),
+            ),
+        )
+
+    @property
+    def outer_rect(self) -> tuple[tuple[int, int], tuple[int, int]]:
+        return self.position, (
+            self.position[0] + self.computed_width,
+            self.position[1] + self.computed_height,
+        )
+
+    @property
+    def scrollbars(self) -> tuple[Slider, Slider, Text]:
+        if not self._scrollbars:
+            from .behaviours import Slider, Text
+
+            x = Slider(value=0.5, chars=(" ", "▅"))
+            x.frame = Frameless()
+            x.style_map["idle"]["frame"] = ".panel1-1"
+            y = Slider(value=0.5, chars=(" ", "█"), vertical=True)
+            y.style_map["idle"]["frame"] = ".panel1-1"
+            y.frame = Frameless()
+            t = Text("o")
+
+            self._scrollbars = (x, y, t)
+
+        return self._scrollbars
+
+    @property
+    def scroll(self) -> tuple[int, int]:
+        return self._scroll
+
+    @scroll.setter
+    def scroll(self, new: tuple[int, int]) -> None:
+        x_bar = self._framed_width < self._virtual_width
+        y_bar = self._framed_height < self._virtual_height
+
+        self._scroll = (
+            max(min(new[0], self._virtual_width - self._framed_width + x_bar), 0),
+            max(min(new[1], self._virtual_height - self._framed_height + y_bar), 0),
         )
 
     def bind(self, function: Callable) -> Callable:
@@ -298,6 +414,22 @@ class Widget:
         self._cached_styles[raw] = styles
 
         return styles
+
+    def has_scrollbar(self, index: Literal[0, 1]) -> bool:
+        overflow = self.overflow[index]
+
+        if overflow is Overflow.SCROLL:
+            return True
+
+        if overflow is Overflow.HIDE:
+            return False
+
+        real, virt = [
+            (self._framed_width, self._virtual_width),
+            (self._framed_height, self._virtual_height),
+        ][index]
+
+        return virt > real
 
     def _vertical_truncate(self, lines: list[tuple[Span, ...]], height: int) -> list[tuple[Span, ...]]:
         if self._virtual_height > height:
@@ -473,7 +605,63 @@ class Widget:
         return lines
 
     def _update_scrollbars(self, width: int, height: int) -> None:
-        ...
+        def _get_size(computed: int, virtual: int, framed: int) -> int:
+            return int(computed * (framed / (virtual or framed)))
+
+        if not self.has_scrollbar(0) and not self.has_scrollbar(1):
+            return
+
+        x, y, fill = self.scrollbars
+        x.value = (self.scroll[0] + self.computed_width) / self._virtual_width
+        y.value = self.scroll[1] / (self._virtual_height - self._framed_height)
+        # print(y.value, self.scroll[1], self._virtual_height, self.computed_height)
+
+        x.compute_dimensions(width, 1)
+        y.compute_dimensions(1, height)
+
+        frame_left = self.frame.left != ""
+        frame_top = self.frame.top != ""
+        frame_right = self.frame.right != ""
+        frame_bottom = self.frame.bottom != ""
+
+        clip_start = list(self._clip_start)
+        clip_end = list(self._clip_end)
+
+        [start_x, start_y], [end_x, end_y] = self.outer_rect
+
+        clip_start[0] = max(0, clip_start[0] - frame_left)
+        clip_start[1] = max(0, clip_start[1] - frame_top)
+
+        start_x += self.frame.left != ""
+        start_y += self.frame.top != ""
+
+        clip_end[0] = max(0, clip_end[0] - frame_right)
+        clip_end[1] = max(0, clip_end[1] - frame_bottom)
+
+        end_x -= frame_right + 1
+        end_y -= frame_bottom + 1
+
+        x.position = (start_x, end_y)
+        x.clip(
+            (clip_start[0], max(0, clip_start[1] - height)),
+            clip_end
+        )
+
+        y.position = (end_x, start_y)
+        y.clip(
+            (max(0, clip_start[0] - width), clip_start[1]),
+            clip_end
+        )
+
+        fill.position = (end_x, end_y)
+        fill.clip(clip_start, clip_end)
+
+        x.thumb_size = _get_size(
+            self.computed_width, self._virtual_width, width
+        )
+        y.thumb_size = _get_size(
+            self.computed_height, self._virtual_height, height
+        )
 
     def set_dirty(self, value: bool = True):
         self.dirty = value
@@ -499,20 +687,11 @@ class Widget:
         width = self._framed_width
         height = self._framed_height
 
-        def _clamp_scrolls() -> tuple[int, int]:
-            x_bar = width < self._virtual_width
-            y_bar = height < self._virtual_height
-
-            return (
-                max(min(self.scroll[0], self._virtual_width - width + x_bar), 0),
-                max(min(self.scroll[1], self._virtual_height - height + y_bar), 0),
-            )
-
-        self.scroll = _clamp_scrolls()
-
         self.on_content_start(self)
         content = self.get_contents()
         self.on_content(self)
+
+        self.animations = filter(lambda anim: anim.tick(self), self.animations)
 
         styles = self.get_styles()
 

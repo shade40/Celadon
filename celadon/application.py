@@ -227,7 +227,7 @@ if __name__ == "__main__":
         widget.on_key += _pause
 
 
-    from celadon import Slider, Tower, Row, Button, Text, frames, enums, Alignment, Anchor, Cursor, TextField, Overflow
+    from celadon import Slider, Tower, Row, Button, Text, frames, enums, Alignment, Anchor, Cursor, TextField, Overflow, Matrix
 
     root = Tower([Text("Hey!")])
     root.width = 1.0
@@ -236,7 +236,7 @@ if __name__ == "__main__":
     root.frame = frames.Rounded()
     root.compute_dimensions(terminal.width, terminal.height - 2)
     root.alignment = (Alignment.CENTER, Alignment.CENTER)
-    root.overflow = (Overflow.HIDE, Overflow.HIDE)
+    root.overflow = (Overflow.AUTO, Overflow.AUTO)
 
     text = """\
 One two
@@ -245,8 +245,13 @@ five
 
 six"""
 
-    for i in range(4):
-        child = Tower([Text(f"Submenu #{i}"), Row([Button("Accept"), Button("Deny"), Button("Cancel")]), TextField(text)])
+    for i in range(3):
+        child = Tower([
+            Text(f"Submenu #{i}"),
+            Row([Button("Accept"), Button("Deny"), Button("Cancel")]),
+            TextField(text),
+            Matrix(20, 10)
+        ])
         child.alignment = (Alignment.CENTER, Alignment.CENTER)
         child.frame = frames.Light()
         root.append(child)

@@ -1,14 +1,14 @@
 import string
 
-from functools import partial
+from functools import partial, lru_cache
 from typing import Any, Callable, TypeVar
 
-from slate import Key, Event, Span, terminal
+from slate import Key, Event, Span, terminal, Color
 from zenith import zml_escape
 
 from . import frames
 from .enums import Alignment, Direction, Anchor
-from .widget import Widget
+from .widget import Widget, _apply_style
 
 PRINTABLE_LIST = [*string.printable]
 
@@ -78,7 +78,8 @@ def button(widget: Widget):
         widget.style_map[k]["background"] = "@.panel1-1"
 
     widget.style_map["selected"]["content"] = "bold"
-    widget.style_map["selected"]["background"] = "@.panel1+1"
+    widget.style_map["selected"]["background"] = "@white"
+    widget.style_map["selected"]["frame"] = "@white"
 
     widget.frame = frames.Frame.compose([
         frames.Double,
@@ -153,10 +154,10 @@ def container(direction: Direction, widget: Widget) -> dict[str, Any]:
             return widget_child.height is None or (isinstance(widget_child.height, float) and widget_child.height > 0)
 
         x, y = self.position
-        frame_offset_x = 1 if hasattr(self.frame, 'left') and self.frame.left else 0
-        frame_offset_y = 1 if hasattr(self.frame, 'top') and self.frame.top else 0
-        x += frame_offset_x
-        y += frame_offset_y
+        x += (1 if self.frame.left else 0)
+        x -= self.scroll[0]
+        y += 1 if self.frame.top else 0
+        y -= self.scroll[1]
         
         children = self.children
         
@@ -164,8 +165,8 @@ def container(direction: Direction, widget: Widget) -> dict[str, Any]:
             self.parts = []
             return
         
-        available_width = max(self.computed_width - 2 * frame_offset_x, 1)
-        available_height = max(self.computed_height - 2 * frame_offset_y, 1)
+        available_width = self.computed_width - self.frame.width
+        available_height = self.computed_height - self.frame.height
         
         direction = self.direction
         is_horizontal = direction == Direction.HORIZONTAL
@@ -226,6 +227,8 @@ def container(direction: Direction, widget: Widget) -> dict[str, Any]:
             content_align_y, content_align_y_extra = _align(self.alignment[1], available_height - total_content_height)
             current_y += content_align_y + content_align_y_extra
 
+        s_start, s_end = [list(val) for val in self.inner_rect]
+
         for child in children:
             all_children.extend([child, *child.parts])
 
@@ -242,8 +245,37 @@ def container(direction: Direction, widget: Widget) -> dict[str, Any]:
                 
                 child.position = (current_x + align_x + align_x_extra, current_y)
                 current_y += child.computed_height + gap
+
+            clip_start, clip_end = [0, 0], [0, 0]
+
+            c_start, c_end = child.outer_rect
+
+            if c_start[0] < s_start[0]:
+                clip_start[0] = s_start[0] - c_start[0]
+
+            if c_start[1] < s_start[1]:
+                clip_start[1] = s_start[1] - c_start[1]
+
+            if s_end[0] < c_end[0]:
+                clip_end[0] = c_end[0] - s_end[0]
+
+            if s_end[1] < c_end[1]:
+                clip_end[1] = c_end[1] - s_end[1]
+
+            child.clip(clip_start, clip_end)
         
-        self.parts = all_children
+        self.parts = [*all_children]
+
+        bar_x, bar_y, bar_fill = self.scrollbars
+
+        if self.has_scrollbar(0):
+            self.parts.append(bar_x)
+
+        if self.has_scrollbar(1):
+            self.parts.append(bar_y)
+
+        if self.has_scrollbar(0) and self.has_scrollbar(1):
+            self.parts.append(bar_fill)
         
         # Update virtual dimensions based on children
         non_anchored = [child for child in children if child.anchor is Anchor.NONE]
@@ -276,12 +308,57 @@ def container(direction: Direction, widget: Widget) -> dict[str, Any]:
             widget.selected = widget.active_children[widget.selected_index]
 
         widget.selected.state_machine.apply_action(action)
+
+    @widget.on_key.append
+    def handle_scroll(args):
+        self, key = args
+
+        if "shift-arrow" in str(key):
+            return False
+
+        scroll = list(self.scroll)
+
+        if key == "shift-up":
+            scroll[1] -= 2
+        elif key == "shift-down":
+            scroll[1] += 2
+        elif key == "shift-left":
+            scroll[0] -= 2
+        elif key == "shift-right":
+            scroll[0] += 2
+        elif key == "ctrl-shift-up":
+            scroll[1] = 0
+        elif key == "ctrl-shift-down":
+            scroll[1] = self._virtual_height
+
+        original = self.scroll
+        self.scroll = tuple(scroll) 
+
+        return original != self.scroll
+ 
+    def autoscroll():
+        if widget.selected is None:
+            return
+
+        sel = widget.selected
+        w, h = sel.computed_width, sel.computed_height
+        csx, csy = sel._clip_start
+        cex, cey = sel._clip_end
+
+        sx, sy = widget.scroll
+        if cey > csy:
+            widget.scroll = (sx + cex, sy + cey)
+        elif csy > cey:
+            widget.scroll = (sx - csx, sy - csy)
+ 
  
     @widget.on_key.append
     def handle_selection(args):
         self, key = args
 
         if key in ["tab", "shift-tab"]:
+            original = self.selected
+
             if self.selected is not None:
                 self.selected.state_machine.apply_action("UNSELECTED")
 
@@ -292,6 +369,7 @@ def container(direction: Direction, widget: Widget) -> dict[str, Any]:
 
             self.selected = self.active_children[self.selected_index]
             self.state_machine.apply_action("SELECTED")
+            autoscroll()
             return True
 
         if key == "esc":
@@ -330,6 +408,7 @@ def container(direction: Direction, widget: Widget) -> dict[str, Any]:
 
         self.selected = widget.active_children[self.selected_index]
         self.state_machine.apply_action("SELECTED")
+        autoscroll()
 
         return True
 
@@ -384,6 +463,15 @@ def slider(widget: Widget):
         self.vertical = vertical
         self.rail, self.thumb = chars
 
+        if vertical:
+            widget.width = 1
+            widget.height = None
+            widget.frame = frames.Frame.compose((frames.Frameless, frames.Light, frames.Frameless, frames.Light))
+        else:
+            widget.width = None
+            widget.height = 1
+            widget.frame = frames.Frame.compose((frames.Light, frames.Frameless, frames.Light, frames.Frameless))
+
     @widget.on_key.append
     def handle_cursor(args) -> bool:
         self, key = args
@@ -412,7 +500,6 @@ def slider(widget: Widget):
     @widget.bind
     def get_contents(self):
         thumb_char = self.thumb.replace("\\", "")
-        thumb = self.thumb_size * [thumb_char]
 
         if self.vertical:
             size = self._framed_height - self.thumb_size
@@ -432,9 +519,6 @@ def slider(widget: Widget):
             return line
         
         return ["".join(line)]
-
-    widget.height = -1
-    widget.frame = frames.Frame.compose((frames.Light, frames.Frameless, frames.Light, frames.Frameless))
 
     widget.style_map["idle"]["content"] = ".panel1-2"
     widget.style_map["selected"]["content"] = ".panel1+1"
@@ -567,7 +651,7 @@ def text_field(widget: Widget):
 
                     reset_hint = True
 
-                elif 0 < dx and cx == len(self._lines[cy]) and dy == 0:
+                elif 0 < dx and cx == len(self._lines[cy]) and dy == 0 and cy < len(self._lines) - 1:
                     cx = 0
                     dx = 0
                     dy += 1
@@ -622,13 +706,12 @@ def text_field(widget: Widget):
         left, right = line[:x], line[x + 1 :]
         cursor = line[x] if x < len(line) else ""
 
-        # TODO: Must we copy?
         self._lines[y - 1] += self._lines[y]
         self._lines.pop(y)
 
         self.value = "\n".join(self._lines)
 
-        # self.scroll = (self.scroll[0], self.scroll[1] - 1)
+        self.scroll = (self.scroll[0], self.scroll[1] - 1)
         self.move_cursor(dy=-1, dx=len(left+cursor+right))
         self._eval_lines()
 
@@ -767,3 +850,89 @@ def text_field(widget: Widget):
         ]
 
 TextField = Widget.create_type("TextField", behaviours=[ form_item, text_field ])
+
+def matrix(widget: Widget):
+    @widget.add_initializer
+    def initialize(self, width: int = 10, height: int = 10):
+        self.width = width
+        self.height = height
+        self.cursor = (0, 0)
+        self._checkerboard = []
+        self._data: list[list[Color]] = []
+
+        for y in range(self.height):
+            line = []
+
+            for x in range(self.width):
+                line.append("main.panel1-3" if (x + y % 2) % 2 else "main.panel1-1")
+
+            self._checkerboard.append(line)
+            self._data.append([None] * self.width)
+
+    @lru_cache
+    def _color_from_style(style: str | Callable) -> Color:
+        if not callable(style):
+            raw = style
+            style = lambda x: f"[{raw}]{x}[/]"
+
+        span = _apply_style(" ", style)[0]
+
+        return span.foreground or span.background
+
+    @widget.on_key.append
+    def move_cursor(args) -> bool:
+        self, key = args
+
+        cx, cy = self.cursor
+
+        if key == "arrow-up":
+            cy -= 1
+        elif key == "arrow-down":
+            cy += 1
+        elif key == "arrow-left":
+            cx -= 1
+        elif key == "arrow-right":
+            cx += 1
+        elif key == "return":
+            current = self._data[cy][cx]
+            self._data[cy][cx] = None if current else "white"
+        else:
+            return False
+
+        og = self.cursor
+        self.cursor = (
+            max(0, min(cx, self.width - 1)),
+            max(0, min(cy, self.height - 1)),
+        )
+
+        return self.cursor != og
+
+
+    @widget.bind
+    def get_contents(self) -> list[str]:
+        styles = self.get_styles()
+
+        lines = []
+
+        for y in range(self.height):
+            line = []
+            for x in range(self.width):
+                if self.cursor == (x, y) and self.state_machine() == "selected":
+                    color = Color.white().darken(5)
+                else:
+                    color = _color_from_style(self._data[y][x] or self._checkerboard[y][x])
+
+                line.append(color.hex)
+
+            if y % 2:
+                lines.append("".join(
+                    f"[@{bg} {fg}]▄[/]"
+                    for fg, bg in zip(line, last)
+                ))
+
+            else:
+                last = line
+
+        return lines
+
+Matrix = Widget.create_type("Matrix", behaviours=[ matrix ])
