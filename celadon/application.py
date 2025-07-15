@@ -294,7 +294,11 @@ six"""
                 Matrix(20, 10),
             ]
         )
-        child.alignment = (Alignment.CENTER, Alignment.CENTER)
+
+        for _ in range(i):
+            child.append(Row([Button("One"), Button("Two"), Button("Three")]))
+
+        # child.alignment = (Alignment.CENTER, Alignment.CENTER)
         child.frame = frames.Light()
         root.append(child)
 

@@ -853,21 +853,21 @@ TextField = Widget.create_type("TextField", behaviours=[ form_item, text_field ]
 
 def matrix(widget: Widget):
     @widget.add_initializer
-    def initialize(self, width: int = 10, height: int = 10):
-        self.width = width
-        self.height = height
+    def initialize(self, cols: int = 10, rows: int = 10):
+        self.cols = cols
+        self.rows = rows
         self.cursor = (0, 0)
         self._checkerboard = []
         self._data: list[list[Color]] = []
 
-        for y in range(self.height):
+        for y in range(self.rows):
             line = []
 
-            for x in range(self.width):
+            for x in range(self.cols):
                 line.append("main.panel1-3" if (x + y % 2) % 2 else "main.panel1-1")
 
             self._checkerboard.append(line)
-            self._data.append([None] * self.width)
+            self._data.append([None] * self.cols)
 
     @lru_cache
     def _color_from_style(style: str | Callable) -> Color:
@@ -901,8 +901,8 @@ def matrix(widget: Widget):
 
         og = self.cursor
         self.cursor = (
-            max(0, min(cx, self.width - 1)),
-            max(0, min(cy, self.height - 1)),
+            max(0, min(cx, self.cols - 1)),
+            max(0, min(cy, self.rows - 1)),
         )
 
         return self.cursor != og
@@ -914,9 +914,9 @@ def matrix(widget: Widget):
 
         lines = []
 
-        for y in range(self.height):
+        for y in range(self.rows):
             line = []
-            for x in range(self.width):
+            for x in range(self.cols):
                 if self.cursor == (x, y) and self.state_machine() == "selected":
                     color = Color.white().darken(5)
                 else:
