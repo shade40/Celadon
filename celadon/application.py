@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from threading import Thread
-from time import perf_counter, sleep
+from threading import Thread, Event as ThreadEvent, Lock
 
-from slate import terminal, getch, feed, Key
+from slate import terminal, getch, getch_timeout, feed, Key
 
 from .widget import Widget
 from .enums import MouseAction
+
 
 def _parse_mouse_input(key: Key) -> tuple[MouseAction, tuple[int, int]] | None:
     inp = str(key)
@@ -26,6 +26,7 @@ def _parse_mouse_input(key: Key) -> tuple[MouseAction, tuple[int, int]] | None:
 
     return MouseAction(action), (int(parts[0]), int(parts[1]))
 
+
 class Page:
     location: str
     root: Widget
@@ -43,6 +44,7 @@ class Page:
 
         return items
 
+
 class Application:
     title: str
 
@@ -52,17 +54,20 @@ class Application:
     def __init__(self, title: str = "", pages: list[Page] | None = None) -> None:
         self.pages = {}
 
-        for page in (pages or []):
+        for page in pages or []:
             self.add(page)
-
-        self.fps = 0
-        self.frametime = 0
 
         self._draw_thread = None
         self._is_running = False
         self._raised = None
 
         self._target = None
+
+        # Threading for render abortion
+        self._current_render_thread = None
+        self._render_abort_event = ThreadEvent()
+        self._render_lock = Lock()
+        self._last_lines = []
 
     def process_input(self, inp: Key) -> None:
         mouse_event = _parse_mouse_input(inp)
@@ -74,87 +79,109 @@ class Application:
             self._target.handle_keyboard(inp)
 
     def run(self) -> None:
-        def _draw_loop() -> None:
-            framecount = 0
-            framerates = []
-            fps_sample = 5
-            target_frametime = 1 / 60
+        def _calculate_animation_budget():
+            active_animations = []
 
-            last_lines = []
+            for widget in self.page.get_widgets():
+                active_animations.extend(widget.animations)
 
-            with terminal.no_echo(), terminal.alt_buffer():
-                while self._is_running:
-                    framecount += 1
+            if not active_animations:
+                return 0
 
-                    start = perf_counter()
+            max_duration = 0
 
-                    changes = 0
-                    lines = []
+            for anim in active_animations:
+                if anim.loop:
+                    max_duration = max(max_duration, 300)
+                else:
+                    max_duration = max(max_duration, anim.duration)
 
-                    for widget in self.page.get_widgets():
-                        origin = widget.clipped_position
+            return max_duration
 
-                        widget_lines = []
-                        for i, line in enumerate(widget.build()):
-                            widget_lines.append(((origin[0], origin[1] + i), line))
-
-                        lines.extend(widget_lines)
-
-                    changes = 0
-
-                    if lines != last_lines:
-                        changes = terminal.write_bulk(lines) 
-
-                    last_lines = lines
-
-                    terminal.write(f"FPS / Frametime: {self.fps} / {self.frametime}", (0, 0))
-                    terminal.write(f"Changes (excl. debug info): {changes}    ", (0, 1))
-
-                    with terminal.batch():
-                        terminal.draw()
-
-                    # FPS management
-                    elapsed = perf_counter() - start
-                    self.frametime = round(elapsed, 5)
-                    framerates.append(1 / elapsed)
-
-                    if elapsed < target_frametime:
-                        sleep((target_frametime - elapsed) * 0.9)
-
-                    fps_framecount = len(framerates)
-                    if fps_framecount > fps_sample:
-                        framerates.pop(0)
-
-                    self.fps = round(sum(framerates) / min(fps_framecount, fps_sample))
+        animation_budget = 0
+        target_frametime = 1 / 60
 
         self._is_running = True
 
-        self._draw_thread = Thread(target=_draw_loop)
-        self._draw_thread.start()
+        with terminal.no_echo(), terminal.alt_buffer():
+            self._start_render()
 
-        while self._is_running:
-            inp = getch()
+            while self._is_running:
+                if animation_budget > 0:
+                    inp = getch_timeout(target_frametime)
+                else:
+                    inp = getch()
 
-            if inp == "ctrl-c":
-                self.stop()
-                break
+                if inp and str(inp) != "":
+                    if inp == "ctrl-c":
+                        self.stop()
+                        break
 
-            if inp == "ctrl-l":
-                terminal.clear()
-                continue
+                    if inp == "ctrl-l":
+                        terminal.clear()
+                        self._start_render()
+                        continue
 
-            try:
-                self.process_input(inp)
+                    try:
+                        self.process_input(inp)
+                        current_budget = _calculate_animation_budget()
+                        animation_budget = max(animation_budget, current_budget)
 
-            except Exception as exc:
-                self._raised = exc
-                self.stop()
-                break
+                    except Exception as exc:
+                        self._raised = exc
+                        self.stop()
+                        break
 
-        self._draw_thread.join()
+                self._start_render()
+
+                if animation_budget > 0:
+                    animation_budget -= 1
 
         if self._raised is not None:
             raise self._raised
+
+    def _start_render(self):
+        def _run():
+            abort_event = self._render_abort_event
+
+            changes = 0
+            lines = []
+
+            if abort_event.is_set():
+                return
+
+            for widget in self.page.get_widgets():
+                if abort_event.is_set():
+                    return
+
+                origin = widget.clipped_position
+                widget_lines = []
+
+                for i, line in enumerate(widget.build()):
+                    widget_lines.append(((origin[0], origin[1] + i), line))
+
+                lines.extend(widget_lines)
+
+            if abort_event.is_set():
+                return
+
+            with self._render_lock:
+                if lines != self._last_lines:
+                    changes = terminal.write_bulk(lines)
+                    self._last_lines = lines.copy()
+
+                with terminal.batch():
+                    terminal.draw()
+
+        with self._render_lock:
+            if self._current_render_thread and self._current_render_thread.is_alive():
+                self._render_abort_event.set()
+
+        self._render_abort_event = ThreadEvent()
+
+        with self._render_lock:
+            self._current_render_thread = Thread(target=_run, daemon=True)
+            self._current_render_thread.start()
 
     def stop(self) -> None:
         feed(chr(3))
@@ -169,8 +196,7 @@ class Application:
     # Overwrite-able
     # No-op in default impl because pages must be defined before load,
     # but celx loads them
-    def load(self, location: str) -> Page:
-        ...
+    def load(self, location: str) -> Page: ...
 
     def navigate(self, location: str) -> Page:
         page = None
@@ -188,13 +214,12 @@ class Application:
         self.page = page
         self._target = page.root
         page.root.parent = self
-        
+
 
 if __name__ == "__main__":
+
     def jump_behaviour(widget: Widget):
-        state = {
-            "active": True
-        }
+        state = {"active": True}
 
         offset = 0
         original = None
@@ -226,15 +251,28 @@ if __name__ == "__main__":
 
         widget.on_key += _pause
 
-
-    from celadon import Slider, Tower, Row, Button, Text, frames, enums, Alignment, Anchor, Cursor, TextField, Overflow, Matrix
+    from celadon import (
+        Slider,
+        Tower,
+        Row,
+        Button,
+        Text,
+        frames,
+        enums,
+        Alignment,
+        Anchor,
+        Cursor,
+        TextField,
+        Overflow,
+        Matrix,
+    )
 
     root = Tower([Text("Hey!")])
     root.width = 1.0
     root.height = 1.0
-    root.position = 0, 2
+    root.position = 0, 0
     root.frame = frames.Rounded()
-    root.compute_dimensions(terminal.width, terminal.height - 2)
+    root.compute_dimensions(terminal.width, terminal.height)
     root.alignment = (Alignment.CENTER, Alignment.CENTER)
     root.overflow = (Overflow.AUTO, Overflow.AUTO)
 
@@ -246,12 +284,14 @@ five
 six"""
 
     for i in range(3):
-        child = Tower([
-            Text(f"Submenu #{i}"),
-            Row([Button("Accept"), Button("Deny"), Button("Cancel")]),
-            TextField(text),
-            Matrix(20, 10)
-        ])
+        child = Tower(
+            [
+                Text(f"Submenu #{i}"),
+                Row([Button("Accept"), Button("Deny"), Button("Cancel")]),
+                TextField(text),
+                Matrix(20, 10),
+            ]
+        )
         child.alignment = (Alignment.CENTER, Alignment.CENTER)
         child.frame = frames.Light()
         root.append(child)

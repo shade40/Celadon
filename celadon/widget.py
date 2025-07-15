@@ -4,7 +4,7 @@ import re
 import uuid
 from copy import deepcopy
 from functools import lru_cache
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Callable, Type
 
 from slate import Event, Span, Key
@@ -36,34 +36,35 @@ def _compute(spec: int | float | None, hint: int) -> int:
 
 RE_FULL_UNSETTER = re.compile(r"(?<=\[)[^\]]*(\/) ")
 
+
 def _apply_style(line: str, style: Callable[[str], str]) -> tuple[Span, ...]:
     raw_style = style("")
 
     line = RE_FULL_UNSETTER.sub("/ " + raw_style, line)
     line = zml_pre_process(preserve_escapes(style(line)))
 
-    return tuple(
-        span for span in zml_get_spans(line) if span is not FULL_RESET
-    )
+    return tuple(span for span in zml_get_spans(line) if span is not FULL_RESET)
+
 
 @dataclass
 class Animation:
     duration: int
     loop: bool
-    on_frame: Event[tuple[Animation, Widget]] = field(default_factory=lambda: Event("on animation frame"))
+    on_frame: Event[tuple["Animation", "Widget"]] = None
 
     _initial_duration: int = 0
     _queue_removal: bool = False
 
     def __post_init__(self) -> None:
-        self._initial_duration = duration
+        self.on_frame = Event("on animation frame")
+        self._initial_duration = self.duration
 
-    def tick(self, widget: Widget) -> bool:
+    def tick(self, widget: "Widget") -> bool:
         self.on_frame((self, widget))
         self.duration -= 1
 
         if self.duration == 0:
-            if not loop:
+            if not self.loop:
                 return True
 
             self.duration = self._initial_duration
@@ -90,7 +91,9 @@ class Widget:
     animations: list[Animation]
 
     @classmethod
-    def create_type(cls, name: str, behaviours: list[Callable[Widget]]) -> Callable[[Any, ...], Widget]:
+    def create_type(
+        cls, name: str, behaviours: list[Callable[Widget]]
+    ) -> Callable[[Any, ...], Widget]:
         def _construct(*args, eid: str | None = None, **kwargs) -> Widget:
             w = Widget(eid=eid, type_name=name)
 
@@ -105,7 +108,9 @@ class Widget:
 
             for init in w.initializers:
                 code = init.__code__
-                arg_names = [arg for arg in code.co_varnames[:code.co_argcount] if arg != "self"]
+                arg_names = [
+                    arg for arg in code.co_varnames[: code.co_argcount] if arg != "self"
+                ]
 
                 if len(args):
                     for k, v in zip(arg_names, args):
@@ -145,14 +150,14 @@ class Widget:
         self._clip_end = (0, 0)
         self._last_build = None
         self._scrollbars = tuple()
-        
+
         self.scroll = (0, 0)
 
         self.anchor = Anchor.NONE
         self.offset = (0, 0)
 
         self.palette = "main"
-        
+
         self.initializers = []
 
         self.state_machine = StateMachine(
@@ -221,9 +226,9 @@ class Widget:
                 "content": ".text-1",
                 "scrollbar_x": "@.panel1-3",
                 "scrollbar_y": "@.panel1-3",
-            }
+            },
         }
- 
+
         self.on_init: Event[Widget] = Event("on init")
 
         self.on_content_start: Event[Widget] = Event("pre content")
@@ -232,7 +237,9 @@ class Widget:
         self.on_build: Event[Widget] = Event("post build")
 
         self.on_key: Event[Widget, Key] = Event("on key pressed")
-        self.on_mouse: Event[Widget, MouseAction, tuple[int, int]] = Event("on mouse action")
+        self.on_mouse: Event[Widget, MouseAction, tuple[int, int]] = Event(
+            "on mouse action"
+        )
 
         self.state_machine.on_change += lambda *_: self.set_dirty()
 
@@ -398,7 +405,11 @@ class Widget:
             parent = parent.parent
 
         background = _fill_palette(background)
-        styles = { "background": background if raw else lambda text, bg=background: f"[{bg}]{text}[/bg]" }
+        styles = {
+            "background": background
+            if raw
+            else lambda text, bg=background: f"[{bg}]{text}[/bg]"
+        }
 
         for name, style in values.items():
             if name == "background":
@@ -431,14 +442,18 @@ class Widget:
 
         return virt > real
 
-    def _vertical_truncate(self, lines: list[tuple[Span, ...]], height: int) -> list[tuple[Span, ...]]:
+    def _vertical_truncate(
+        self, lines: list[tuple[Span, ...]], height: int
+    ) -> list[tuple[Span, ...]]:
         if self._virtual_height > height:
             lines = lines[self.scroll[1] : self.scroll[1] + height]
             if len(lines) < height:
                 lines.extend([(EMPTY_SPAN,)] * (height - len(lines)))
         return lines
 
-    def _vertical_align(self, lines: list[tuple[Span, ...]], height: int, fillchar: str) -> None:
+    def _vertical_align(
+        self, lines: list[tuple[Span, ...]], height: int, fillchar: str
+    ) -> None:
         alignment = self.alignment[1]
         available = height - len(lines)
 
@@ -462,7 +477,9 @@ class Widget:
         for _ in range(available):
             lines.insert(0, filler)
 
-    def _horizontal_align(self, line: tuple[Span, ...], width: int, fillchar: str) -> tuple[Span, ...]:
+    def _horizontal_align(
+        self, line: tuple[Span, ...], width: int, fillchar: str
+    ) -> tuple[Span, ...]:
         alignment = self.alignment[0]
         width = max(width, self._virtual_width)
         length = sum(len(span) for span in line)
@@ -590,9 +607,8 @@ class Widget:
 
     def _apply_clip(self, lines: list[tuple[Span, ...]]) -> list[tuple[Span, ...]]:
         lines = [
-            self._horizontal_truncate(line,
-                self._clip_start[0],
-                self.computed_width - self._clip_end[0]
+            self._horizontal_truncate(
+                line, self._clip_start[0], self.computed_width - self._clip_end[0]
             )
             for line in lines
         ]
@@ -642,26 +658,16 @@ class Widget:
         end_y -= frame_bottom + 1
 
         x.position = (start_x, end_y)
-        x.clip(
-            (clip_start[0], max(0, clip_start[1] - height)),
-            clip_end
-        )
+        x.clip((clip_start[0], max(0, clip_start[1] - height)), clip_end)
 
         y.position = (end_x, start_y)
-        y.clip(
-            (max(0, clip_start[0] - width), clip_start[1]),
-            clip_end
-        )
+        y.clip((max(0, clip_start[0] - width), clip_start[1]), clip_end)
 
         fill.position = (end_x, end_y)
         fill.clip(clip_start, clip_end)
 
-        x.thumb_size = _get_size(
-            self.computed_width, self._virtual_width, width
-        )
-        y.thumb_size = _get_size(
-            self.computed_height, self._virtual_height, height
-        )
+        x.thumb_size = _get_size(self.computed_width, self._virtual_width, width)
+        y.thumb_size = _get_size(self.computed_height, self._virtual_height, height)
 
     def set_dirty(self, value: bool = True):
         self.dirty = value
@@ -691,7 +697,11 @@ class Widget:
         content = self.get_contents()
         self.on_content(self)
 
-        self.animations = filter(lambda anim: anim.tick(self), self.animations)
+        self.animations = [
+            anim
+            for anim in self.animations
+            if not anim.tick(self) and not anim._queue_removal
+        ]
 
         styles = self.get_styles()
 
@@ -711,10 +721,7 @@ class Widget:
             lines[i] = self._horizontal_align(line, width, fillchar)
 
         lines = [
-            self._horizontal_truncate(line,
-                self.scroll[0],
-                self.scroll[0] + width
-            )
+            self._horizontal_truncate(line, self.scroll[0], self.scroll[0] + width)
             for line in lines
         ]
 
@@ -742,7 +749,7 @@ class Widget:
     def compute_dimensions(self, available_width: int, available_height: int) -> None:
         if self.width == -1:
             self.computed_width = self._virtual_width + self.frame.width
-        else: 
+        else:
             self.computed_width = _compute(self.width, available_width)
 
         if self.height == -1:
