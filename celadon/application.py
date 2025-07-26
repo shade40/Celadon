@@ -286,12 +286,17 @@ five
 six"""
 
     for i in range(3):
+        anchored = Text("[@red]XXX")
+        anchored.anchor = Anchor.PARENT
+        anchored.offset = (-1, 5)
+
         child = Tower(
             [
                 Text(f"Submenu #{i}"),
                 Row([Button("Accept"), Button("Deny"), Button("Cancel")]),
                 TextField(text),
                 Matrix(20, 10),
+                anchored,
             ]
         )
 

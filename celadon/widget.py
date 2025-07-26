@@ -633,7 +633,7 @@ class Widget:
 
         x, y, fill = self.scrollbars
         x.value = (self.scroll[0] + self.computed_width) / self._virtual_width
-        y.value = self.scroll[1] / (self._virtual_height - self._framed_height)
+        y.value = self.scroll[1] / max(1, self._virtual_height - self._framed_height)
         # print(y.value, self.scroll[1], self._virtual_height, self.computed_height)
 
         x.compute_dimensions(width, 1)
@@ -679,7 +679,41 @@ class Widget:
         if value:
             self._cached_styles = [None, None]
 
+    def rebuild_ancestry(self) -> None:
+        """Rebuild entire ancestry.
+
+        Use for shrink-size changes that don't get propagated properly. Should/will
+        be removed eventually.
+        """
+
+        w = self
+        while isinstance(w, Widget):
+            w.build()
+            w = w.parent
+
     def handle_keyboard(self, key: Key) -> bool:
+        if any("shift-arrow" in val for val in key.possible_values):
+            scroll = list(self.scroll)
+
+            if key == "shift-up":
+                scroll[1] -= 2
+            elif key == "shift-down":
+                scroll[1] += 2
+            elif key == "shift-left":
+                scroll[0] -= 2
+            elif key == "shift-right":
+                scroll[0] += 2
+            elif key == "ctrl-shift-up":
+                scroll[1] = 0
+            elif key == "ctrl-shift-down":
+                scroll[1] = self._virtual_height
+
+            original = self.scroll
+            self.scroll = tuple(scroll)
+
+            if original != self.scroll:
+                return True
+
         return self.on_key((self, key))
 
     def handle_mouse(self, action: MouseAction, position: tuple[int, int]) -> bool:
@@ -692,6 +726,19 @@ class Widget:
         return self.parent is not None and not isinstance(self.parent, Widget)
 
     def build(self, fillchar: str = " ") -> list[str]:
+        self.parts = []
+
+        bar_x, bar_y, bar_fill = self.scrollbars
+
+        if self.has_scrollbar(0):
+            self.parts.append(bar_x)
+
+        if self.has_scrollbar(1):
+            self.parts.append(bar_y)
+
+        if self.has_scrollbar(0) and self.has_scrollbar(1):
+            self.parts.append(bar_fill)
+
         self.on_build_start(self)
 
         width = self._framed_width
