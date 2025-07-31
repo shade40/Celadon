@@ -86,6 +86,7 @@ def button(widget: Widget):
     widget.style_map["selected"]["content"] = "bold"
     widget.style_map["selected"]["background"] = "@white"
     widget.style_map["selected"]["frame"] = "@white"
+    widget.style_map["active"]["background"] = "@red"
 
     widget.frame = frames.Frame.compose(
         [
@@ -106,6 +107,8 @@ Button = Widget.create_type("Button", behaviours=[button])
 
 def container(direction: Direction, widget: Widget) -> dict[str, Any]:
     widget.direction = direction
+    widget.width = -1
+    widget.height = -1
 
     for state in widget.style_map.keys():
         widget.style_map[state]["content"] = ""
@@ -121,14 +124,14 @@ def container(direction: Direction, widget: Widget) -> dict[str, Any]:
         self.selected = None
 
         self.gap = gap
-        self.width = -1
-        self.height = -1
 
-        for child in children:
-            self.append(child)
+        for child in (children or []):
+            self.append(child, build=False)
+
+        self.build()
 
     @widget.bind
-    def append(self, el: Widget) -> None:
+    def append(self, el: Widget, build: bool = False) -> None:
         self.children.append(el)
         el.parent = self
         # Build once to assign correct shrink sizing
@@ -164,6 +167,15 @@ def container(direction: Direction, widget: Widget) -> dict[str, Any]:
                 isinstance(widget_child.height, float) and widget_child.height > 0
             )
 
+        def _compute_offset(offset, negative):
+            if isinstance(offset, float):
+                return int(negative * max(offset, 0))
+
+            if offset < 0:
+                return negative + offset
+
+            return offset
+
         x, y = self.position
         x -= self.scroll[0]
         y -= self.scroll[1]
@@ -178,8 +190,8 @@ def container(direction: Direction, widget: Widget) -> dict[str, Any]:
             self.parts = []
             return
 
-        available_width = self._framed_width
-        available_height = self._framed_height
+        available_width = self._framed_width - self.has_scrollbar(1)
+        available_height = self._framed_height - self.has_scrollbar(0)
 
         direction = self.direction
         is_horizontal = direction == Direction.HORIZONTAL
@@ -196,7 +208,7 @@ def container(direction: Direction, widget: Widget) -> dict[str, Any]:
                 
                 if child.anchor is Anchor.SCREEN:
                     context = terminal.size
-                    origin = terminal.origin
+                    origin = (0, 0)
 
                 elif child.anchor is Anchor.PARENT:
                     context = self.computed_width, self.computed_height
@@ -205,32 +217,19 @@ def container(direction: Direction, widget: Widget) -> dict[str, Any]:
                 else:
                     raise NotImplementedError(f"not sure how to handle anchor: {child.anchor}")
 
-                x_offset = (
-                    child.offset[0]
-                    if child.offset[0] >= 0
-                    else context[0] + child.offset[0] - child.computed_width
-                )
-
-                y_offset = (
-                    child.offset[1]
-                    if child.offset[1] >= 0
-                    else context[1] + child.offset[1] - child.computed_height
-                )
+                x_offset = _compute_offset(child.offset[0], context[0] - child.computed_width)
+                y_offset = _compute_offset(child.offset[1], context[1] - child.computed_height)
 
                 child.position = (
                     origin[0] + x_offset,
                     origin[1] + y_offset,
                 )
-
                 continue
 
             if _is_fill(child, is_horizontal):
                 fill_children.append(child)
 
             else:
-                # TODO: Builds are done top-bottom in hierarchy, so the virtual
-                # dimensions this point will be a frame behind. Ideally we should 
-                # make sure they are valid already so we don't double build, but alas.
                 child.compute_dimensions(available_width, available_height)
                 non_fill_children.append(child)
 
@@ -373,8 +372,9 @@ def container(direction: Direction, widget: Widget) -> dict[str, Any]:
 
         sel = widget.selected
         w, h = sel.computed_width, sel.computed_height
-        csx, csy = sel._clip_start
-        cex, cey = sel._clip_end
+        clips = sel.viewport_offsets
+        csx, csy = clips[0]
+        cex, cey = clips[1]
 
         sx, sy = widget.scroll
         if cey > csy:
@@ -914,7 +914,6 @@ def text_field(widget: Widget):
 
 TextField = Widget.create_type("TextField", behaviours=[form_item, text_field])
 
-
 def matrix(widget: Widget):
     @widget.add_initializer
     def initialize(self, cols: int = 10, rows: int = 10):
@@ -999,3 +998,13 @@ def matrix(widget: Widget):
 
 
 Matrix = Widget.create_type("Matrix", behaviours=[matrix])
+
+def root(widget: Widget):
+    widget.width = 1.0
+    widget.height = 1.0
+    widget.position = (0, 0)
+    widget.compute_dimensions(terminal.width, terminal.height)
+    widget.alignment = (Alignment.CENTER, Alignment.CENTER)
+    widget.overflow = (Overflow.AUTO, Overflow.AUTO)
+
+Root = Widget.create_type("Root", source=Tower, behaviours=[root])

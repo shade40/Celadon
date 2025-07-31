@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+
 from threading import Thread, Event as ThreadEvent, Lock
 
 from slate import terminal, getch, getch_timeout, feed, Key
@@ -34,15 +36,41 @@ class Page:
     def __init__(self, location: str, root: Widget | None = None) -> None:
         self.location = location
         self.root = root
+        self._last_onscreen = set()
 
     def get_widgets(self, dirty_only: bool = False) -> list[Widget]:
-        self.root.build()
         items = [self.root, *self.root.parts]
+        return items
+        onscreen = []
+
+        term_width, term_height = terminal.size
+        # next_onscreen = set()
+
+        for widget in items:
+            """
+            if widget.clipped_height < 1 or widget.clipped_width < 1:
+                print(widget)
+                continue
+
+            start, end = widget.outer_rect
+            was_onscreen = widget in self._last_onscreen
+
+            if (start[1] > term_height or end[1] < 0 or start[0] > term_width or end[0] < 0) and not was_onscreen:
+                continue
+            
+
+            if not was_onscreen:
+                next_onscreen.add(widget)
+            """
+
+            onscreen.append(widget)
 
         if dirty_only:
-            items = list(filter(lambda e: e.dirty, items))
+            onscreen = list(filter(lambda e: e.dirty, onscreen))
 
-        return items
+        # self._last_onscreen = next_onscreen
+
+        return onscreen
 
 
 class Application:
@@ -79,41 +107,19 @@ class Application:
             self._target.handle_keyboard(inp)
 
     def run(self) -> None:
-        def _calculate_animation_budget():
-            active_animations = []
-
-            for widget in self.page.get_widgets():
-                active_animations.extend(widget.animations)
-
-            if not active_animations:
-                return 0
-
-            max_duration = 0
-
-            for anim in active_animations:
-                if anim.loop:
-                    max_duration = max(max_duration, 300)
-                else:
-                    max_duration = max(max_duration, anim.duration)
-
-            return max_duration
-
-        animation_budget = 0
         target_frametime = 1 / 60
 
         self._is_running = True
+        self._last_input = 0
+
+        render_cache = {}
 
         with terminal.no_echo(), terminal.alt_buffer():
             self._start_render()
 
             while self._is_running:
-                if animation_budget > 0:
-                    # TODO: While animating we should run the renderer in a loop
-                    #       with sleeps for target frametime, or a better solution.
-                    #       This just doesn't work.
-                    inp = getch_timeout(target_frametime)
-                else:
-                    inp = getch()
+                inp = getch()
+                self._last_input = time.time()
 
                 if inp == "ctrl-c":
                     self.stop()
@@ -132,56 +138,63 @@ class Application:
                     self.stop()
                     break
 
-                current_budget = _calculate_animation_budget()
-                animation_budget = max(animation_budget, current_budget)
                 self._start_render()
-
-                if animation_budget > 0:
-                    animation_budget -= 1
 
         if self._raised is not None:
             raise self._raised
 
     def _start_render(self):
+        if self._current_render_thread and self._current_render_thread.is_alive():
+            return
+
         def _run():
-            abort_event = self._render_abort_event
+            elapsed = 0
+            animation_budget = 1
 
-            changes = 0
-            lines = []
+            while animation_budget > 0 or time.time() - self._last_input < 1/15:
+                widgets = self.page.get_widgets()
+                animation_budget = max(
+                    [
+                        anim.total_duration if anim.loop else anim.duration
+                        for widget in widgets
+                        for anim in widget.animations
+                    ], default=0
+                )
 
-            if abort_event.is_set():
-                return
+                start = time.perf_counter()
 
-            for widget in self.page.get_widgets():
-                if abort_event.is_set():
-                    return
+                changes = 0
+                lines = []
 
-                origin = widget.clipped_position
-                widget_lines = []
+                for widget in widgets:
+                    origin = widget.clipped_position
 
-                for i, line in enumerate(widget.build()):
-                    widget_lines.append(((origin[0], origin[1] + i), line))
+                    widget_lines = []
 
-                lines.extend(widget_lines)
+                    for i, line in enumerate(widget.build()):
+                        widget_lines.append(((origin[0], origin[1] + i), line))
 
-            if abort_event.is_set():
-                return
+                    lines.extend(widget_lines)
 
-            with self._render_lock:
-                if lines != self._last_lines:
-                    changes = terminal.write_bulk(lines)
-                    self._last_lines = lines.copy()
+                elapsed = time.perf_counter() - start
 
-                with terminal.batch():
-                    terminal.draw()
+                with self._render_lock:
+                    if lines != self._last_lines:
+                        changes = terminal.write_bulk(lines)
+                        self._last_lines = lines.copy()
+
+                    terminal.write(f"FPS ~ {1/elapsed:.2f} ({len(widgets)} widgets drawn, {changes:0>4} changes)", cursor=(0, terminal.height-1))
+
+                    with terminal.batch():
+                        terminal.draw()
+
+                sleep = 1/60 - elapsed
+
+                if sleep > 0:
+                    time.sleep(sleep)
 
         with self._render_lock:
-            if self._current_render_thread and self._current_render_thread.is_alive():
-                self._render_abort_event.set()
-
-        self._render_abort_event = ThreadEvent()
-
-        with self._render_lock:
+            thread_start = time.time()
             self._current_render_thread = Thread(target=_run, daemon=True)
             self._current_render_thread.start()
 
@@ -254,58 +267,108 @@ if __name__ == "__main__":
         widget.on_key += _pause
 
     from celadon import (
-        Slider,
-        Tower,
-        Row,
-        Button,
-        Text,
-        frames,
-        enums,
         Alignment,
         Anchor,
+        Animation,
+        Button,
         Cursor,
-        TextField,
-        Overflow,
         Matrix,
+        Overflow,
+        Root,
+        Row,
+        Slider,
+        Text,
+        TextField,
+        Tower,
+        enums,
+        frames,
     )
 
-    root = Tower([Text("Hey!")])
-    root.width = 1.0
-    root.height = 1.0
-    root.position = 0, 0
-    root.frame = frames.Rounded()
-    root.compute_dimensions(terminal.width, terminal.height)
-    root.alignment = (Alignment.CENTER, Alignment.CENTER)
-    root.overflow = (Overflow.AUTO, Overflow.AUTO)
-
-    text = """\
-One two
-three four
-five
-
-six"""
-
-    for i in range(3):
-        anchored = Text("[@red]XXX")
-        anchored.anchor = Anchor.PARENT
-        anchored.offset = (-1, 5)
-
-        child = Tower(
-            [
-                Text(f"Submenu #{i}"),
-                Row([Button("Accept"), Button("Deny"), Button("Cancel")]),
-                TextField(text),
-                Matrix(20, 10),
-                anchored,
-            ]
+    def header(widget: Widget):
+        widget.add_rules(
+            "width=1.0, alignment=center",
+            #"anchor=screen",
+            #"offset=(0.5;0)",
         )
 
-        for _ in range(i):
-            child.append(Row([Button("One"), Button("Two"), Button("Three")]))
+        anim = Animation(duration=360, loop=False)
+        background_rule = None
+        
+        @anim.on_frame.append
+        def step_anim(args):
+            nonlocal background_rule
 
-        # child.alignment = (Alignment.CENTER, Alignment.CENTER)
-        child.frame = frames.Light()
-        root.append(child)
+            anim, self = args
+
+            if background_rule is not None:
+                self.remove_rules(background_rule)
+
+            background_rule = f"~background=@.primary-3*{anim.frame % 60 / 60}"
+            self.add_rules(background_rule)
+
+        widget.animations.append(anim)
+
+        @widget.add_initializer
+        def initialize(self, initial_label: str) -> None:
+            self.label = Text(initial_label)
+            self.append(self.label)
+
+    Header = Widget.create_type("Header", source=Tower, behaviours=[header])
+
+    def message_box(widget: Widget):
+        widget.add_rules("width=1.0")
+
+        @widget.add_initializer
+        def initialize(self, message: str) -> None:
+            t = Text(message, rules=[
+                """
+                frame=light,
+                width_offset=2,
+                alignment=center,
+
+                /selected/
+                    frame=double,
+                """
+            ])
+            t.inert = False
+            self.append(t)
+
+        @widget.on_build_start.append
+        def determine_side(self) -> None:
+            if not isinstance(self.parent, Widget):
+                return
+
+            idx = self.parent.children.index(self)
+            self.alignment = ("(start;start)" if idx % 2 else "(end;start)")
+
+    MessageBox = Widget.create_type("MessageBox", source=Tower, behaviours=[message_box])
+        
+    messages = []
+    for i in range(50):
+        messages.append(MessageBox(message="My third message My third message My third message"))
+
+    root = Root(
+        [
+            Header(initial_label="[bold]OpenerCode"),
+            Tower(messages, rules=["width=1.0,height=1.0,overflow=scroll"]),
+            TextField("", rules=[
+                """
+                height=3,
+                frame=verticalouter,
+
+                ~background=@.panel1-2,
+                ~frame=gray,
+
+                /selected/
+                    ~background=@.panel1-2
+                """
+            ]),
+        ],
+        rules=[
+            "alignment=(start;end), ~background=@.panel1-3, gap=0",
+            "/selected/ ~background=@.panel1-3*0.5"
+        ]
+    )
 
     app = Application()
 
@@ -314,3 +377,14 @@ six"""
 
     app.run()
     print(app.page.get_widgets())
+
+"""
+<button rules="
+    ~background: @yellow,
+    frame: double,
+
+    /selected/
+        ~background: @red,
+        frame: triple,
+">
+"""

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Tuple, Type
+from typing import Any, Tuple, Type, Self
 
 __all__ = [
     "Frame",
@@ -108,6 +108,34 @@ class Frame:  # pylint: disable=too-many-instance-attributes
         frame.__init__()  # type: ignore # pylint: disable=unnecessary-dunder-call
 
         return frame
+
+    def modify(
+        self,
+        left: Frame | None = None,
+        top: Frame | None = None,
+        right: Frame | None = None,
+        bottom: Frame | None = None,
+    ) -> Self:
+        sides = [left, top, right, bottom]
+        borders = list(self.borders)
+        corners = list(self.corners)
+
+        for i, side in enumerate(sides):
+            if side is None:
+                continue
+
+            frame = side()
+
+            borders[i] = frame.borders[i]
+
+            if side == Frameless:
+                corners[i-1] = ""
+                corners[i] = ""
+
+        self.borders = tuple(borders)
+        self.corners = tuple(corners)
+
+        return self
 
 
 def get_frame(name: str) -> Type[Frame]:
