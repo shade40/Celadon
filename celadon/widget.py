@@ -444,6 +444,25 @@ class Widget:
 
         self._offset = new
 
+    @property
+    def position(self) -> tuple[int | float, int | float]:
+        return self._position
+
+    @position.setter
+    def position(self, new: tuple[int, int] | str) -> None:
+        if isinstance(new, str):
+            if new[0] + new[-1] != "()":
+                raise NotImplementedError(f"can't convert positions {new!r}")
+
+            new = new[1:-1]
+            values = new.split(";")
+
+            new = (
+                float(values[0]) if "." in values[0] else int(values[0]),
+                float(values[1]) if "." in values[1] else int(values[1]),
+            )
+
+        self._position = new
 
     @property
     def clipped_position(self) -> tuple[int, int]:
@@ -821,7 +840,12 @@ class Widget:
 
     def _update_scrollbars(self, width: int, height: int) -> None:
         def _get_size(computed: int, virtual: int, framed: int) -> int:
-            return max(int(computed * (framed / (virtual or framed))), 1)
+            divisor = virtual or framed
+
+            if divisor == 0:
+                return 0
+
+            return max(int(computed * (framed / divisor)), 1)
 
         if not self.has_scrollbar(0) and not self.has_scrollbar(1):
             return

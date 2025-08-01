@@ -1000,11 +1000,15 @@ def matrix(widget: Widget):
 Matrix = Widget.create_type("Matrix", behaviours=[matrix])
 
 def root(widget: Widget):
+    widget.add_rules("position=(0;0), alignment=center, overflow=auto")
     widget.width = 1.0
     widget.height = 1.0
-    widget.position = (0, 0)
-    widget.compute_dimensions(terminal.width, terminal.height)
-    widget.alignment = (Alignment.CENTER, Alignment.CENTER)
-    widget.overflow = (Overflow.AUTO, Overflow.AUTO)
+
+    @terminal.on_resize.append
+    def _resize(size):
+        widget.compute_dimensions(*size)
+
+    _resize((terminal.width, terminal.height))
+
 
 Root = Widget.create_type("Root", source=Tower, behaviours=[root])

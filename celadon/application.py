@@ -112,13 +112,19 @@ class Application:
         self._is_running = True
         self._last_input = 0
 
-        render_cache = {}
+        @terminal.on_resize.append
+        def _on_resize(_):
+            terminal.clear()
+            self._start_render(1)
 
         with terminal.no_echo(), terminal.alt_buffer():
             self._start_render()
 
             while self._is_running:
-                inp = getch()
+                inp = getch_timeout(0.1, default=None)
+                if inp is None:
+                    _ = terminal.size
+                    continue
                 self._last_input = time.time()
 
                 if inp == "ctrl-c":
@@ -143,15 +149,19 @@ class Application:
         if self._raised is not None:
             raise self._raised
 
-    def _start_render(self):
+    def _start_render(self, extra_frames: int = 0):
         if self._current_render_thread and self._current_render_thread.is_alive():
             return
 
         def _run():
+            nonlocal extra_frames
+
             elapsed = 0
             animation_budget = 1
 
-            while animation_budget > 0 or time.time() - self._last_input < 1/15:
+            while animation_budget + extra_frames > 0 or time.time() - self._last_input < 1/15:
+                extra_frames = max(extra_frames-1, 0)
+
                 widgets = self.page.get_widgets()
                 animation_budget = max(
                     [
@@ -291,7 +301,7 @@ if __name__ == "__main__":
             #"offset=(0.5;0)",
         )
 
-        anim = Animation(duration=360, loop=False)
+        anim = Animation(duration=30, loop=False)
         background_rule = None
         
         @anim.on_frame.append
@@ -325,6 +335,7 @@ if __name__ == "__main__":
                 frame=light,
                 width_offset=2,
                 alignment=center,
+                overflow=hide,
 
                 /selected/
                     frame=double,
@@ -365,7 +376,7 @@ if __name__ == "__main__":
             ]),
         ],
         rules=[
-            "alignment=(start;end), ~background=@.panel1-3, gap=0",
+            "alignment=(start;end), ~background=@.panel1-3*0.5, gap=0",
             "/selected/ ~background=@.panel1-3*0.5"
         ]
     )
@@ -377,14 +388,3 @@ if __name__ == "__main__":
 
     app.run()
     print(app.page.get_widgets())
-
-"""
-<button rules="
-    ~background: @yellow,
-    frame: double,
-
-    /selected/
-        ~background: @red,
-        frame: triple,
-">
-"""
