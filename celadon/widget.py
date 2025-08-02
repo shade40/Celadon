@@ -37,6 +37,18 @@ def _compute(spec: int | float | None, hint: int) -> int:
 RE_FULL_UNSETTER = re.compile(r"(?<=\[)[^\]]*(\/) ")
 
 
+def _keybind(target_key: str, action: Callable) -> Callable[[tuple[Widget, Key]], bool | None]:
+    def _inner(args):
+        self, key = args
+
+        if key != target_key:
+            return False
+
+        action(self)
+
+    _inner.__name__ = f"on_key_{target_key}"
+    return _inner
+
 def _apply_style(line: str, style: Callable[[str], str]) -> tuple[Span, ...]:
     raw_style = style("")
 
@@ -47,6 +59,43 @@ def _apply_style(line: str, style: Callable[[str], str]) -> tuple[Span, ...]:
 
 
 def _get_rule_applicator(state: str | None, key: str, value: str, style: bool) -> Callable[[Widget], bool]:
+    if not style:
+        if isinstance(value, str) and value[0] == "(" and value[-1] == ")":
+            value = value[1:-1].split(";")
+
+        if not isinstance(value, list):
+            value = [value]
+
+        conversions = {
+            "alignment": Alignment,
+            "anchor": Anchor,
+            "overflow": Overflow,
+            "frame": get_frame,
+        }
+
+        if key in conversions:
+            convert = conversions[key]
+            value = [convert(val) for val in value]
+
+        for i, part in enumerate(value):
+            if isinstance(part, str) and part.replace(".", "").isdigit():
+                if "." in part:
+                    value[i] = float(part)
+                else:
+                    value[i] = int(part)
+
+        if key == "frame" and len(value) > 1:
+            value = [Frame.compose(value)]
+
+        if isinstance(value, list) and len(value) == 1:
+            value = value[0]
+
+            if key in ["alignment", "overflow"]:
+                value = (value, value)
+
+            elif key == "frame" and not isinstance(value, Frame):
+                value = value()
+
     def _applicator(widget: Widget) -> bool:
         current_state = widget.state_machine()
         if state is not None and current_state != state:
@@ -103,7 +152,6 @@ def _parse_rules(rules: list[str], into: dict | None = None) -> dict[tuple, Call
 
         if len(statement):
             statements.append((state or "idle", statement))
-            # raise ValueError(state, statements)
 
         for state, statement in statements:
             key, value = statement.split("=")
@@ -185,7 +233,7 @@ class Widget:
             behaviours = [*source.behaviours, *behaviours]
 
         def _construct(*args, eid: str | None = None, **kwargs) -> Widget:
-            w = Widget(eid=eid, type_name=name, rules=kwargs.get("rules"))
+            w = Widget(eid=eid, type_name=name, rules=kwargs.get("rules"), binds=kwargs.get("binds"))
 
             if len(args) and len(w.initializers):
                 raise ValueError(
@@ -219,7 +267,8 @@ class Widget:
         *,
         rules: list[str] | None = None,
         eid: str | None = None,
-        type_name: str = "Widget"
+        type_name: str = "Widget",
+        binds: dict | None = None,
     ) -> None:
         self.eid = eid or str(uuid.uuid4())
         self.type_name = type_name
@@ -250,13 +299,13 @@ class Widget:
         self._clip_start = (0, 0)
         self._clip_end = (0, 0)
         self.viewport_offsets = self._clip_start, self._clip_end
-        self._last_build = None
         self._scrollbars = tuple()
         self._repeat_scroll_count = 0
         self._repeat_scroll_direction = -1
 
-        self._last_state = None
+        self._last_content = None
         self._last_build = None
+        self._last_state = None
 
         self._scroll = (0, 0)
 
@@ -350,6 +399,11 @@ class Widget:
 
         self.state_machine.on_change += lambda *_: self.set_dirty()
 
+        if binds is not None:
+            for key, action in binds.items():
+                self.on_key.append(_keybind(key, action))
+
+
     def __str__(self) -> str:
         return self.type_name
 
@@ -364,105 +418,9 @@ class Widget:
     def _framed_height(self) -> int:
         return max(self.computed_height - self.frame.height, 0)
 
-    @lru_cache(1024)
     def _parse_markup(self, markup: str) -> tuple[Span, ...]:
         markup = zml_pre_process(preserve_escapes(markup))
         return tuple(zml_get_spans(markup))
-
-    @property
-    def frame(self) -> Frame:
-        return self._frame
-
-    @frame.setter
-    def frame(self, new: Frame | str):
-        if isinstance(new, str):
-            sides = new.split(";")
-
-            if not len(sides) in [1, 4]:
-                raise NotImplementedError(f"can't convert frame {new!r}")
-
-            if len(sides) == 1:
-                new = get_frame(sides[0])()
-            else:
-                new = Frame.compose(sides)
-        
-        self._frame = new
-
-    @property
-    def alignment(self) -> tuple[Alignment, Alignment]:
-        return self._alignment
-
-    @alignment.setter
-    def alignment(self, new: tuple[Alignment, Alignment] | str) -> None:
-        if isinstance(new, str):
-            if ";" not in new:
-                value = Alignment(new)
-                new = (value, value)
-
-            else:
-                if new[0] + new[-1] != "()":
-                    raise NotImplementedError(f"can't convert alignments {new!r}")
-
-                new = new[1:-1]
-                values = new.split(";")
-
-                if len(values) != 2:
-                    raise NotImplementedError(f"can't convert alignments {new!r}")
-
-                new = tuple(Alignment(x) for x in values)
-
-        self._alignment = new
-
-    @property
-    def anchor(self) -> Anchor:
-        return self._anchor
-
-    @anchor.setter
-    def anchor(self, new: Anchor | str) -> None:
-        if isinstance(new, str):
-            new = Anchor(new)
-
-        self._anchor = new
-
-    @property
-    def offset(self) -> tuple[int | float, int | float]:
-        return self._offset
-
-    @offset.setter
-    def offset(self, new: tuple[int, int] | str) -> None:
-        if isinstance(new, str):
-            if new[0] + new[-1] != "()":
-                raise NotImplementedError(f"can't convert offsets {new!r}")
-
-            new = new[1:-1]
-            values = new.split(";")
-
-            new = (
-                float(values[0]) if "." in values[0] else int(values[0]),
-                float(values[1]) if "." in values[1] else int(values[1]),
-            )
-
-        self._offset = new
-
-    @property
-    def position(self) -> tuple[int | float, int | float]:
-        return self._position
-
-    @position.setter
-    def position(self, new: tuple[int, int] | str) -> None:
-        if isinstance(new, str):
-            if new[0] + new[-1] != "()":
-                raise NotImplementedError(f"can't convert positions {new!r}")
-
-            new = new[1:-1]
-            values = new.split(";")
-
-            new = (
-                float(values[0]) if "." in values[0] else int(values[0]),
-                float(values[1]) if "." in values[1] else int(values[1]),
-            )
-
-        self._position = new
 
     @property
     def clipped_position(self) -> tuple[int, int]:
@@ -855,7 +813,7 @@ class Widget:
         if self._virtual_width == 0:
             x.value = 0
         else:
-            x.value = (self.scroll[0] + self.computed_width) / self._virtual_width
+            x.value = self.scroll[0] / max(1, self._virtual_width - self._framed_width)
 
         if self._virtual_height == 0:
             y.value = 0
@@ -932,18 +890,19 @@ class Widget:
             """
             scroll_step = 2
             scroll = list(self.scroll)
+            scroll_horizontal, scroll_vertical = self.has_scrollbar(0), self.has_scrollbar(1)
 
-            if key == "shift-up":
+            if key == "shift-up" and scroll_vertical:
                 scroll[1] -= scroll_step
-            elif key == "shift-down":
+            elif key == "shift-down" and scroll_vertical:
                 scroll[1] += scroll_step
-            elif key == "shift-left":
+            elif key == "shift-left" and scroll_horizontal:
                 scroll[0] -= scroll_step
-            elif key == "shift-right":
+            elif key == "shift-right" and scroll_horizontal:
                 scroll[0] += scroll_step
-            elif key == "ctrl-shift-up":
+            elif key == "ctrl-shift-up" and scroll_vertical:
                 scroll[1] = 0
-            elif key == "ctrl-shift-down":
+            elif key == "ctrl-shift-down" and scroll_vertical:
                 scroll[1] = self._virtual_height
 
             original = self.scroll
@@ -1002,12 +961,13 @@ class Widget:
 
         styles = self.get_styles()
 
-        state = (content, width, height, self._clip_start, self._clip_end, self.get_styles(raw=True))
+        state = (width, height, self._clip_start, self._clip_end, self.get_styles(raw=True))
 
-        if state == self._last_state and self._last_build is not None:
+        if state == self._last_state and content == self._last_content:
             return self._last_build
 
         self._last_state = state
+        self._last_content = content
 
         lines: list[tuple[Span, ...]] = [
             _apply_style(line, styles["content"]) for line in content
@@ -1054,14 +1014,14 @@ class Widget:
 
     def compute_dimensions(self, available_width: int, available_height: int) -> None:
         if self.width == -1:
-            self.computed_width = self._virtual_width + self.frame.width
+            self.computed_width = self._virtual_width + self.frame.width + self.has_scrollbar(1)
         else:
             self.computed_width = _compute(self.width, available_width)
 
         self.computed_width += _compute(self.width_offset, available_width)
 
         if self.height == -1:
-            self.computed_height = self._virtual_height + self.frame.height
+            self.computed_height = self._virtual_height + self.frame.height + self.has_scrollbar(0)
         else:
             self.computed_height = _compute(self.height, available_height)
 

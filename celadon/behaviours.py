@@ -916,9 +916,10 @@ TextField = Widget.create_type("TextField", behaviours=[form_item, text_field])
 
 def matrix(widget: Widget):
     @widget.add_initializer
-    def initialize(self, cols: int = 10, rows: int = 10):
+    def initialize(self, cols: int = 10, rows: int = 10, dense: bool = True):
         self.cols = cols
         self.rows = rows
+        self.dense = dense
         self.cursor = (0, 0)
         self._checkerboard = []
         self._data: list[list[Color]] = []
@@ -987,6 +988,10 @@ def matrix(widget: Widget):
                     )
 
                 line.append(color.hex)
+
+            if not self.dense:
+                lines.append("".join(f"[@{bg}] [/]" for bg in line))
+                continue
 
             if y % 2:
                 lines.append("".join(f"[@{bg} {fg}]▄[/]" for fg, bg in zip(line, last)))

@@ -9,6 +9,9 @@ from slate import terminal, getch, getch_timeout, feed, Key
 from .widget import Widget
 from .enums import MouseAction
 
+import os
+DEBUG = os.getenv("DEBUG", None)
+
 
 def _parse_mouse_input(key: Key) -> tuple[MouseAction, tuple[int, int]] | None:
     inp = str(key)
@@ -115,7 +118,7 @@ class Application:
         @terminal.on_resize.append
         def _on_resize(_):
             terminal.clear()
-            self._start_render(1)
+            self._start_render(10)
 
         with terminal.no_echo(), terminal.alt_buffer():
             self._start_render()
@@ -123,6 +126,7 @@ class Application:
             while self._is_running:
                 inp = getch_timeout(0.1, default=None)
                 if inp is None:
+                    # Fetch terminal size to send any update events
                     _ = terminal.size
                     continue
                 self._last_input = time.time()
@@ -146,6 +150,10 @@ class Application:
 
                 self._start_render()
 
+            if self._current_render_thread and self._current_render_thread.is_alive():
+                self._render_abort_event.set()
+                self._current_render_thread.join()
+
         if self._raised is not None:
             raise self._raised
 
@@ -159,7 +167,7 @@ class Application:
             elapsed = 0
             animation_budget = 1
 
-            while animation_budget + extra_frames > 0 or time.time() - self._last_input < 1/15:
+            while self._is_running and animation_budget + extra_frames > 0 or time.time() - self._last_input < 1/15:
                 extra_frames = max(extra_frames-1, 0)
 
                 widgets = self.page.get_widgets()
@@ -193,7 +201,11 @@ class Application:
                         changes = terminal.write_bulk(lines)
                         self._last_lines = lines.copy()
 
-                    terminal.write(f"FPS ~ {1/elapsed:.2f} ({len(widgets)} widgets drawn, {changes:0>4} changes)", cursor=(0, terminal.height-1))
+                    if DEBUG:
+                        terminal.write(
+                            f"FPS ~ {1/elapsed:.2f} ({len(widgets)} widgets drawn, {changes:0>4} changes)",
+                            cursor=(0, terminal.height-1)
+                        )
 
                     with terminal.batch():
                         terminal.draw()
@@ -205,7 +217,7 @@ class Application:
 
         with self._render_lock:
             thread_start = time.time()
-            self._current_render_thread = Thread(target=_run, daemon=True)
+            self._current_render_thread = Thread(target=_run)
             self._current_render_thread.start()
 
     def stop(self) -> None:
@@ -275,6 +287,8 @@ if __name__ == "__main__":
             state["active"] = not state["active"]
 
         widget.on_key += _pause
+
+    import sys
 
     from celadon import (
         Alignment,
@@ -350,7 +364,11 @@ if __name__ == "__main__":
                 return
 
             idx = self.parent.children.index(self)
-            self.alignment = ("(start;start)" if idx % 2 else "(end;start)")
+            self.alignment = (
+                (Alignment.START, Alignment.START)
+                if idx % 2 else
+                (Alignment.END, Alignment.START)
+            )
 
     MessageBox = Widget.create_type("MessageBox", source=Tower, behaviours=[message_box])
         
@@ -361,19 +379,25 @@ if __name__ == "__main__":
     root = Root(
         [
             Header(initial_label="[bold]OpenerCode"),
-            Tower(messages, rules=["width=1.0,height=1.0,overflow=scroll"]),
-            TextField("", rules=[
-                """
-                height=3,
-                frame=verticalouter,
+            Tower(messages, rules=["width=1.0, height=1.0, overflow=scroll"]),
+            TextField(
+                "Test",
+                binds={
+                    "return": lambda *_: sys.exit(1)
+                },
+                rules=[
+                    """
+                    height=-1,
+                    frame=(frameless;verticalouter;frameless;verticalouter),
 
-                ~background=@.panel1-2,
-                ~frame=gray,
+                    ~background=@.panel1-2,
+                    ~frame=gray,
 
-                /selected/
-                    ~background=@.panel1-2
-                """
-            ]),
+                    /selected/
+                        ~background=@.panel1-2,
+                    """
+                ]
+            ),
         ],
         rules=[
             "alignment=(start;end), ~background=@.panel1-3*0.5, gap=0",
@@ -381,10 +405,48 @@ if __name__ == "__main__":
         ]
     )
 
+
+    anim = Animation(duration=60, loop=True)
+    last_pos = None
+
+    @anim.on_frame.append
+    def step(args):
+        global last_pos
+
+        def _get_square(origin):
+            for y in range(3):
+                for x in range(3):
+                    yield (origin[0] + x, origin[1] + y)
+
+        anim, self = args
+
+        if last_pos is not None:
+            for (x, y) in last_pos:
+
+                for (x, y) in _get_square((x, y)):
+                    matrix._data[y][x] = None
+
+        x = int(anim.frame % anim.total_duration / anim.total_duration * (terminal.width - 3))
+        y = 0
+
+        last_pos = []
+
+        for i in range(5):
+            offset = int((terminal.height * 2 - 5) / 4 * i)
+
+            last_pos.append((x, y+offset))
+
+            for (ix, iy) in _get_square((x, y + offset)):
+                matrix._data[iy][ix] = "red"
+
+
+    matrix = Matrix(terminal.width, terminal.height * 2)
+    matrix.animations.append(anim)
+
     app = Application()
 
     app.add(Page("/", root))
+    # app.add(Page("/", Root([matrix])))
     app.navigate("/")
 
     app.run()
-    print(app.page.get_widgets())
