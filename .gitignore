@@ -1,0 +1,5 @@
+*.lock
+legacy
+slate
+zenith
+__pycache__
