@@ -10,6 +10,7 @@ from .widget import Widget
 from .enums import MouseAction
 
 import os
+
 DEBUG = os.getenv("DEBUG", None)
 
 
@@ -121,7 +122,7 @@ class Application:
             self._start_render(10)
 
         with terminal.no_echo(), terminal.alt_buffer():
-            self._start_render()
+            self._start_render(2)
 
             while self._is_running:
                 inp = getch_timeout(0.1, default=None)
@@ -167,8 +168,11 @@ class Application:
             elapsed = 0
             animation_budget = 1
 
-            while self._is_running and animation_budget + extra_frames > 0 or time.time() - self._last_input < 1/15:
-                extra_frames = max(extra_frames-1, 0)
+            while (
+                self._is_running
+                and (animation_budget + extra_frames > 0 or time.time() - self._last_input < 1 / 15)
+            ):
+                extra_frames = max(extra_frames - 1, 0)
 
                 widgets = self.page.get_widgets()
                 animation_budget = max(
@@ -176,7 +180,8 @@ class Application:
                         anim.total_duration if anim.loop else anim.duration
                         for widget in widgets
                         for anim in widget.animations
-                    ], default=0
+                    ],
+                    default=0,
                 )
 
                 start = time.perf_counter()
@@ -203,14 +208,14 @@ class Application:
 
                     if DEBUG:
                         terminal.write(
-                            f"FPS ~ {1/elapsed:.2f} ({len(widgets)} widgets drawn, {changes:0>4} changes)",
-                            cursor=(0, terminal.height-1)
+                            f"FPS ~ {1 / elapsed:.2f} ({len(widgets)} widgets drawn, {changes:0>4} changes)",
+                            cursor=(0, terminal.height - 1),
                         )
 
                     with terminal.batch():
                         terminal.draw()
 
-                sleep = 1/60 - elapsed
+                sleep = 1 / 60 - elapsed
 
                 if sleep > 0:
                     time.sleep(sleep)
@@ -254,204 +259,88 @@ class Application:
 
 
 if __name__ == "__main__":
-
-    def jump_behaviour(widget: Widget):
-        state = {"active": True}
-
-        offset = 0
-        original = None
-        frames = 0
-
-        from math import sin, pi
-
-        def _jump(_):
-            nonlocal offset, original, frames
-
-            if not state["active"]:
-                return
-
-            offset = int(sin(frames / 60 * 2 * pi) * 10)
-            widget.offset = 30, 12 + offset
-
-            frames += 1
-            widget.dirty = True
-
-        widget.on_build_start += _jump
-
-        def _pause(args):
-            _, key = args
-
-            if key != " ":
-                return
-
-            state["active"] = not state["active"]
-
-        widget.on_key += _pause
-
-    import sys
-
-    from celadon import (
-        Alignment,
-        Anchor,
-        Animation,
-        Button,
-        Cursor,
-        Matrix,
-        Overflow,
-        Root,
-        Row,
-        Slider,
-        Text,
-        TextField,
-        Tower,
-        enums,
-        frames,
-    )
-
-    def header(widget: Widget):
-        widget.add_rules(
-            "width=1.0, alignment=center",
-            #"anchor=screen",
-            #"offset=(0.5;0)",
-        )
-
-        anim = Animation(duration=30, loop=False)
-        background_rule = None
-        
-        @anim.on_frame.append
-        def step_anim(args):
-            nonlocal background_rule
-
-            anim, self = args
-
-            if background_rule is not None:
-                self.remove_rules(background_rule)
-
-            background_rule = f"~background=@.primary-3*{anim.frame % 60 / 60}"
-            self.add_rules(background_rule)
-
-        # widget.animations.append(anim)
-
-        @widget.add_initializer
-        def initialize(self, initial_label: str) -> None:
-            self.label = Text(initial_label)
-            self.append(self.label)
-
-    Header = Widget.create_type("Header", source=Tower, behaviours=[header])
-
-    def message_box(widget: Widget):
-        widget.add_rules("min_width=-1, width=1.0")
-
-        @widget.add_initializer
-        def initialize(self, message: str) -> None:
-            t = Text(message, rules=[
-                """
-                frame=light,
-                width_offset=2,
-                alignment=center,
-
-                /selected/
-                    frame=double,
-                """
-            ])
-            t.inert = False
-            self.append(t)
-
-        @widget.on_build_start.append
-        def determine_side(self) -> None:
-            if not isinstance(self.parent, Widget):
-                return
-
-            idx = self.parent.children.index(self)
-            self.alignment = (
-                (Alignment.START, Alignment.START)
-                if idx % 2 else
-                (Alignment.END, Alignment.START)
-            )
-
-    MessageBox = Widget.create_type("MessageBox", source=Tower, behaviours=[message_box])
-        
-    messages = []
-    for i in range(50):
-        messages.append(MessageBox(message="My third message My third message My third message"))
-
-    root = Root(
-        [
-            Tower(messages, rules=["width=1.0, height=1.0"]),
-            TextField(
-                "Test",
-                binds={
-                    "return": lambda *_: sys.exit(1)
-                },
-                rules=[
-                    """
-                    height=-1,
-                    frame=(frameless;verticalouter;frameless;verticalouter),
-
-                    ~background=@.panel1-2,
-                    ~frame=gray,
-
-                    /selected/
-                        ~background=@.panel1-2,
-                    """
-                ]
-            ),
-            Header(initial_label="[bold]OpenerCode", rules=[
-                """
-                anchor=screen,
-                max_width=50,
-                offset=(0.5;0),
-
-                ~background=@.primary-2*0.3,
-                """
-            ]),
-        ],
-        rules=[
-            "alignment=(start;end), gap=0",
-        ]
-    )
-
-
-    anim = Animation(duration=60, loop=True)
-    last_pos = None
-
-    @anim.on_frame.append
-    def step(args):
-        global last_pos
-
-        def _get_square(origin):
-            for y in range(3):
-                for x in range(3):
-                    yield (origin[0] + x, origin[1] + y)
-
-        anim, self = args
-
-        if last_pos is not None:
-            for (x, y) in last_pos:
-
-                for (x, y) in _get_square((x, y)):
-                    matrix._data[y][x] = None
-
-        x = int(anim.frame % anim.total_duration / anim.total_duration * (terminal.width - 3))
-        y = 0
-
-        last_pos = []
-
-        for i in range(5):
-            offset = int((terminal.height * 2 - 5) / 4 * i)
-
-            last_pos.append((x, y+offset))
-
-            for (ix, iy) in _get_square((x, y + offset)):
-                matrix._data[iy][ix] = "red"
-
-
-    matrix = Matrix(terminal.width, terminal.height * 2)
-    matrix.animations.append(anim)
-
     app = Application()
 
-    app.add(Page("/", root))
+    import celadon as c
+
+    @Widget.from_behaviour(base=c.button)
+    def icon_button(widget):
+        widget.add_rules(
+            """
+            frame=frameless,
+            width=-1,
+            ~background=@black*0.2,
+
+            /selected/
+                frame=frameless,
+                ~background=@black*0.4,
+            """
+        )
+
+    def get():
+        return c.tower([
+            c.row([
+                c.text("Window Title 1.0"),
+                c.row([
+                    icon_button("o"),
+                    icon_button("x", lambda self: self.parent.parent.parent.remove_self()),
+                ], rules=["gap=0"]),
+            ], rules=[
+                """
+                width=1.0,
+                gap=null,
+                alignment=center,
+                frame=(padded;frameless;padded;frameless),
+
+                ~background=[dim @.panel1],
+
+                /parent:selected/
+                    ~background=[bold @.primary],
+                """
+            ]),
+            c.tower([
+                c.text("- Hey there de-lilla de-lilla de-lilla"),
+                c.text("- Hey there de-lilla"),
+                c.text("- Hey there de-lilla de-lilla de-lilla"),
+                c.text("- Hey there de-lilla"),
+                c.text("- Hey there de-lilla de-lilla de-lilla de-lilla de-lilla"),
+            ], rules=["gap=0, height=1.0"]),
+            c.row([
+                c.text("[dim]>"),
+                c.text_field("", rules=["width=-1, frame=frameless"]),
+            ], rules=[
+                """
+                width=1.0,
+                gap=0,
+                frame=(padded;frameless;padded;frameless),
+
+                ~background=@.panel1-2,
+
+                /selected/
+                    ~background=@.panel1-2,
+                """
+            ])
+        ], rules=[
+            """
+            frame=(rounded;frameless;rounded;rounded),
+            width=1.0,
+            height=1.0,
+
+            ~frame=.panel1,
+
+            /selected/
+                ~frame=.primary
+            """
+        ])
+
+    # app.add(Page("/", root))
+    app.add(Page(
+        "/",
+        c.root([
+            c.row([get(), get()], rules=["width=1.0,height=1.0"]),
+            get(),
+        ], rules=["frame=frameless, gap=0"]))
+    )
     # app.add(Page("/", Root([matrix])))
     app.navigate("/")
 
@@ -461,5 +350,28 @@ if __name__ == "__main__":
     - rethink behavior model? widgets + behaviours? i dont like function widgets
     """
 
+    from zenith import Palette
+    from slate import color
+
+    orange = color("#e86100")
+    p = Palette(
+        orange,
+        secondary=orange,
+        tertiary=orange,
+        panel1=orange,
+        panel2=orange,
+        namespace="main.",
+    )
+
+    # p.alias()
     app.run()
-    print(root.children[1].overflow)
+    root = app.page.root
+
+    b = c.button("test")
+    root.append(b)
+    b.build()
+    b.state_machine.apply_action("selected")
+    b.build()
+    import json
+    print(json.dumps(b.style_map, indent=2))
+    print(json.dumps(list(b._rule_calls.keys()), indent=2))

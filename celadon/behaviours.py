@@ -8,9 +8,23 @@ from zenith import zml_escape
 
 from . import frames
 from .enums import Alignment, Direction, Anchor, Overflow
-from .widget import Widget, _apply_style
+from .widget import Widget, _apply_style, _compute
 
 PRINTABLE_LIST = [*string.printable]
+
+__all__ = [
+    "button",
+    "container",
+    "cursor",
+    "form_item",
+    "matrix",
+    "root",
+    "row",
+    "slider",
+    "text",
+    "text_field",
+    "tower",
+]
 
 
 def _find_word_end(line: str, direction: int = 1) -> int:
@@ -31,12 +45,15 @@ def _find_word_end(line: str, direction: int = 1) -> int:
     return -direction * (len(strip_line) - len(line)) + direction
 
 
+@Widget.from_behaviour()
 def text(widget: Widget):
     widget.inert = True
     widget.height = -1
     widget.width = -1
 
     for state in widget.style_map.keys():
+        if state == "*":
+            continue
         widget.style_map[state]["content"] = "opaque"
 
     @widget.add_initializer
@@ -48,11 +65,25 @@ def text(widget: Widget):
         return [self.text]
 
 
-Text = Widget.create_type("Text", behaviours=[text])
-
-
+@Widget.from_behaviour()
 def button(widget: Widget):
     widget.on_submit: Event[Widget] = Event("on submit")
+
+    widget.add_rules(
+        """
+        width_offset=2,
+        alignment=(center;start),
+        frame=(double;frameless;double;frameless),
+
+        ~frame=.primary-1,
+        ~background=@.panel1-1,
+
+        /selected/
+            ~content=[],
+            ~background=@white,
+            ~frame=white,
+        """
+    )
 
     @widget.add_initializer
     def initialize(
@@ -74,36 +105,6 @@ def button(widget: Widget):
         if key in [" ", "return"]:
             self.on_submit(self)
 
-    @widget.on_build_start.append
-    def set_width(self):
-        odd = len(self.label) % 2
-        self.width = max(len(self.label) + 4, 14 - odd)
-
-    for k in widget.style_map.keys():
-        widget.style_map[k]["frame"] = ".primary-1"
-        widget.style_map[k]["background"] = "@.panel1-1"
-
-    widget.style_map["selected"]["content"] = "bold"
-    widget.style_map["selected"]["background"] = "@white"
-    widget.style_map["selected"]["frame"] = "@white"
-    widget.style_map["active"]["background"] = "@red"
-
-    widget.frame = frames.Frame.compose(
-        [
-            frames.Double,
-            frames.Frameless,
-            frames.Double,
-            frames.Frameless,
-        ]
-    )
-
-    widget.width = -1
-    widget.height = -1
-    widget.alignment = [Alignment.CENTER, Alignment.START]
-
-
-Button = Widget.create_type("Button", behaviours=[button])
-
 
 def container(direction: Direction, widget: Widget) -> dict[str, Any]:
     widget.direction = direction
@@ -111,6 +112,9 @@ def container(direction: Direction, widget: Widget) -> dict[str, Any]:
     widget.height = -1
 
     for state in widget.style_map.keys():
+        if state == "*":
+            continue
+
         widget.style_map[state]["content"] = ""
 
     @widget.add_initializer
@@ -125,13 +129,11 @@ def container(direction: Direction, widget: Widget) -> dict[str, Any]:
 
         self.gap = gap
 
-        for child in (children or []):
-            self.append(child, build=False)
-
-        self.build()
+        for child in children or []:
+            self.append(child)
 
     @widget.bind
-    def append(self, el: Widget, build: bool = False) -> None:
+    def append(self, el: Widget) -> None:
         self.children.append(el)
         el.parent = self
         # Build once to assign correct shrink sizing
@@ -139,7 +141,9 @@ def container(direction: Direction, widget: Widget) -> dict[str, Any]:
 
     @widget.bind
     def remove(self, el: Widget) -> None:
+        start = len(self.children)
         self.children.remove(el)
+        handle_selection((self, "esc"))
 
     @widget.on_build_start.append
     def set_active_children(self):
@@ -190,13 +194,15 @@ def container(direction: Direction, widget: Widget) -> dict[str, Any]:
             self.parts = []
             return
 
-        available_width = max(self._framed_width, self._virtual_width) - self.has_scrollbar(1)
-        available_height = max(self._framed_height, self._virtual_height) - self.has_scrollbar(0)
+        available_width = max(
+            self._framed_width, self._virtual_width
+        ) - self.has_scrollbar(1)
+        available_height = max(
+            self._framed_height, self._virtual_height
+        ) - self.has_scrollbar(0)
 
         direction = self.direction
         is_horizontal = direction == Direction.HORIZONTAL
-
-        gap = self.gap
 
         # First pass: process content and compute dimensions for non-fill children
         fill_children = []
@@ -205,7 +211,7 @@ def container(direction: Direction, widget: Widget) -> dict[str, Any]:
         for child in children:
             if child.anchor in [Anchor.SCREEN, Anchor.PARENT]:
                 child.compute_dimensions(terminal.width, terminal.height)
-                
+
                 if child.anchor is Anchor.SCREEN:
                     context = terminal.size
                     origin = (0, 0)
@@ -215,10 +221,16 @@ def container(direction: Direction, widget: Widget) -> dict[str, Any]:
                     origin = parent_anchor
 
                 else:
-                    raise NotImplementedError(f"not sure how to handle anchor: {child.anchor}")
+                    raise NotImplementedError(
+                        f"not sure how to handle anchor: {child.anchor}"
+                    )
 
-                x_offset = _compute_offset(child.offset[0], context[0] - child.computed_width)
-                y_offset = _compute_offset(child.offset[1], context[1] - child.computed_height)
+                x_offset = _compute_offset(
+                    child.offset[0], context[0] - child.computed_width
+                )
+                y_offset = _compute_offset(
+                    child.offset[1], context[1] - child.computed_height
+                )
 
                 child.position = (
                     origin[0] + x_offset,
@@ -235,10 +247,12 @@ def container(direction: Direction, widget: Widget) -> dict[str, Any]:
 
         if is_horizontal:
             used_space = sum(child.computed_width for child in non_fill_children)
+            gap = _compute(self.gap, available_width - used_space)
             used_space += gap * max(len(children) - 1, 0)
             remaining_space = max(available_width - used_space, 0)
         else:
             used_space = sum(child.computed_height for child in non_fill_children)
+            gap = _compute(self.gap, available_height - used_space)
             used_space += gap * max(len(children) - 1, 0)
             remaining_space = max(available_height - used_space, 0)
 
@@ -452,10 +466,11 @@ def container(direction: Direction, widget: Widget) -> dict[str, Any]:
         return output
 
 
-Tower = Widget.create_type("Tower", behaviours=[partial(container, Direction.VERTICAL)])
-Row = Widget.create_type("Row", behaviours=[partial(container, Direction.HORIZONTAL)])
+tower = Widget.create_type("Tower", behaviours=[partial(container, Direction.VERTICAL)])
+row = Widget.create_type("Row", behaviours=[partial(container, Direction.HORIZONTAL)])
 
 
+@Widget.from_behaviour()
 def form_item(widget: Widget):
     ValueType = TypeVar("ValueType")
 
@@ -477,6 +492,7 @@ def drag_event(widget: Widget):
     widget.on_drag = Event("on drag")
 
 
+@Widget.from_behaviour(include=[drag_event])
 def slider(widget: Widget):
     @widget.add_initializer
     def initialize(
@@ -560,9 +576,7 @@ def slider(widget: Widget):
     widget.style_map["selected"]["frame"] = ".primary"
 
 
-Slider = Widget.create_type("Slider", behaviours=[form_item, drag_event, slider])
-
-
+@Widget.from_behaviour(include=[form_item])
 def cursor(widget: Widget):
     @widget.add_initializer
     def initialize(self, value: tuple[int, int] = (0, 0)):
@@ -635,9 +649,7 @@ def cursor(widget: Widget):
     widget.style_map["selected"]["content"] = ".primary bold"
 
 
-Cursor = Widget.create_type("Cursor", behaviours=[form_item, cursor])
-
-
+@Widget.from_behaviour(include=[form_item])
 def text_field(widget: Widget):
     widget.frame = frames.Frame.compose(
         (frames.Double, frames.Frameless, frames.Frameless, frames.Frameless)
@@ -909,8 +921,7 @@ def text_field(widget: Widget):
         ]
 
 
-TextField = Widget.create_type("TextField", behaviours=[form_item, text_field])
-
+@Widget.from_behaviour()
 def matrix(widget: Widget):
     @widget.add_initializer
     def initialize(self, cols: int = 10, rows: int = 10, dense: bool = True):
@@ -999,8 +1010,7 @@ def matrix(widget: Widget):
         return lines
 
 
-Matrix = Widget.create_type("Matrix", behaviours=[matrix])
-
+@Widget.from_behaviour(base=tower)
 def root(widget: Widget):
     widget.add_rules("anchor=screen, position=(0;0), alignment=center, overflow=auto")
     widget.width = 1.0
@@ -1013,6 +1023,3 @@ def root(widget: Widget):
         widget.compute_dimensions(*size)
 
     _resize((terminal.width, terminal.height))
-
-
-Root = Widget.create_type("Root", source=Tower, behaviours=[root])

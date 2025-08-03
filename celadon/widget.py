@@ -37,7 +37,9 @@ def _compute(spec: int | float | None, hint: int) -> int:
 RE_FULL_UNSETTER = re.compile(r"(?<=\[)[^\]]*(\/) ")
 
 
-def _keybind(target_key: str, action: Callable) -> Callable[[tuple[Widget, Key]], bool | None]:
+def _keybind(
+    target_key: str, action: Callable
+) -> Callable[[tuple[Widget, Key]], bool | None]:
     def _inner(args):
         self, key = args
 
@@ -49,6 +51,7 @@ def _keybind(target_key: str, action: Callable) -> Callable[[tuple[Widget, Key]]
     _inner.__name__ = f"on_key_{target_key}"
     return _inner
 
+
 def _apply_style(line: str, style: Callable[[str], str]) -> tuple[Span, ...]:
     raw_style = style("")
 
@@ -58,7 +61,9 @@ def _apply_style(line: str, style: Callable[[str], str]) -> tuple[Span, ...]:
     return tuple(span for span in zml_get_spans(line) if span is not FULL_RESET)
 
 
-def _get_rule_applicator(state: str | None, key: str, value: str, style: bool) -> Callable[[Widget], bool]:
+def _get_rule_applicator(
+    state_complex: str | None, key: str, value: str, style: bool
+) -> Callable[[Widget], bool]:
     if not style:
         if isinstance(value, str) and value[0] == "(" and value[-1] == ")":
             value = value[1:-1].split(";")
@@ -78,6 +83,10 @@ def _get_rule_applicator(state: str | None, key: str, value: str, style: bool) -
             value = [convert(val) for val in value]
 
         for i, part in enumerate(value):
+            if part == "null":
+                value[i] = None
+                continue
+
             if isinstance(part, str) and part.lstrip("-").replace(".", "").isdigit():
                 if "." in part:
                     value[i] = float(part)
@@ -97,13 +106,41 @@ def _get_rule_applicator(state: str | None, key: str, value: str, style: bool) -
                 value = value()
 
     def _applicator(widget: Widget) -> bool:
-        current_state = widget.state_machine()
-        if state is not None and current_state != state:
-            return False
+        state = state_complex
+
+        marked = False
+
+        if state is not None:
+            state_target = widget
+            selector = ""
+
+            if ":" in state:
+                marked = True
+                selector, state = state.split(":")
+
+                if selector == "parent":
+                    state_target = widget.parent
+
+                else:
+                    raise ValueError(f"Unknown state target selector {selector!r}.")
+
+            if state_target is None:
+                return True
+
+            if state_target.state_machine() != state:
+                if style:
+                    state_styles = widget.style_map["*"]
+                    if state_styles.get(key, None) == value:
+                        del state_styles[key]
+
+                return False
+
+            if ":" in state_complex:
+                state = "*"
 
         if style:
-            state_styles = widget.style_map[state or "idle"]
-            current = state_styles[key]
+            state_styles = widget.style_map[state]
+            current = state_styles.get(key, None)
             if current == value:
                 return False
 
@@ -119,7 +156,10 @@ def _get_rule_applicator(state: str | None, key: str, value: str, style: bool) -
 
     return _applicator
 
-def _parse_rules(rules: list[str], into: dict | None = None) -> dict[tuple, Callable[[Widget], bool]]:
+
+def _parse_rules(
+    rules: list[str], into: dict | None = None
+) -> dict[tuple, Callable[[Widget], bool]]:
     if into is None:
         into = {}
 
@@ -133,6 +173,9 @@ def _parse_rules(rules: list[str], into: dict | None = None) -> dict[tuple, Call
 
         for i, char in enumerate(entry):
             if char == "/":
+                if not in_state:
+                    state = ""
+
                 in_state = not in_state
                 continue
 
@@ -177,18 +220,13 @@ def _parse_rules(rules: list[str], into: dict | None = None) -> dict[tuple, Call
                 if value.startswith("[") and value.endswith("]"):
                     value = value[1:-1]
 
-            if key in ["width", "height", "width_offset", "height_offset", "gap"]:
-                if "." in value:
-                    value = float(value)
-                else:
-                    value = int(value)
-
             hash_key = (state, key, value, style)
 
             if hash_key not in into:
                 into[hash_key] = _get_rule_applicator(state, key, value, style)
 
     return into
+
 
 @dataclass
 class Animation:
@@ -240,13 +278,21 @@ class Widget:
 
     @classmethod
     def create_type(
-        cls, name: str, behaviours: list[Callable[Widget]], source: Type[Widget] | None = None
+        cls,
+        name: str,
+        behaviours: list[Callable[Widget]],
+        source: Type[Widget] | None = None,
     ) -> Callable[[Any, ...], Widget]:
         if source is not None:
             behaviours = [*source.behaviours, *behaviours]
 
         def _construct(*args, eid: str | None = None, **kwargs) -> Widget:
-            w = Widget(eid=eid, type_name=name, rules=kwargs.get("rules"), binds=kwargs.get("binds"))
+            w = Widget(
+                eid=eid,
+                type_name=name,
+                rules=kwargs.get("rules"),
+                binds=kwargs.get("binds"),
+            )
 
             if len(args) and len(w.initializers):
                 raise ValueError(
@@ -274,6 +320,17 @@ class Widget:
 
         _construct.behaviours = behaviours
         return _construct
+
+    @classmethod
+    def from_behaviour(
+        cls, base: Type[Widget] | None = None, include: list[Callable[[Widget], None]] | None = None
+    ) -> Callable[[Any, ...], Widget]:
+        def _wrap(behaviour: Callable[[Widget], None]) -> Callable[[Any, ...], Widget]:
+            return cls.create_type(
+                behaviour.__name__, behaviours=[behaviour, *(include or [])], source=base
+            )
+
+        return _wrap
 
     def __init__(
         self,
@@ -400,6 +457,7 @@ class Widget:
                 "scrollbar_x": "@.panel1-3",
                 "scrollbar_y": "@.panel1-3",
             },
+            "*": {},
         }
 
         self.on_init: Event[Widget] = Event("on init")
@@ -509,15 +567,15 @@ class Widget:
         )
 
     @property
-    def scrollbars(self) -> tuple[Slider, Slider, Text]:
+    def scrollbars(self) -> tuple[Widget, Widget]:
         if not self._scrollbars:
-            from .behaviours import Slider, Text
+            from .behaviours import slider
 
-            x = Slider(value=0.5, chars=(" ", "▅"))
+            x = slider(value=0.5, chars=(" ", "▅"))
             x.frame = Frameless()
             x.style_map["idle"]["frame"] = ".panel1-1"
             x.parent = self
-            y = Slider(value=0.5, chars=(" ", "█"), vertical=True)
+            y = slider(value=0.5, chars=(" ", "█"), vertical=True)
             y.style_map["idle"]["frame"] = ".panel1-1"
             y.frame = Frameless()
             y.parent = self
@@ -548,6 +606,12 @@ class Widget:
     def remove_rules(self, *rules: str) -> None:
         for key in _parse_rules(rules).keys():
             del self._rule_calls[key]
+
+    def remove_self(self) -> None:
+        if self.parent is None:
+            return
+
+        self.parent.remove(self)
 
     def bind(self, function: Callable) -> Callable:
         bound = function.__get__(self, self.__class__)
@@ -587,7 +651,7 @@ class Widget:
 
             return " ".join(words)
 
-        values = self.style_map[self.state_machine()].copy() or {}
+        values = {**self.style_map[self.state_machine()], **self.style_map["*"]}
 
         if values == {}:
             return {}
@@ -837,7 +901,9 @@ class Widget:
         if self._virtual_height == 0:
             y.value = 0
         else:
-            y.value = self.scroll[1] / max(1, self._virtual_height - self._framed_height)
+            y.value = self.scroll[1] / max(
+                1, self._virtual_height - self._framed_height
+            )
 
         x.compute_dimensions(width, 1)
         y.compute_dimensions(1, height)
@@ -913,7 +979,10 @@ class Widget:
             """
             scroll_step = 2
             scroll = list(self.scroll)
-            scroll_horizontal, scroll_vertical = self.has_scrollbar(0), self.has_scrollbar(1)
+            scroll_horizontal, scroll_vertical = (
+                self.has_scrollbar(0),
+                self.has_scrollbar(1),
+            )
 
             if key == "shift-up" and scroll_vertical:
                 scroll[1] -= scroll_step
@@ -981,7 +1050,13 @@ class Widget:
 
         styles = self.get_styles()
 
-        state = (width, height, self._clip_start, self._clip_end, self.get_styles(raw=True))
+        state = (
+            width,
+            height,
+            self._clip_start,
+            self._clip_end,
+            self.get_styles(raw=True),
+        )
 
         if state == self._last_state and content == self._last_content:
             return self._last_build
@@ -1033,32 +1108,39 @@ class Widget:
         return lines
 
     def compute_dimensions(self, available_width: int, available_height: int) -> None:
-        shrink_width = self._virtual_width + self.frame.width
+        shrink_width = (
+            self._virtual_width
+            + self.frame.width
+            + _compute(self.width_offset, available_width)
+        )
+
         if self.width == -1:
             self.computed_width = shrink_width + self.has_scrollbar(1)
         else:
             self.computed_width = _compute(self.width, available_width)
 
-        offset_width = _compute(self.width_offset, available_width)
         self.computed_width = max(
             shrink_width if self.min_width == -1 else self.min_width,
-            self.computed_width
-        ) + offset_width
+            self.computed_width,
+        )
 
         if self.max_width != -1:
             self.computed_width = min(self.computed_width, self.max_width)
 
-        shrink_height = self._virtual_height + self.frame.height
+        shrink_height = (
+            self._virtual_height
+            + self.frame.height
+            + _compute(self.height_offset, available_height)
+        )
         if self.height == -1:
             self.computed_height = shrink_height + self.has_scrollbar(0)
         else:
             self.computed_height = _compute(self.height, available_height)
 
-        offset_height = _compute(self.height_offset, available_height)
         self.computed_height = max(
             shrink_height if self.min_height == -1 else self.min_height,
-            self.computed_height
-        ) + offset_height
+            self.computed_height,
+        )
 
         if self.max_height != -1:
             self.computed_height = min(self.computed_height, self.max_height)

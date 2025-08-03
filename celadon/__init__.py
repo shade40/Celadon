@@ -1,5 +1,5 @@
 from . import behaviours
-from .behaviours import Button, Row, Tower, Text, Slider, Cursor, TextField, Matrix, Root
+from .behaviours import *
 from . import frames
 
 from .application import *

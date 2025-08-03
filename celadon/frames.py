@@ -97,14 +97,29 @@ class Frame:  # pylint: disable=too-many-instance-attributes
         """
 
         borders = []
+        corners = []
 
         frame = cls()
 
+        last = None
+
         for i, side in enumerate(sides):
-            borders.append(side().borders[i])
+            s_frame = side()
+            borders.append(s_frame.borders[i])
+
+            n = sides[0]
+            if i < len(sides) - 1:
+                n = sides[i + 1]
+
+            if side == n:
+                corners.append(s_frame.corners[i])
+            else:
+                corners.append("")
+
+            last = side
 
         frame.borders = tuple(borders)  # type: ignore
-        # frame.corners = borders[1], borders[1], borders[3], borders[3]  # type: ignore
+        frame.corners = tuple(corners)
         frame.__init__()  # type: ignore # pylint: disable=unnecessary-dunder-call
 
         return frame
@@ -129,7 +144,7 @@ class Frame:  # pylint: disable=too-many-instance-attributes
             borders[i] = frame.borders[i]
 
             if side == Frameless:
-                corners[i-1] = ""
+                corners[i - 1] = ""
                 corners[i] = ""
 
         self.borders = tuple(borders)
