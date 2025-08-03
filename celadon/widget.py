@@ -7,7 +7,7 @@ from functools import lru_cache
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Callable, Type
 
-from slate import Event, Span, Key
+from slate import Event, Span, Key, terminal
 from slate.span import EMPTY_SPAN
 from zenith.markup import zml_get_spans, zml_pre_process, preserve_escapes, FULL_RESET
 
@@ -78,7 +78,7 @@ def _get_rule_applicator(state: str | None, key: str, value: str, style: bool) -
             value = [convert(val) for val in value]
 
         for i, part in enumerate(value):
-            if isinstance(part, str) and part.replace(".", "").isdigit():
+            if isinstance(part, str) and part.lstrip("-").replace(".", "").isdigit():
                 if "." in part:
                     value[i] = float(part)
                 else:
@@ -129,6 +129,7 @@ def _parse_rules(rules: list[str], into: dict | None = None) -> dict[tuple, Call
 
         state = ""
         in_state = False
+        in_string = False
 
         for i, char in enumerate(entry):
             if char == "/":
@@ -137,6 +138,18 @@ def _parse_rules(rules: list[str], into: dict | None = None) -> dict[tuple, Call
 
             if in_state:
                 state += char
+                continue
+
+            if char == "[":
+                in_string = True
+                continue
+
+            if char == "]":
+                in_string = False
+                continue
+
+            if in_string:
+                statement += char
                 continue
 
             if char.strip() == "":
@@ -275,7 +288,11 @@ class Widget:
 
         self.position = (0, 0)
         self.width = -1
+        self.min_width = -1
+        self.max_width = -1
         self.height = -1
+        self.min_height = 0
+        self.max_height = -1
         self.width_offset = 0
         self.height_offset = 0
         self.computed_width = 1
@@ -288,7 +305,7 @@ class Widget:
         self.animations = []
         self.frame = get_frame(None)()
         self.alignment = (Alignment.START, Alignment.START)
-        self.overflow = (Overflow.HIDE, Overflow.HIDE)
+        self.overflow = (Overflow.AUTO, Overflow.AUTO)
 
         self._rule_calls = _parse_rules(rules or [])
 
@@ -403,6 +420,10 @@ class Widget:
             for key, action in binds.items():
                 self.on_key.append(_keybind(key, action))
 
+        @terminal.on_resize.append
+        def _clear_cache(_):
+            self._virtual_width = 0
+            self._virtual_height = 0
 
     def __str__(self) -> str:
         return self.type_name
@@ -500,10 +521,8 @@ class Widget:
             y.style_map["idle"]["frame"] = ".panel1-1"
             y.frame = Frameless()
             y.parent = self
-            t = Text("o")
-            t.parent = self
 
-            self._scrollbars = (x, y, t)
+            self._scrollbars = (x, y)
 
         return self._scrollbars
 
@@ -519,8 +538,8 @@ class Widget:
         old = self._scroll
 
         self._scroll = (
-            max(min(new[0], self._virtual_width - self._framed_width + x_bar), 0),
-            max(min(new[1], self._virtual_height - self._framed_height + y_bar), 0),
+            max(min(new[0], self._virtual_width - self._framed_width), 0),
+            max(min(new[1], self._virtual_height - self._framed_height), 0),
         )
 
     def add_rules(self, *rules: str) -> None:
@@ -808,7 +827,7 @@ class Widget:
         if not self.has_scrollbar(0) and not self.has_scrollbar(1):
             return
 
-        x, y, fill = self.scrollbars
+        x, y = self.scrollbars
 
         if self._virtual_width == 0:
             x.value = 0
@@ -828,31 +847,35 @@ class Widget:
         frame_right = self.frame.right != ""
         frame_bottom = self.frame.bottom != ""
 
-        clip_start = list(self._clip_start)
-        clip_end = list(self._clip_end)
+        if self.anchor is Anchor.SCREEN:
+            start_x, start_y = self.position
+            end_x, end_y = terminal.width - 1, terminal.height - 1
+            clip_start = (0, 0)
+            clip_end = (0, 0)
 
-        [start_x, start_y], [end_x, end_y] = self.outer_rect
+        else:
+            clip_start = list(self._clip_start)
+            clip_end = list(self._clip_end)
 
-        clip_start[0] = max(0, clip_start[0] - frame_left)
-        clip_start[1] = max(0, clip_start[1] - frame_top)
+            [start_x, start_y], [end_x, end_y] = self.outer_rect
 
-        start_x += self.frame.left != ""
-        start_y += self.frame.top != ""
+            clip_start[0] = max(0, clip_start[0] - frame_left)
+            clip_start[1] = max(0, clip_start[1] - frame_top)
 
-        clip_end[0] = max(0, clip_end[0] - frame_right)
-        clip_end[1] = max(0, clip_end[1] - frame_bottom)
+            start_x += self.frame.left != ""
+            start_y += self.frame.top != ""
 
-        end_x -= frame_right + 1
-        end_y -= frame_bottom + 1
+            clip_end[0] = max(0, clip_end[0] - frame_right)
+            clip_end[1] = max(0, clip_end[1] - frame_bottom)
+
+            end_x -= frame_right + 1
+            end_y -= frame_bottom + 1
 
         x.position = (start_x, end_y)
         x.clip((clip_start[0], max(0, clip_start[1] - height)), clip_end)
 
         y.position = (end_x, start_y)
         y.clip((max(0, clip_start[0] - width), clip_start[1]), clip_end)
-
-        fill.position = (end_x, end_y)
-        fill.clip(clip_start, clip_end)
 
         x.thumb_size = _get_size(self.computed_width, self._virtual_width, width)
         y.thumb_size = _get_size(self.computed_height, self._virtual_height, height)
@@ -897,9 +920,9 @@ class Widget:
             elif key == "shift-down" and scroll_vertical:
                 scroll[1] += scroll_step
             elif key == "shift-left" and scroll_horizontal:
-                scroll[0] -= scroll_step
+                scroll[0] -= scroll_step * 2
             elif key == "shift-right" and scroll_horizontal:
-                scroll[0] += scroll_step
+                scroll[0] += scroll_step * 2
             elif key == "ctrl-shift-up" and scroll_vertical:
                 scroll[1] = 0
             elif key == "ctrl-shift-down" and scroll_vertical:
@@ -931,16 +954,13 @@ class Widget:
 
         self.parts = []
 
-        bar_x, bar_y, bar_fill = self.scrollbars
+        bar_x, bar_y = self.scrollbars
 
         if self.has_scrollbar(0):
             self.parts.append(bar_x)
 
         if self.has_scrollbar(1):
             self.parts.append(bar_y)
-
-        if self.has_scrollbar(0) and self.has_scrollbar(1):
-            self.parts.append(bar_fill)
 
         self.on_build_start(self)
 
@@ -1013,19 +1033,35 @@ class Widget:
         return lines
 
     def compute_dimensions(self, available_width: int, available_height: int) -> None:
+        shrink_width = self._virtual_width + self.frame.width
         if self.width == -1:
-            self.computed_width = self._virtual_width + self.frame.width + self.has_scrollbar(1)
+            self.computed_width = shrink_width + self.has_scrollbar(1)
         else:
             self.computed_width = _compute(self.width, available_width)
 
-        self.computed_width += _compute(self.width_offset, available_width)
+        offset_width = _compute(self.width_offset, available_width)
+        self.computed_width = max(
+            shrink_width if self.min_width == -1 else self.min_width,
+            self.computed_width
+        ) + offset_width
 
+        if self.max_width != -1:
+            self.computed_width = min(self.computed_width, self.max_width)
+
+        shrink_height = self._virtual_height + self.frame.height
         if self.height == -1:
-            self.computed_height = self._virtual_height + self.frame.height + self.has_scrollbar(0)
+            self.computed_height = shrink_height + self.has_scrollbar(0)
         else:
             self.computed_height = _compute(self.height, available_height)
 
-        self.computed_height += _compute(self.height_offset, available_height)
+        offset_height = _compute(self.height_offset, available_height)
+        self.computed_height = max(
+            shrink_height if self.min_height == -1 else self.min_height,
+            self.computed_height
+        ) + offset_height
+
+        if self.max_height != -1:
+            self.computed_height = min(self.computed_height, self.max_height)
 
     def clip(self, start: tuple[int, int], end: tuple[int, int]) -> None:
         self.viewport_offsets = (start, end)

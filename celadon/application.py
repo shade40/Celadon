@@ -330,7 +330,7 @@ if __name__ == "__main__":
             background_rule = f"~background=@.primary-3*{anim.frame % 60 / 60}"
             self.add_rules(background_rule)
 
-        widget.animations.append(anim)
+        # widget.animations.append(anim)
 
         @widget.add_initializer
         def initialize(self, initial_label: str) -> None:
@@ -340,7 +340,7 @@ if __name__ == "__main__":
     Header = Widget.create_type("Header", source=Tower, behaviours=[header])
 
     def message_box(widget: Widget):
-        widget.add_rules("width=1.0")
+        widget.add_rules("min_width=-1, width=1.0")
 
         @widget.add_initializer
         def initialize(self, message: str) -> None:
@@ -349,7 +349,6 @@ if __name__ == "__main__":
                 frame=light,
                 width_offset=2,
                 alignment=center,
-                overflow=hide,
 
                 /selected/
                     frame=double,
@@ -378,8 +377,7 @@ if __name__ == "__main__":
 
     root = Root(
         [
-            Header(initial_label="[bold]OpenerCode"),
-            Tower(messages, rules=["width=1.0, height=1.0, overflow=scroll"]),
+            Tower(messages, rules=["width=1.0, height=1.0"]),
             TextField(
                 "Test",
                 binds={
@@ -398,10 +396,18 @@ if __name__ == "__main__":
                     """
                 ]
             ),
+            Header(initial_label="[bold]OpenerCode", rules=[
+                """
+                anchor=screen,
+                max_width=50,
+                offset=(0.5;0),
+
+                ~background=@.primary-2*0.3,
+                """
+            ]),
         ],
         rules=[
-            "alignment=(start;end), ~background=@.panel1-3*0.5, gap=0",
-            "/selected/ ~background=@.panel1-3*0.5"
+            "alignment=(start;end), gap=0",
         ]
     )
 
@@ -449,4 +455,11 @@ if __name__ == "__main__":
     # app.add(Page("/", Root([matrix])))
     app.navigate("/")
 
+    """
+    - add kitty input
+    - add binding support
+    - rethink behavior model? widgets + behaviours? i dont like function widgets
+    """
+
     app.run()
+    print(root.children[1].overflow)

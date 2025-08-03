@@ -190,8 +190,8 @@ def container(direction: Direction, widget: Widget) -> dict[str, Any]:
             self.parts = []
             return
 
-        available_width = self._framed_width - self.has_scrollbar(1)
-        available_height = self._framed_height - self.has_scrollbar(0)
+        available_width = max(self._framed_width, self._virtual_width) - self.has_scrollbar(1)
+        available_height = max(self._framed_height, self._virtual_height) - self.has_scrollbar(0)
 
         direction = self.direction
         is_horizontal = direction == Direction.HORIZONTAL
@@ -317,16 +317,13 @@ def container(direction: Direction, widget: Widget) -> dict[str, Any]:
 
         self.parts = [*all_children]
 
-        bar_x, bar_y, bar_fill = self.scrollbars
+        bar_x, bar_y = self.scrollbars
 
         if self.has_scrollbar(0):
             self.parts.append(bar_x)
 
         if self.has_scrollbar(1):
             self.parts.append(bar_y)
-
-        if self.has_scrollbar(0) and self.has_scrollbar(1):
-            self.parts.append(bar_fill)
 
         # Update virtual dimensions based on children
         non_anchored = [child for child in children if child.anchor is Anchor.NONE]
@@ -1005,12 +1002,14 @@ def matrix(widget: Widget):
 Matrix = Widget.create_type("Matrix", behaviours=[matrix])
 
 def root(widget: Widget):
-    widget.add_rules("position=(0;0), alignment=center, overflow=auto")
+    widget.add_rules("anchor=screen, position=(0;0), alignment=center, overflow=auto")
     widget.width = 1.0
     widget.height = 1.0
+    widget.layer = -1
 
     @terminal.on_resize.append
     def _resize(size):
+        widget.scroll = (0, 0)
         widget.compute_dimensions(*size)
 
     _resize((terminal.width, terminal.height))
