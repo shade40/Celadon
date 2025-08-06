@@ -8,7 +8,7 @@ from zenith import zml_escape
 
 from . import frames
 from .enums import Alignment, Direction, Anchor, Overflow
-from .widget import Widget, _apply_style, _compute
+from .widget import Widget, _apply_style, _compute, WidgetFields
 
 PRINTABLE_LIST = [*string.printable]
 
@@ -16,7 +16,6 @@ __all__ = [
     "button",
     "container",
     "cursor",
-    "form_item",
     "matrix",
     "root",
     "row",
@@ -46,7 +45,7 @@ def _find_word_end(line: str, direction: int = 1) -> int:
 
 
 @Widget.from_behaviour()
-def text(widget: Widget):
+def text(widget: Widget, fields: WidgetFields):
     widget.inert = True
     widget.height = -1
     widget.width = -1
@@ -58,15 +57,15 @@ def text(widget: Widget):
 
     @widget.add_initializer
     def initialize(self, text: str) -> list[str]:
-        self.text = text
+        fields.define_public(text=text)
 
     @widget.bind
     def get_contents(self) -> list[str]:
-        return [self.text]
+        return [fields.text]
 
 
 @Widget.from_behaviour()
-def button(widget: Widget):
+def button(widget: Widget, fields: WidgetFields):
     widget.on_submit: Event[Widget] = Event("on submit")
 
     widget.add_rules(
@@ -89,14 +88,14 @@ def button(widget: Widget):
     def initialize(
         self, label: str, submit_callback: Callable[[Widget], bool | None] | None = None
     ) -> list[str]:
-        self.label = label
+        fields.define_public(label=label)
 
         if submit_callback is not None:
             self.on_submit += submit_callback
 
     @widget.bind
     def get_contents(self):
-        return [widget.label]
+        return [fields.label]
 
     @widget.on_key.append
     def submit(args):
@@ -106,8 +105,7 @@ def button(widget: Widget):
             self.on_submit(self)
 
 
-def container(direction: Direction, widget: Widget) -> dict[str, Any]:
-    widget.direction = direction
+def container(direction: Direction, widget: Widget, fields: WidgetFields) -> dict[str, Any]:
     widget.width = -1
     widget.height = -1
 
@@ -117,38 +115,44 @@ def container(direction: Direction, widget: Widget) -> dict[str, Any]:
 
         widget.style_map[state]["content"] = ""
 
+    widget.state_machine.on_change.append
+    def send_state_to_children(_):
+        for child in self.children:
+            child._last_state = []
+
+
     @widget.add_initializer
-    def initialize(
-        self, children: list[Widget] | None = None, gap: int = 1
-    ) -> list[str]:
-        self.children = []
-        self.active_children = []
+    def initialize(self, children: list[Widget] | None = None) -> list[str]:
+        fields.define_public(gap=1)
 
-        self.selected_index = 0
-        self.selected = None
-
-        self.gap = gap
+        fields.define_readonly(
+            children=[],
+            active_children=[],
+            selected_index=0,
+            selected=None,
+            direction=direction,
+        )
 
         for child in children or []:
             self.append(child)
 
     @widget.bind
     def append(self, el: Widget) -> None:
-        self.children.append(el)
+        fields.children.append(el)
         el.parent = self
         # Build once to assign correct shrink sizing
         el.build()
 
     @widget.bind
     def remove(self, el: Widget) -> None:
-        start = len(self.children)
-        self.children.remove(el)
+        start = len(fields.children)
+        fields.children.remove(el)
         handle_selection((self, "esc"))
 
     @widget.on_build_start.append
     def set_active_children(self):
-        self.active_children = [child for child in self.children if not child.inert]
-        self.inert = all(child.inert for child in self.active_children)
+        fields.active_children = [child for child in fields.children if not child.inert]
+        self.inert = all(child.inert for child in fields.active_children)
 
     @widget.on_build_start.append
     def arrange(self):
@@ -188,7 +192,7 @@ def container(direction: Direction, widget: Widget) -> dict[str, Any]:
         x += 1 if self.frame.left else 0
         y += 1 if self.frame.top else 0
 
-        children = self.children
+        children = fields.children
 
         if not children:
             self.parts = []
@@ -201,7 +205,7 @@ def container(direction: Direction, widget: Widget) -> dict[str, Any]:
             self._framed_height, self._virtual_height
         ) - self.has_scrollbar(0)
 
-        direction = self.direction
+        direction = fields.direction
         is_horizontal = direction == Direction.HORIZONTAL
 
         # First pass: process content and compute dimensions for non-fill children
@@ -247,12 +251,12 @@ def container(direction: Direction, widget: Widget) -> dict[str, Any]:
 
         if is_horizontal:
             used_space = sum(child.computed_width for child in non_fill_children)
-            gap = _compute(self.gap, available_width - used_space)
+            gap = _compute(fields.gap, available_width - used_space)
             used_space += gap * max(len(children) - 1, 0)
             remaining_space = max(available_width - used_space, 0)
         else:
             used_space = sum(child.computed_height for child in non_fill_children)
-            gap = _compute(self.gap, available_height - used_space)
+            gap = _compute(fields.gap, available_height - used_space)
             used_space += gap * max(len(children) - 1, 0)
             remaining_space = max(available_height - used_space, 0)
 
@@ -372,16 +376,16 @@ def container(direction: Direction, widget: Widget) -> dict[str, Any]:
         if "SELECTED" not in action:
             return
 
-        if widget.selected is None:
-            widget.selected = widget.active_children[widget.selected_index]
+        if fields.selected is None:
+            fields.selected = fields.active_children[fields.selected_index]
 
-        widget.selected.state_machine.apply_action(action)
+        fields.selected.state_machine.apply_action(action)
 
     def autoscroll():
-        if widget.selected is None:
+        if fields.selected is None:
             return
 
-        sel = widget.selected
+        sel = fields.selected
         w, h = sel.computed_width, sel.computed_height
         clips = sel.viewport_offsets
         csx, csy = clips[0]
@@ -398,25 +402,25 @@ def container(direction: Direction, widget: Widget) -> dict[str, Any]:
         self, key = args
 
         if key in ["tab", "shift-tab"]:
-            original = self.selected
+            original = fields.selected
 
-            if self.selected is not None:
-                self.selected.state_machine.apply_action("UNSELECTED")
+            if fields.selected is not None:
+                fields.selected.state_machine.apply_action("UNSELECTED")
 
-                self.selected_index = min(
-                    max(self.selected_index + (-1 if "shift" in str(key) else 1), 0),
-                    len(widget.active_children) - 1,
+                fields.selected_index = min(
+                    max(fields.selected_index + (-1 if "shift" in str(key) else 1), 0),
+                    len(fields.active_children) - 1,
                 )
 
-            self.selected = self.active_children[self.selected_index]
+            fields.selected = fields.active_children[fields.selected_index]
             self.state_machine.apply_action("SELECTED")
             autoscroll()
             return True
 
         if key == "esc":
             self.state_machine.apply_action("UNSELECTED")
-            self.selected_index = 0
-            self.selected = None
+            fields.selected_index = 0
+            fields.selected = None
             return True
 
         is_horizontal = direction == Direction.HORIZONTAL
@@ -426,28 +430,28 @@ def container(direction: Direction, widget: Widget) -> dict[str, Any]:
         ]
 
         if key not in [up, down]:
-            return self.selected is not None and self.selected.handle_keyboard(key)
+            return fields.selected is not None and fields.selected.handle_keyboard(key)
 
-        original = self.selected_index
+        original = fields.selected_index
 
-        if self.selected is not None:
-            if self.selected.handle_keyboard(key):
+        if fields.selected is not None:
+            if fields.selected.handle_keyboard(key):
                 return True
 
             # Only change selected index if we already have a selected -
             # i.e. don't jump from unselected to selected==1
-            self.selected_index = min(
-                max(self.selected_index + (1 if key == down else -1), 0),
-                len(self.active_children) - 1,
+            fields.selected_index = min(
+                max(fields.selected_index + (1 if key == down else -1), 0),
+                len(fields.active_children) - 1,
             )
 
-        if self.selected_index == original and not self.is_root():
+        if fields.selected_index == original and not self.is_root():
             return False
 
-        if self.selected is not None:
-            self.selected.state_machine.apply_action("UNSELECTED")
+        if fields.selected is not None:
+            fields.selected.state_machine.apply_action("UNSELECTED")
 
-        self.selected = widget.active_children[self.selected_index]
+        fields.selected = fields.active_children[fields.selected_index]
         self.state_machine.apply_action("SELECTED")
         autoscroll()
 
@@ -466,34 +470,23 @@ def container(direction: Direction, widget: Widget) -> dict[str, Any]:
         return output
 
 
-tower = Widget.create_type("Tower", behaviours=[partial(container, Direction.VERTICAL)])
-row = Widget.create_type("Row", behaviours=[partial(container, Direction.HORIZONTAL)])
+tower = Widget.create_type("tower", behaviours=[partial(container, Direction.VERTICAL)])
+row = Widget.create_type("row", behaviours=[partial(container, Direction.HORIZONTAL)])
 
 
 @Widget.from_behaviour()
-def form_item(widget: Widget):
-    ValueType = TypeVar("ValueType")
+def slider(widget: Widget, fields: WidgetFields):
+    widget.add_rules(
+        """
+        ~content=.panel1-2,
+        ~frame=.panel1-1,
 
-    @widget.add_initializer
-    def initialize(self, value: ValueType, name: str = "") -> None:
-        self.name = name
-        self.value = value
-        self.on_change: Event[Widget] = Event("on value change")
+        /selected/
+            ~content=.panel1+1,
+            ~frame=.primary,
+        """
+    )
 
-    @widget.bind
-    def serialize(self) -> dict[str, ValueType]:
-        if self.name == "":
-            return {}
-
-        return {self.name: self.value}
-
-
-def drag_event(widget: Widget):
-    widget.on_drag = Event("on drag")
-
-
-@Widget.from_behaviour(include=[drag_event])
-def slider(widget: Widget):
     @widget.add_initializer
     def initialize(
         self,
@@ -504,21 +497,25 @@ def slider(widget: Widget):
         vertical: bool = False,
     ) -> None:
         self.value = value
-        self.resolution = resolution
-        self.thumb_size = thumb_size
-        self.vertical = vertical
-        self.rail, self.thumb = chars
 
-        if vertical:
-            widget.width = 1
-            widget.height = None
-            widget.frame = frames.Frame.compose(
+        fields.define_public(
+            resolution=resolution,
+            thumb_size=thumb_size,
+            vertical=vertical,
+            rail=chars[0],
+            thumb=chars[1],
+        )
+
+        if fields.vertical:
+            self.width = 1
+            self.height = None
+            self.frame = frames.Frame.compose(
                 (frames.Frameless, frames.Light, frames.Frameless, frames.Light)
             )
         else:
-            widget.width = None
-            widget.height = 1
-            widget.frame = frames.Frame.compose(
+            self.width = None
+            self.height = 1
+            self.frame = frames.Frame.compose(
                 (frames.Light, frames.Frameless, frames.Light, frames.Frameless)
             )
 
@@ -532,9 +529,9 @@ def slider(widget: Widget):
             return False
 
         if key in up:
-            self.value -= self.resolution
+            self.value -= fields.resolution
         else:
-            self.value += self.resolution
+            self.value += fields.resolution
 
         original = self.value
         self.value = max(0, self.value)
@@ -549,52 +546,59 @@ def slider(widget: Widget):
 
     @widget.bind
     def get_contents(self):
-        thumb_char = self.thumb.replace("\\", "")
+        thumb_char = fields.thumb.replace("\\", "")
 
-        if self.vertical:
-            size = self._framed_height - self.thumb_size
+        if fields.vertical:
+            size = self._framed_height - fields.thumb_size
         else:
-            size = self._framed_width - self.thumb_size
+            size = self._framed_width - fields.thumb_size
 
         start = int(size * self.value)
         styles = self.get_styles()
 
         line = [
-            *[styles["content"](self.rail) for _ in range(start)],
-            *[styles["frame"](thumb_char) for _ in range(self.thumb_size)],
-            *[styles["content"](self.rail) for _ in range(size - start)],
+            *[styles["content"](fields.rail) for _ in range(start)],
+            *[styles["frame"](thumb_char) for _ in range(fields.thumb_size)],
+            *[styles["content"](fields.rail) for _ in range(size - start)],
         ]
 
-        if self.vertical:
+        if fields.vertical:
             return line
 
         return ["".join(line)]
 
-    widget.style_map["idle"]["content"] = ".panel1-2"
-    widget.style_map["selected"]["content"] = ".panel1+1"
-    widget.style_map["idle"]["frame"] = ".primary-1"
-    widget.style_map["selected"]["frame"] = ".primary"
 
+@Widget.from_behaviour()
+def cursor(widget: Widget, fields: WidgetFields):
+    widget.add_rules(
+        """
+        ~content=.panel1-1,
 
-@Widget.from_behaviour(include=[form_item])
-def cursor(widget: Widget):
+        /selected/
+            ~content=[.primary bold],
+        """
+    )
+
     @widget.add_initializer
     def initialize(self, value: tuple[int, int] = (0, 0)):
-        self._capturing = False
-        self._last: Key | None = None
         self.value = value
+
+        fields.define_private(
+            is_capturing=False,
+            last_key=None,
+        )
 
     @widget.bind
     def get_contents(self) -> list[str]:
         styles = self.get_styles()
 
         def _style(char, key):
-            if self._last == key:
+            if fields.last_key == key:
                 return styles["content"](char)
 
             return styles["frame"](char)
 
-        center = _style("o", None) if self._capturing else _style(".", None)
+        center = _style("o", None) if fields.is_capturing else _style(".", None)
         up = _style("ʌ", "up")
         left = _style("<", "left")
         right = _style(">", "right")
@@ -611,11 +615,11 @@ def cursor(widget: Widget):
         self, key = args
 
         if key == " ":
-            self._capturing = not self._capturing
+            fields.is_capturing = not fields.is_capturing
             return True
 
-        if not self._capturing:
-            self._last = None
+        if not fields.is_capturing:
+            fields.last_key = None
             return False
 
         if key not in ("arrow-left", "arrow-right", "arrow-up", "arrow-down"):
@@ -633,7 +637,7 @@ def cursor(widget: Widget):
         elif "down" in key:
             y += 0.1
 
-        self._last = key
+        fields.last_key = key
 
         original = (x, y)
         self.value = (max(min(x, 1), 0), max(min(y, 1), 0))
@@ -642,56 +646,58 @@ def cursor(widget: Widget):
 
         return True
 
-    widget.width = -1
-    widget.height = -1
+@Widget.from_behaviour()
+def text_field(widget: Widget, fields: WidgetFields):
+    widget.add_rules(
+        """
+        frame=(double;frameless;frameless;frameless),
+        width=1.0,
+        overflow=auto,
 
-    widget.style_map["idle"]["content"] = ".panel1-1"
-    widget.style_map["selected"]["content"] = ".primary bold"
+        ~cursor=[],
 
-
-@Widget.from_behaviour(include=[form_item])
-def text_field(widget: Widget):
-    widget.frame = frames.Frame.compose(
-        (frames.Double, frames.Frameless, frames.Frameless, frames.Frameless)
+        /selected/
+            ~cursor=@white,
+        """
     )
-    widget.width = 1.0
-    widget.overflow = (Overflow.AUTO, Overflow.HIDE)
-
-    for state in widget.state_machine:
-        if state == "selected":
-            widget.style_map[state]["cursor"] = "@white"
-        else:
-            widget.style_map[state]["cursor"] = ""
 
     @widget.add_initializer
-    def initialize(self, value: str = "", name: str = "", placeholder: str = ""):
+    def initialize(self, value: str = "", placeholder: str = "", multiline: bool = False):
         self.value = value
-        self.name = name
-        self.placeholder = placeholder
-        self.cursor = (0, 0)
-        self._cursor_column_hint = 0
 
-        self.cursor_line = ("", "", "")
-        self._lines = []
+        fields.define_public(
+            placeholder=placeholder,
+            multiline=multiline,
+        )
+
+        fields.define_readonly(
+            cursor=(0, 0),
+            cursor_line=("", "", ""),
+        )
+
+        fields.define_private(
+            cursor_column_hint=0,
+            lines=[],
+        )
+
         self._eval_lines()
-        self.multiline = True
 
     @widget.bind
     def _eval_lines(self) -> None:
-        self._lines = self.value.split("\n")
+        fields.lines = self.value.split("\n")
 
-        x, y = self.cursor
-        line = self._lines[y]
+        x, y = fields.cursor
+        line = fields.lines[y]
 
         left, right = line[:x], line[x + 1 :]
         cursor = line[x] if x < len(line) else ""
-        self.cursor_line = left, cursor, right
+        fields.cursor_line = left, cursor, right
 
     @widget.bind
     def move_cursor(
         self, dx: int = 0, dy: int = 0, absolute: bool = False, smart: bool = False
     ) -> bool:
-        cx, cy = self.cursor
+        cx, cy = fields.cursor
         reset_hint = False
 
         if absolute:
@@ -699,52 +705,52 @@ def text_field(widget: Widget):
 
         else:
             if smart:
-                if dx < 0 and cx == 0 and 0 < cy <= len(self._lines):
+                if dx < 0 and cx == 0 and 0 < cy <= len(fields.lines):
                     cx = 0
-                    dx = len(self._lines[cy - 1])
+                    dx = len(fields.lines[cy - 1])
                     dy -= 1
 
                     reset_hint = True
 
                 elif (
                     0 < dx
-                    and cx == len(self._lines[cy])
+                    and cx == len(fields.lines[cy])
                     and dy == 0
-                    and cy < len(self._lines) - 1
+                    and cy < len(fields.lines) - 1
                 ):
                     cx = 0
                     dx = 0
                     dy += 1
 
-                    self._cursor_column_hint = 0
+                    fields.cursor_column_hint = 0
                     reset_hint = True
 
-            x = max(cx + dx, self._cursor_column_hint)
+            x = max(cx + dx, fields.cursor_column_hint)
             y = cy + dy
 
-        y = max(0, min(len(self._lines) - 1, y))
+        y = max(0, min(len(fields.lines) - 1, y))
 
-        line = self._lines[y]
+        line = fields.lines[y]
 
         x = max(0, min(len(line), x))
 
         if reset_hint:
-            self._cursor_column_hint = 0
+            fields.cursor_column_hint = 0
         else:
-            self._cursor_column_hint = max(self._cursor_column_hint, x)
+            fields.cursor_column_hint = max(fields.cursor_column_hint, x)
 
-        self.cursor = (x, y)
+        fields.cursor = (x, y)
         self._eval_lines()
 
-        return self.cursor != (cx, cy)
+        return fields.cursor != (cx, cy)
 
     @widget.bind
     def set_line(self, y: int, line: str) -> None:
         self.value = "\n".join(
             [
-                *self._lines[:y],
+                *fields.lines[:y],
                 line,
-                *self._lines[y + 1 :],
+                *fields.lines[y + 1 :],
             ]
         )
 
@@ -757,19 +763,19 @@ def text_field(widget: Widget):
         No-op when y == 0.
         """
 
-        x, y = self.cursor
+        x, y = fields.cursor
 
         if y == 0:
             return
 
-        line = self._lines[y - 1]
+        line = fields.lines[y - 1]
         left, right = line[:x], line[x + 1 :]
         cursor = line[x] if x < len(line) else ""
 
-        self._lines[y - 1] += self._lines[y]
-        self._lines.pop(y)
+        fields.lines[y - 1] += fields.lines[y]
+        fields.lines.pop(y)
 
-        self.value = "\n".join(self._lines)
+        self.value = "\n".join(fields.lines)
 
         self.scroll = (self.scroll[0], self.scroll[1] - 1)
         self.move_cursor(dy=-1, dx=len(left + cursor + right))
@@ -780,11 +786,11 @@ def text_field(widget: Widget):
         self, key = args
 
         if key == "left":
-            self._cursor_column_hint = 0
+            fields.cursor_column_hint = 0
             return self.move_cursor(dx=-1, smart=True)
 
         if key == "right":
-            self._cursor_column_hint = 0
+            fields.cursor_column_hint = 0
             return self.move_cursor(dx=1, smart=True)
 
         if key == "up":
@@ -794,15 +800,15 @@ def text_field(widget: Widget):
             return self.move_cursor(dy=1, smart=True)
 
         if key == "ctrl-up":
-            return self.move_cursor(dx=self.cursor[0], dy=0, absolute=True)
+            return self.move_cursor(dx=fields.cursor[0], dy=0, absolute=True)
 
         if key == "ctrl-down":
             return self.move_cursor(
-                dx=self.cursor[0], dy=len(self._lines) - 1, absolute=True
+                dx=fields.cursor[0], dy=len(fields.lines) - 1, absolute=True
             )
 
-        x, y = self.cursor
-        left, cursor, right = self.cursor_line
+        x, y = fields.cursor
+        left, cursor, right = fields.cursor_line
 
         if key == "alt-left":
             return self.move_cursor(dx=_find_word_end(left, direction=-1))
@@ -824,7 +830,7 @@ def text_field(widget: Widget):
 
             self.set_line(y, left[: -max(1, len(cursor))] + cursor + right)
 
-            self._cursor_column_hint = 0
+            fields.cursor_column_hint = 0
             self.move_cursor(dx=-1)
             return True
 
@@ -836,7 +842,7 @@ def text_field(widget: Widget):
             self.set_line(y, cursor + right)
             change = len(left)
 
-            self._cursor_column_hint = 0
+            fields.cursor_column_hint = 0
             self.move_cursor(dx=-change)
             return True
 
@@ -848,16 +854,16 @@ def text_field(widget: Widget):
             distance = _find_word_end(left, direction=-1)
 
             self.set_line(y, left[:distance] + cursor + right)
-            self._cursor_column_hint = 0
+            fields.cursor_column_hint = 0
             self.move_cursor(dx=distance)
 
             return True
 
         if key == "return":
-            if not self.multiline:
+            if not fields.multiline:
                 return True
 
-            lines = self._lines
+            lines = fields.lines
 
             if cursor != "":
                 right = cursor + right
@@ -870,8 +876,8 @@ def text_field(widget: Widget):
                 lines.append(right)
 
             self.value = "\n".join(lines)
-            self._cursor_column_hint = 0
-            self.move_cursor(dx=-self.cursor[0], dy=1)
+            fields.cursor_column_hint = 0
+            self.move_cursor(dx=-fields.cursor[0], dy=1)
 
             self.rebuild_ancestry()
             return True
@@ -883,7 +889,7 @@ def text_field(widget: Widget):
 
     @widget.bind
     def get_contents(self) -> list[str]:
-        value = self.value or self.placeholder
+        value = self.value or fields.placeholder
         styles = self.get_styles()
         frame_style = styles["frame"]
         content_style = styles["content"]
@@ -896,14 +902,14 @@ def text_field(widget: Widget):
             content_style = frame_style
 
         left, cursor, right = (
-            zml_escape(part.replace("\\", "⧵")) for part in self.cursor_line
+            zml_escape(part.replace("\\", "⧵")) for part in fields.cursor_line
         )
 
         if cursor == "":
             cursor = " "
 
-        lines = [zml_escape(line) for line in self._lines]
-        y = self.cursor[1]
+        lines = [zml_escape(line) for line in fields.lines]
+        y = fields.cursor[1]
 
         styled_cursor_line = (
             " "
@@ -921,7 +927,7 @@ def text_field(widget: Widget):
         ]
 
 
-@Widget.from_behaviour()
+# @Widget.from_behaviour()
 def matrix(widget: Widget):
     @widget.add_initializer
     def initialize(self, cols: int = 10, rows: int = 10, dense: bool = True):
@@ -1011,11 +1017,20 @@ def matrix(widget: Widget):
 
 
 @Widget.from_behaviour(base=tower)
-def root(widget: Widget):
-    widget.add_rules("anchor=screen, position=(0;0), alignment=center, overflow=auto")
+def root(widget: Widget, fields: WidgetFields):
+    widget.add_rules(
+        """
+        anchor=screen,
+        position=(0;0),
+        alignment=center,
+        overflow=auto,
+
+        layer=-1,
+        """
+    )
+
     widget.width = 1.0
     widget.height = 1.0
-    widget.layer = -1
 
     @terminal.on_resize.append
     def _resize(size):

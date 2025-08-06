@@ -18,7 +18,26 @@ from .state_machine import StateMachine
 if TYPE_CHECKING:
     from .application import Application
 
-__all__ = ["Animation", "Widget"]
+__all__ = ["Animation", "Widget", "WidgetFields"]
+
+
+def _fill_palette(palette: str, style: str) -> str:
+    words = []
+
+    for word in style.split(" "):
+        if not (word.startswith(".") or word.startswith("@.")):
+            words.append(word)
+            continue
+
+        alpha = ""
+
+        if "*" in word:
+            word, alpha = word.split("*")
+            alpha = "*" + alpha
+
+        words.append(word.replace(".", palette + ".", 1) + alpha)
+
+    return " ".join(words)
 
 
 def _compute(spec: int | float | None, hint: int) -> int:
@@ -64,9 +83,64 @@ def _apply_style(line: str, style: Callable[[str], str]) -> tuple[Span, ...]:
 def _get_rule_applicator(
     state_complex: str | None, key: str, value: str, style: bool
 ) -> Callable[[Widget], bool]:
+    def _applicator(widget: Widget) -> bool:
+        state = state_complex
+
+        if state is not None:
+            state_target = widget
+            selector = ""
+
+            if ":" in state:
+                marked = True
+                selector, state = state.split(":")
+
+                if selector == "parent":
+                    state_target = widget.parent
+
+                else:
+                    raise ValueError(f"Unknown state target selector {selector!r}.")
+
+        if state_target is None:
+            return True
+
+        if state_target.state_machine() != state:
+            if style:
+                state_styles = widget.style_map["*"]
+                if state_styles.get(key, None) == value:
+                    del state_styles[key]
+
+            return False
+
+        if ":" in state_complex:
+            state = "*"
+
+        if style:
+            state_styles = widget.style_map[state]
+            current = state_styles.get(key, None)
+            if current == value:
+                return False
+
+            state_styles[key] = value
+            return True
+
+        current = getattr(widget, key, None)
+        if current == value:
+            return False
+
+        setattr(widget, key, value)
+        return True
+
+    # TODO: Return non-self selectors
+    return _applicator, tuple()
+
+def _typecast_rule_value(key: str, value: str, style: bool):
     if not style:
-        if isinstance(value, str) and value[0] == "(" and value[-1] == ")":
-            value = value[1:-1].split(";")
+        if isinstance(value, str):
+            if value[0] == "(" and value[-1] == ")":
+                value = value[1:-1].split(";")
+
+            elif value[0] == "[" and value[-1] == "]":
+                value = value[1:-1]
 
         if not isinstance(value, list):
             value = [value]
@@ -105,63 +179,18 @@ def _get_rule_applicator(
             elif key == "frame" and not isinstance(value, Frame):
                 value = value()
 
-    def _applicator(widget: Widget) -> bool:
-        state = state_complex
-
-        marked = False
-
-        if state is not None:
-            state_target = widget
-            selector = ""
-
-            if ":" in state:
-                marked = True
-                selector, state = state.split(":")
-
-                if selector == "parent":
-                    state_target = widget.parent
-
-                else:
-                    raise ValueError(f"Unknown state target selector {selector!r}.")
-
-            if state_target is None:
-                return True
-
-            if state_target.state_machine() != state:
-                if style:
-                    state_styles = widget.style_map["*"]
-                    if state_styles.get(key, None) == value:
-                        del state_styles[key]
-
-                return False
-
-            if ":" in state_complex:
-                state = "*"
-
-        if style:
-            state_styles = widget.style_map[state]
-            current = state_styles.get(key, None)
-            if current == value:
-                return False
-
-            state_styles[key] = value
-            return True
-
-        current = getattr(widget, key)
-        if current == value:
-            return False
-
-        setattr(widget, key, value)
-        return True
-
-    return _applicator
-
+    return value
 
 def _parse_rules(
-    rules: list[str], into: dict | None = None
+    rules: list[str],
+    into: dict | None = None,
+    deps: set | None = None
 ) -> dict[tuple, Callable[[Widget], bool]]:
     if into is None:
         into = {}
+
+    if deps is None:
+        deps = set()
 
     for entry in rules:
         statements = []
@@ -217,15 +246,91 @@ def _parse_rules(
                 style = True
                 key = key[1:]
 
-                if value.startswith("[") and value.endswith("]"):
-                    value = value[1:-1]
-
             hash_key = (state, key, value, style)
 
             if hash_key not in into:
-                into[hash_key] = _get_rule_applicator(state, key, value, style)
+                value = _typecast_rule_value(key, value, style)
+                applicator, rule_deps = _get_rule_applicator(state, key, value, style)
 
-    return into
+                deps.update(rule_deps)
+                into[hash_key] = applicator
+
+    return into, deps
+
+
+class WidgetFields:
+    def __init__(self, owner: Widget) -> None:
+        self._owner = owner
+        self._data = {}
+
+        self.changes = 0
+        self.public = []
+        self.readonly = []
+        self.private = []
+
+    def _update(self, data: dict[str, Any]) -> None:
+        for key, value in data.items():
+            if key in self._data:
+                raise KeyError(f"key {key!r} already defined for fields of {self._owner}.")
+            self._data[key] = value
+
+    def _create_property(self, field: str, writeable: bool = False) -> Callable:
+        def _read(_):
+            return self._data[field]
+
+        def _write(_, new: Any):
+            self._data[field] = new
+
+        return property(_read, _write if writeable else None)
+
+    def define_private(self, **kwargs: Any) -> None:
+        self._update(kwargs)
+        self.private.extend(kwargs.keys())
+
+    def define_readonly(self, **kwargs: Any) -> None:
+        self._update(kwargs)
+        self.readonly.extend(kwargs.keys())
+
+    def define_public(self, **kwargs: Any) -> None:
+        self._update(kwargs)
+        self.public.extend(kwargs.keys())
+
+    def __setattr__(self, field: str, value: Any) -> None:
+        if field in ("_data", "_owner", "changes", "public", "readonly", "private"):
+            super().__setattr__(field, value)
+            return
+
+        if field not in self._data:
+            raise KeyError(f"trying to set undefined field {field!r} for {self._owner}.")
+
+        if self._data.get(field, None) == value:
+            return
+
+        self._data[field] = value
+        self.changes += 1
+
+    def __getattr__(self, field: str) -> Any:
+        if field not in self._data:
+            raise AttributeError(f"{self._owner} has no field {field!r}: {list(self._data.keys())}.")
+
+        return self._data[field]
+
+    def __setitem__(self, field: str, value: Any) -> None:
+        if field not in self._data:
+            raise KeyError(f"trying to set undefined field {field!r} for {self._owner}.")
+
+        self._data[field] = value
+
+        if self._data.get(field, None) == value:
+            return
+
+        self.changes += 1
+
+    def __getitem__(self, field: str) -> Any:
+        if field not in self._data:
+            raise AttributeError(f"{self._owner} has no field {field!r}: {list(self._data.keys())}.")
+
+        return self._data[field]
 
 
 @dataclass
@@ -259,6 +364,9 @@ class Animation:
 
     def remove(self) -> None:
         self._queue_removal = True
+
+
+NO_VALUE = object()
 
 
 class Widget:
@@ -301,7 +409,7 @@ class Widget:
                 )
 
             for setup in behaviours:
-                setup(w)
+                setup(w, w._fields)
 
             for init in w.initializers:
                 code = init.__code__
@@ -340,6 +448,7 @@ class Widget:
         type_name: str = "Widget",
         binds: dict | None = None,
     ) -> None:
+        self.value = NO_VALUE
         self.eid = eid or str(uuid.uuid4())
         self.type_name = type_name
 
@@ -364,7 +473,9 @@ class Widget:
         self.alignment = (Alignment.START, Alignment.START)
         self.overflow = (Overflow.AUTO, Overflow.AUTO)
 
-        self._rule_calls = _parse_rules(rules or [])
+        self._rule_calls, self._rule_dependencies = _parse_rules(rules or [])
+        # TODO: Remove when selectors are returned
+        self._rule_dependencies.add(self)
 
         self._cached_styles = [None, None]
 
@@ -483,11 +594,49 @@ class Widget:
             self._virtual_width = 0
             self._virtual_height = 0
 
+        self._fields = WidgetFields(self)
+
     def __str__(self) -> str:
         return self.type_name
 
     def __repr__(self) -> str:
         return f"{self.type_name}"
+
+    def __getattr__(self, name: str) -> Any:
+        try:
+            fields = object.__getattribute__(self, '_fields')
+            if name in fields._data:
+                if name in fields.public or name in fields.readonly:
+                    return fields._data[name]
+                elif name in fields.private:
+                    raise AttributeError(f"'{self.type_name}' object has no attribute '{name}' (private field)")
+                else:
+                    return fields._data[name]
+        except AttributeError:
+            pass
+        
+        raise AttributeError(f"'{self.type_name}' object has no attribute '{name}'")
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        try:
+            fields = object.__getattribute__(self, '_fields')
+        except AttributeError:
+            super().__setattr__(name, value)
+            return
+        
+        if name in fields._data:
+            if name in fields.public:
+                fields._data[name] = value
+                return
+            elif name in fields.readonly:
+                raise AttributeError(f"can't set readonly field '{name}' on '{self.type_name}' object")
+            elif name in fields.private:
+                raise AttributeError(f"can't set private field '{name}' on '{self.type_name}' object")
+            else:
+                fields._data[name] = value
+                return
+        
+        super().__setattr__(name, value)
 
     @property
     def _framed_width(self) -> int:
@@ -567,6 +716,17 @@ class Widget:
         )
 
     @property
+    def nesting_depth(self) -> int:
+        i = 0
+        parent = self.parent
+
+        while isinstance(parent, Widget):
+            i += 1
+            parent = parent.parent
+
+        return i
+
+    @property
     def scrollbars(self) -> tuple[Widget, Widget]:
         if not self._scrollbars:
             from .behaviours import slider
@@ -627,29 +787,37 @@ class Widget:
     def add_behaviour(self, behaviour: Callable[[Widget], dict[str, Any]]) -> None:
         behaviour(self)
 
+    def find(self, type_name: str | None = None, eid: str | None = None) -> Widget | None:
+        if type_name is None and eid is None:
+            raise ValueError("must set either type_name or eid.")
+
+        for child in self.parts:
+            type_matches = type_name is None or type_name == child.type_name
+            eid_matches = eid is None or eid == child.eid
+
+            if type_matches and eid_matches:
+                return child
+
+    def find_ancestor(self, type_name: str | None = None, eid: str | None = None) -> Widget | None:
+        if type_name is None and eid is None:
+            raise ValueError("must set either type_name or eid.")
+
+        parent = self.parent
+
+        while isinstance(parent, Widget):
+            type_matches = type_name is None or type_name == parent.type_name
+            eid_matches = eid is None or eid == parent.eid
+
+            if type_matches and eid_matches:
+                return parent
+
+            parent = parent.parent
+
     def get_styles(self, raw: bool = False) -> dict[str, Callable[[str], str] | str]:
         # if self._cached_styles[raw] is not None:
         #    return self._cached_styles[raw]
 
         palette = self.palette
-
-        def _fill_palette(style: str) -> str:
-            words = []
-
-            for word in style.split(" "):
-                if not (word.startswith(".") or word.startswith("@.")):
-                    words.append(word)
-                    continue
-
-                alpha = ""
-
-                if "*" in word:
-                    word, alpha = word.split("*")
-                    alpha = "*" + alpha
-
-                words.append(word.replace(".", palette + ".", 1) + alpha)
-
-            return " ".join(words)
 
         values = {**self.style_map[self.state_machine()], **self.style_map["*"]}
 
@@ -661,9 +829,14 @@ class Widget:
 
         while background == "" and isinstance(parent, Widget):
             background = parent.get_styles(raw=True)["background"]
+
+            if "*" in background:
+                background = "opaque"
+                break
+
             parent = parent.parent
 
-        background = _fill_palette(background)
+        background = _fill_palette(palette, background)
         styles = {
             "background": background
             if raw
@@ -674,7 +847,7 @@ class Widget:
             if name == "background":
                 continue
 
-            style = background + " " + _fill_palette(style)
+            style = background + " " + _fill_palette(palette, style)
 
             if raw:
                 styles[name] = style
@@ -1048,18 +1221,20 @@ class Widget:
 
         self._update_scrollbars(width, height)
 
-        styles = self.get_styles()
-
         state = (
             width,
             height,
+            [dep.state_machine() for dep in self._rule_dependencies],
+            self.value,
             self._clip_start,
             self._clip_end,
-            self.get_styles(raw=True),
         )
 
-        if state == self._last_state and content == self._last_content:
+        if not change and state == self._last_state and not self._fields.changes:
             return self._last_build
+
+        styles = self.get_styles()
+        self._fields.changes = 0
 
         self._last_state = state
         self._last_content = content
