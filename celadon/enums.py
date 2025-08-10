@@ -56,6 +56,12 @@ class Direction(Enum):
     VERTICAL = "vertical"
     """Flow content vertically."""
 
+class QuickSelect(Enum):
+    """An enum of """
+
+    SELF = "self"
+    CONTENTS = "contents"
+
 
 class MouseAction(Enum):
     """A humonculous enumeration of mouse actions."""

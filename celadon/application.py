@@ -128,7 +128,7 @@ class Application:
             self._start_render(2)
 
             while self._is_running:
-                inp = getch_timeout(0.1, default=None)
+                inp = getch_timeout(0.5, default=None)
                 if inp is None:
                     # Fetch terminal size to send any update events
                     _ = terminal.size
@@ -297,6 +297,7 @@ if __name__ == "__main__":
             frame=(rounded;frameless;rounded;rounded),
             width=1.0,
             height=1.0,
+            quick_select=self,
 
             ~frame=.panel1,
 
@@ -330,10 +331,10 @@ if __name__ == "__main__":
             self.append(
                 c.row([
                     c.text("Window Title 1.0"),
-                    c.row([
-                        icon_button("o", _full_screen_toggle),
-                        icon_button("x", lambda self: self.find_ancestor(type_name="window").remove_self()),
-                    ], rules=["gap=0"]),
+                    # c.row([
+                    #     icon_button("o", _full_screen_toggle),
+                    #     icon_button("x", lambda self: self.find_ancestor(type_name="window").remove_self()),
+                    # ], rules=["gap=0"]),
                 ], rules=[
                     """
                     width=1.0,
@@ -355,12 +356,14 @@ if __name__ == "__main__":
                 c.text("- Hey there de-lilla de-lilla de-lilla"),
                 c.text("- Hey there de-lilla"),
                 c.text("- Hey there de-lilla de-lilla de-lilla de-lilla de-lilla"),
+                c.button("test1"),
+                c.button("test2"),
+                c.button("test3"),
             ]
 
             self.append(c.tower(children=children, rules=["gap=0, height=1.0"]))
             
             self.append(c.row([
-                c.text("[dim]>"),
                 c.text_field("", multiline=True, rules=["width=-1, frame=frameless"]),
             ], rules=[
                 """
@@ -379,7 +382,7 @@ if __name__ == "__main__":
     app.add(Page(
         "/",
         c.root([
-            c.row([window(children=[c.cursor()]), window()], rules=["width=1.0,height=1.0"]),
+            c.row([window(), window()], rules=["width=1.0,height=1.0"]),
             window(),
         ], rules=["frame=frameless, gap=0"]))
     )
@@ -408,7 +411,8 @@ if __name__ == "__main__":
     # p.alias()
     app.run()
     root = app.page.root
-    root.children = []
+    window = root._fields.children[0].children[0]
+    print(root.children[0].qs_binds, root.children[0]._fields.qs_offset)
 
     b = c.button("test")
 

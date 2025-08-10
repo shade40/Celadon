@@ -7,7 +7,7 @@ from slate import Key, Event, Span, terminal, Color
 from zenith import zml_escape
 
 from . import frames
-from .enums import Alignment, Direction, Anchor, Overflow
+from .enums import Alignment, Direction, Anchor, Overflow, QuickSelect
 from .widget import Widget, _apply_style, _compute, WidgetFields
 
 PRINTABLE_LIST = [*string.printable]
@@ -108,18 +108,13 @@ def button(widget: Widget, fields: WidgetFields):
 def container(direction: Direction, widget: Widget, fields: WidgetFields) -> dict[str, Any]:
     widget.width = -1
     widget.height = -1
+    widget.quick_select = QuickSelect.CONTENTS
 
     for state in widget.style_map.keys():
         if state == "*":
             continue
 
         widget.style_map[state]["content"] = ""
-
-    widget.state_machine.on_change.append
-    def send_state_to_children(_):
-        for child in self.children:
-            child._last_state = []
-
 
     @widget.add_initializer
     def initialize(self, children: list[Widget] | None = None) -> list[str]:
@@ -128,26 +123,87 @@ def container(direction: Direction, widget: Widget, fields: WidgetFields) -> dic
         fields.define_readonly(
             children=[],
             active_children=[],
-            selected_index=0,
             selected=None,
             direction=direction,
         )
+
+        fields.define_private(
+            qs_offset=1,
+        )
+
+        widget.qs_binds = {}
 
         for child in children or []:
             self.append(child)
 
     @widget.bind
     def append(self, el: Widget) -> None:
-        fields.children.append(el)
+        self.children.append(el)
         el.parent = self
+
         # Build once to assign correct shrink sizing
         el.build()
+
+        if el.inert:
+            return
+
+        offset = fields.qs_offset
+
+        if el.quick_select is QuickSelect.CONTENTS:
+            for i, child in enumerate(el.active_children):
+                offset = fields.qs_offset + i
+                self.qs_binds[offset] = child
+                child.qs_bind = offset
+
+        elif el.quick_select is QuickSelect.SELF:
+            self.qs_binds[offset] = el
+            el.qs_bind = offset
+
+        fields.qs_offset = offset + 1
 
     @widget.bind
     def remove(self, el: Widget) -> None:
         start = len(fields.children)
         fields.children.remove(el)
-        handle_selection((self, "esc"))
+        # handle_selection((self, "esc"))
+
+    @widget.state_machine.on_action.append
+    def cascade_selected_state(action: str):
+        if "SELECTED" not in action:
+            return
+
+        if action == "UNSELECTED" and fields.selected is not None:
+            fields.selected.state_machine.apply_action(action)
+
+        if action == "SELECTED" and len(fields.active_children) == 1:
+            fields.selected = fields.active_children[0]
+
+        if fields.selected is not None:
+            fields.selected.state_machine.apply_action(action)
+
+    @widget.on_key.append
+    def handle_selection_2(args) -> bool:
+        self, key = args
+
+        if fields.selected is not None and fields.selected.handle_keyboard(key):
+            return True
+
+        if key == "escape" and fields.selected is not None:
+            fields.selected.state_machine.apply_action("UNSELECTED")
+            fields.selected = None
+            return True
+
+        key_str = str(key)
+
+        if key_str.isdigit() and (bound := self.qs_binds.get(int(key_str))):
+            if fields.selected is not None:
+                fields.selected.state_machine.apply_action("UNSELECTED")
+
+            fields.selected = bound
+            bound.state_machine.apply_action("SELECTED")
+            return True
+
+        return False
 
     @widget.on_build_start.append
     def set_active_children(self):
@@ -371,7 +427,7 @@ def container(direction: Direction, widget: Widget, fields: WidgetFields) -> dic
     def build(self) -> list[Span]:
         return Widget.build(self, fillchar=" ")
 
-    @widget.state_machine.on_action.append
+    # @widget.state_machine.on_action.append
     def cascade_selected_state(action: str):
         if "SELECTED" not in action:
             return
@@ -397,7 +453,7 @@ def container(direction: Direction, widget: Widget, fields: WidgetFields) -> dic
         elif csy > cey:
             widget.scroll = (sx - csx, sy - csy)
 
-    @widget.on_key.append
+    # @widget.on_key.append
     def handle_selection(args):
         self, key = args
 

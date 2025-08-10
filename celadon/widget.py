@@ -11,7 +11,7 @@ from slate import Event, Span, Key, terminal
 from slate.span import EMPTY_SPAN
 from zenith.markup import zml_get_spans, zml_pre_process, preserve_escapes, FULL_RESET
 
-from .enums import Alignment, Anchor, Overflow
+from .enums import Alignment, Anchor, Overflow, QuickSelect
 from .frames import Frame, Frameless, get_frame
 from .state_machine import StateMachine
 
@@ -149,6 +149,7 @@ def _typecast_rule_value(key: str, value: str, style: bool):
             "alignment": Alignment,
             "anchor": Anchor,
             "overflow": Overflow,
+            "quick_select": QuickSelect,
             "frame": get_frame,
         }
 
@@ -467,11 +468,14 @@ class Widget:
         self.parent = None
         self.dirty = True
         self.inert = False
+        self.qs_bind = None
+        self.quick_select = QuickSelect.SELF
         self.parts = []
         self.animations = []
         self.frame = get_frame(None)()
         self.alignment = (Alignment.START, Alignment.START)
         self.overflow = (Overflow.AUTO, Overflow.AUTO)
+        self.qs_binds = {}
 
         self._rule_calls, self._rule_dependencies = _parse_rules(rules or [])
         # TODO: Remove when selectors are returned
@@ -1224,7 +1228,13 @@ class Widget:
         state = (
             width,
             height,
-            [dep.state_machine() for dep in self._rule_dependencies],
+            [
+                dep.state_machine()
+                for dep in (
+                    *self._rule_dependencies,
+                    *([self.parent] if isinstance(self.parent, Widget) else [])
+                )
+            ],
             self.value,
             self._clip_start,
             self._clip_end,
@@ -1234,6 +1244,7 @@ class Widget:
             return self._last_build
 
         styles = self.get_styles()
+
         self._fields.changes = 0
 
         self._last_state = state
@@ -1242,6 +1253,16 @@ class Widget:
         lines: list[tuple[Span, ...]] = [
             _apply_style(line, styles["content"]) for line in content
         ]
+
+        if 0 and not self.inert and len(lines[0]):
+            from .behaviours import text
+
+            content = f"({self.qs_bind})"
+            t = text("[dim]" + content)
+            t.parent = self
+            t.position = self.position[0] + self.computed_width - len(content), self.position[1]
+            t.computed_width = len(content)
+            self.parts.append(t)
 
         self._virtual_height = len(lines) or 1
         self._virtual_width = max(
