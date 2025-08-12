@@ -476,6 +476,7 @@ class Widget:
         self.alignment = (Alignment.START, Alignment.START)
         self.overflow = (Overflow.AUTO, Overflow.AUTO)
         self.qs_binds = {}
+        self.qs_hint = ""
 
         self._rule_calls, self._rule_dependencies = _parse_rules(rules or [])
         # TODO: Remove when selectors are returned
@@ -768,7 +769,8 @@ class Widget:
         _parse_rules(rules, into=self._rule_calls)
 
     def remove_rules(self, *rules: str) -> None:
-        for key in _parse_rules(rules).keys():
+        rules, deps = _parse_rules(rules)
+        for key in rules.keys():
             del self._rule_calls[key]
 
     def remove_self(self) -> None:
@@ -1193,6 +1195,27 @@ class Widget:
     def is_root(self) -> bool:
         return self.parent is not None and not isinstance(self.parent, Widget)
 
+    def update_qs_hint(self):
+        if self.inert or self.qs_bind is None:
+            self.qs_hint = ""
+            return
+
+        show = False
+        parent = self.parent
+
+        while isinstance(parent, Widget):
+            if parent.quick_select is QuickSelect.SELF:
+                show = parent.state_machine() == "selected" and parent.selected is None
+                break
+
+            parent = parent.parent
+
+        if not show:
+            self.qs_hint = ""
+            return
+
+        self.qs_hint = f"[dim]{self.qs_bind}[/dim] "
+
     def build(self, fillchar: str = " ") -> list[str]:
         change = False
         for callback in self._rule_calls.values():
@@ -1213,6 +1236,8 @@ class Widget:
         width = self._framed_width
         height = self._framed_height
 
+        self.update_qs_hint()
+
         self.on_content_start(self)
         content = self.get_contents()
         self.on_content(self)
@@ -1228,6 +1253,7 @@ class Widget:
         state = (
             width,
             height,
+            self.qs_hint,
             [
                 dep.state_machine()
                 for dep in (
@@ -1253,16 +1279,6 @@ class Widget:
         lines: list[tuple[Span, ...]] = [
             _apply_style(line, styles["content"]) for line in content
         ]
-
-        if 0 and not self.inert and len(lines[0]):
-            from .behaviours import text
-
-            content = f"({self.qs_bind})"
-            t = text("[dim]" + content)
-            t.parent = self
-            t.position = self.position[0] + self.computed_width - len(content), self.position[1]
-            t.computed_width = len(content)
-            self.parts.append(t)
 
         self._virtual_height = len(lines) or 1
         self._virtual_width = max(

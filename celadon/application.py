@@ -193,7 +193,7 @@ class Application:
                 changes = 0
                 lines = []
 
-                for widget in widgets:
+                for widget in sorted(widgets, key=lambda w: w.layer):
                     origin = widget.clipped_position
 
                     widget_lines = []
@@ -294,7 +294,7 @@ if __name__ == "__main__":
 
         widget.add_rules(
             """
-            frame=(rounded;frameless;rounded;rounded),
+            frame=(rounded;rounded;rounded;rounded),
             width=1.0,
             height=1.0,
             quick_select=self,
@@ -331,10 +331,10 @@ if __name__ == "__main__":
             self.append(
                 c.row([
                     c.text("Window Title 1.0"),
-                    # c.row([
-                    #     icon_button("o", _full_screen_toggle),
-                    #     icon_button("x", lambda self: self.find_ancestor(type_name="window").remove_self()),
-                    # ], rules=["gap=0"]),
+                    c.row([
+                        icon_button("o", _full_screen_toggle),
+                        icon_button("x", lambda self: self.find_ancestor(type_name="window").remove_self()),
+                    ], rules=["gap=0"]),
                 ], rules=[
                     """
                     width=1.0,
@@ -360,6 +360,9 @@ if __name__ == "__main__":
                 c.button("test2"),
                 c.button("test3"),
             ]
+
+            # for child in children:
+            #     self.append(child)
 
             self.append(c.tower(children=children, rules=["gap=0, height=1.0"]))
             
@@ -409,10 +412,14 @@ if __name__ == "__main__":
     )
 
     # p.alias()
-    app.run()
     root = app.page.root
+
+    app.run()
     window = root._fields.children[0].children[0]
-    print(root.children[0].qs_binds, root.children[0]._fields.qs_offset)
+    print("bound:", root.children[1].qs_bind)
+    print(root.is_root())
+    print(root.selected)
+    print(root.state_machine())
 
     b = c.button("test")
 

@@ -25,6 +25,22 @@ __all__ = [
     "tower",
 ]
 
+def _gather_qs_self_children(widgets: list[Widget]) -> list[Widget]:
+    output = []
+
+    for widget in widgets:
+        if widget.quick_select is QuickSelect.SELF:
+            output.append(widget)
+            continue
+
+        active_children = getattr(widget, "active_children", [])
+
+        if widget.quick_select is QuickSelect.CONTENTS and active_children is not None:
+            output.extend(_gather_qs_self_children(active_children))
+            continue
+
+    return output
+
 
 def _find_word_end(line: str, direction: int = 1) -> int:
     """Returns the distance from the next word boundary."""
@@ -95,7 +111,7 @@ def button(widget: Widget, fields: WidgetFields):
 
     @widget.bind
     def get_contents(self):
-        return [fields.label]
+        return [self.qs_hint + fields.label]
 
     @widget.on_key.append
     def submit(args):
@@ -129,6 +145,7 @@ def container(direction: Direction, widget: Widget, fields: WidgetFields) -> dic
 
         fields.define_private(
             qs_offset=1,
+            qs_shown=False,
         )
 
         widget.qs_binds = {}
@@ -150,14 +167,22 @@ def container(direction: Direction, widget: Widget, fields: WidgetFields) -> dic
         offset = fields.qs_offset
 
         if el.quick_select is QuickSelect.CONTENTS:
-            for i, child in enumerate(el.active_children):
+            print("Adding CONTENTS of", el, "to", self, self.eid)
+
+            for i, child in enumerate(_gather_qs_self_children(el.active_children)):
                 offset = fields.qs_offset + i
                 self.qs_binds[offset] = child
                 child.qs_bind = offset
+                print(f"- Adding child {child} at {offset}")
+
+            print(self, self.qs_binds)
 
         elif el.quick_select is QuickSelect.SELF:
             self.qs_binds[offset] = el
             el.qs_bind = offset
+
+        else:
+            raise NotImplementedError(f"wtf is {el.quick_select!r}")
 
         fields.qs_offset = offset + 1
 
@@ -182,7 +207,7 @@ def container(direction: Direction, widget: Widget, fields: WidgetFields) -> dic
             fields.selected.state_machine.apply_action(action)
 
     @widget.on_key.append
-    def handle_selection_2(args) -> bool:
+    def handle_selection(args) -> bool:
         self, key = args
 
         if fields.selected is not None and fields.selected.handle_keyboard(key):
@@ -191,6 +216,7 @@ def container(direction: Direction, widget: Widget, fields: WidgetFields) -> dic
         if key == "escape" and fields.selected is not None:
             fields.selected.state_machine.apply_action("UNSELECTED")
             fields.selected = None
+
             return True
 
         key_str = str(key)
@@ -201,6 +227,7 @@ def container(direction: Direction, widget: Widget, fields: WidgetFields) -> dic
 
             fields.selected = bound
             bound.state_machine.apply_action("SELECTED")
+            self.state_machine.apply_action("SELECTED")
             return True
 
         return False
@@ -208,7 +235,7 @@ def container(direction: Direction, widget: Widget, fields: WidgetFields) -> dic
     @widget.on_build_start.append
     def set_active_children(self):
         fields.active_children = [child for child in fields.children if not child.inert]
-        self.inert = all(child.inert for child in fields.active_children)
+        self.inert = all(child.inert for child in fields.children)
 
     @widget.on_build_start.append
     def arrange(self):
@@ -420,22 +447,59 @@ def container(direction: Direction, widget: Widget, fields: WidgetFields) -> dic
             self._virtual_height = total_height
 
     @widget.bind
-    def get_contents(self) -> list[str]:
-        return [self._virtual_width * " "] * self._virtual_height
+    def build(self, fillchar: str = " "):
+        lines = Widget.build(self, fillchar)
+
+        if not len(lines):
+            return lines
+
+        qs_content = None
+
+        if not self.inert and self.qs_bind is not None:
+            show = False
+            parent = self.parent
+
+            while isinstance(parent, Widget):
+                if parent.quick_select is QuickSelect.SELF:
+                    show = parent.state_machine() == "selected" and parent.selected is None
+                    break
+
+                if parent.is_root():
+                    show = parent.selected is None
+                    break
+
+                parent = parent.parent
+
+            fields.qs_shown = show
+
+            if show:
+                qs_content = f"{self.qs_bind}"
+                sp = Span(qs_content, dim=True)
+
+                first_line = lines[0]
+
+                truncated = []
+                goal = len(qs_content)
+                current = 0
+
+                for i, span in enumerate(first_line):
+                    new = current + len(span)
+
+                    if new > goal:
+                        cut = span[len(span) - (new - goal):]
+                        if len(cut):
+                            truncated.append(cut)
+                        break
+
+                    current = new
+
+                lines[0] = (sp, *truncated, *first_line[i+1:])
+
+        return lines
 
     @widget.bind
-    def build(self) -> list[Span]:
-        return Widget.build(self, fillchar=" ")
-
-    # @widget.state_machine.on_action.append
-    def cascade_selected_state(action: str):
-        if "SELECTED" not in action:
-            return
-
-        if fields.selected is None:
-            fields.selected = fields.active_children[fields.selected_index]
-
-        fields.selected.state_machine.apply_action(action)
+    def get_contents(self) -> list[str]:
+        return [self._virtual_width * " "] * self._virtual_height
 
     def autoscroll():
         if fields.selected is None:
@@ -452,66 +516,6 @@ def container(direction: Direction, widget: Widget, fields: WidgetFields) -> dic
             widget.scroll = (sx + cex, sy + cey)
         elif csy > cey:
             widget.scroll = (sx - csx, sy - csy)
-
-    # @widget.on_key.append
-    def handle_selection(args):
-        self, key = args
-
-        if key in ["tab", "shift-tab"]:
-            original = fields.selected
-
-            if fields.selected is not None:
-                fields.selected.state_machine.apply_action("UNSELECTED")
-
-                fields.selected_index = min(
-                    max(fields.selected_index + (-1 if "shift" in str(key) else 1), 0),
-                    len(fields.active_children) - 1,
-                )
-
-            fields.selected = fields.active_children[fields.selected_index]
-            self.state_machine.apply_action("SELECTED")
-            autoscroll()
-            return True
-
-        if key == "esc":
-            self.state_machine.apply_action("UNSELECTED")
-            fields.selected_index = 0
-            fields.selected = None
-            return True
-
-        is_horizontal = direction == Direction.HORIZONTAL
-        up, down = [
-            ["arrow-up", "arrow-left"][is_horizontal],
-            ["arrow-down", "arrow-right"][is_horizontal],
-        ]
-
-        if key not in [up, down]:
-            return fields.selected is not None and fields.selected.handle_keyboard(key)
-
-        original = fields.selected_index
-
-        if fields.selected is not None:
-            if fields.selected.handle_keyboard(key):
-                return True
-
-            # Only change selected index if we already have a selected -
-            # i.e. don't jump from unselected to selected==1
-            fields.selected_index = min(
-                max(fields.selected_index + (1 if key == down else -1), 0),
-                len(fields.active_children) - 1,
-            )
-
-        if fields.selected_index == original and not self.is_root():
-            return False
-
-        if fields.selected is not None:
-            fields.selected.state_machine.apply_action("UNSELECTED")
-
-        fields.selected = fields.active_children[fields.selected_index]
-        self.state_machine.apply_action("SELECTED")
-        autoscroll()
-
-        return True
 
     @widget.bind
     def serialize(self) -> dict[str, Any]:
@@ -706,7 +710,6 @@ def cursor(widget: Widget, fields: WidgetFields):
 def text_field(widget: Widget, fields: WidgetFields):
     widget.add_rules(
         """
-        frame=(double;frameless;frameless;frameless),
         width=1.0,
         overflow=auto,
 
@@ -952,7 +955,7 @@ def text_field(widget: Widget, fields: WidgetFields):
         cursor_style = styles["cursor"]
 
         if not value:
-            return [content_style(" ") + cursor_style(" ") + "[/]" + content_style(" ")]
+            return [self.qs_hint + content_style("") + cursor_style(" ") + "[/]" + content_style(" ")]
 
         if self.value == "":
             content_style = frame_style
@@ -968,7 +971,7 @@ def text_field(widget: Widget, fields: WidgetFields):
         y = fields.cursor[1]
 
         styled_cursor_line = (
-            " "
+            self.qs_hint
             + content_style(left)
             + cursor_style(cursor)
             + "[/]"
