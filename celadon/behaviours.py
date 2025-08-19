@@ -167,15 +167,10 @@ def container(direction: Direction, widget: Widget, fields: WidgetFields) -> dic
         offset = fields.qs_offset
 
         if el.quick_select is QuickSelect.CONTENTS:
-            print("Adding CONTENTS of", el, "to", self, self.eid)
-
             for i, child in enumerate(_gather_qs_self_children(el.active_children)):
                 offset = fields.qs_offset + i
                 self.qs_binds[offset] = child
                 child.qs_bind = offset
-                print(f"- Adding child {child} at {offset}")
-
-            print(self, self.qs_binds)
 
         elif el.quick_select is QuickSelect.SELF:
             self.qs_binds[offset] = el
@@ -708,11 +703,11 @@ def cursor(widget: Widget, fields: WidgetFields):
 
 @Widget.from_behaviour()
 def text_field(widget: Widget, fields: WidgetFields):
+    widget.width = 1.0
+    widget.overflow = (Overflow.AUTO, Overflow.AUTO)
+
     widget.add_rules(
         """
-        width=1.0,
-        overflow=auto,
-
         ~cursor=[],
 
         /selected/

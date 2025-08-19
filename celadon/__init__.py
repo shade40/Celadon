@@ -1,6 +1,7 @@
 from . import behaviours
 from .behaviours import *
 from . import frames
+from . import xml
 
 from .application import *
 from .enums import *

@@ -20,6 +20,8 @@ if TYPE_CHECKING:
 
 __all__ = ["Animation", "Widget", "WidgetFields"]
 
+WIDGET_TYPES = {}
+
 
 def _fill_palette(palette: str, style: str) -> str:
     words = []
@@ -428,6 +430,10 @@ class Widget:
             return w
 
         _construct.behaviours = behaviours
+        _construct.__name__ = name
+
+        WIDGET_TYPES[name] = _construct
+
         return _construct
 
     @classmethod

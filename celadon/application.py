@@ -416,10 +416,6 @@ if __name__ == "__main__":
 
     app.run()
     window = root._fields.children[0].children[0]
-    print("bound:", root.children[1].qs_bind)
-    print(root.is_root())
-    print(root.selected)
-    print(root.state_machine())
 
     b = c.button("test")
 
