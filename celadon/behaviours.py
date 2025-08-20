@@ -25,6 +25,13 @@ __all__ = [
     "tower",
 ]
 
+BEHAVIOURS = {}
+
+def behaviour(func: Callable[[Widget, WidgetFields], None]) -> Callable[[Widget, WidgetFields], None]:
+    BEHAVIOURS[func.__name__] = func
+
+    return func
+
 def _gather_qs_self_children(widgets: list[Widget]) -> list[Widget]:
     output = []
 
@@ -61,6 +68,7 @@ def _find_word_end(line: str, direction: int = 1) -> int:
 
 
 @Widget.from_behaviour()
+@behaviour
 def text(widget: Widget, fields: WidgetFields):
     widget.inert = True
     widget.height = -1
@@ -81,6 +89,7 @@ def text(widget: Widget, fields: WidgetFields):
 
 
 @Widget.from_behaviour()
+@behaviour
 def button(widget: Widget, fields: WidgetFields):
     widget.on_submit: Event[Widget] = Event("on submit")
 
@@ -121,6 +130,7 @@ def button(widget: Widget, fields: WidgetFields):
             self.on_submit(self)
 
 
+@behaviour
 def container(direction: Direction, widget: Widget, fields: WidgetFields) -> dict[str, Any]:
     widget.width = -1
     widget.height = -1
@@ -530,6 +540,7 @@ row = Widget.create_type("row", behaviours=[partial(container, Direction.HORIZON
 
 
 @Widget.from_behaviour()
+@behaviour
 def slider(widget: Widget, fields: WidgetFields):
     widget.add_rules(
         """
@@ -624,6 +635,7 @@ def slider(widget: Widget, fields: WidgetFields):
 
 
 @Widget.from_behaviour()
+@behaviour
 def cursor(widget: Widget, fields: WidgetFields):
     widget.add_rules(
         """
@@ -702,6 +714,7 @@ def cursor(widget: Widget, fields: WidgetFields):
         return True
 
 @Widget.from_behaviour()
+@behaviour
 def text_field(widget: Widget, fields: WidgetFields):
     widget.width = 1.0
     widget.overflow = (Overflow.AUTO, Overflow.AUTO)
@@ -1071,6 +1084,7 @@ def matrix(widget: Widget):
 
 
 @Widget.from_behaviour(base=tower)
+@behaviour
 def root(widget: Widget, fields: WidgetFields):
     widget.add_rules(
         """

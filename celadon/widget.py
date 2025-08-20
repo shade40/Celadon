@@ -394,6 +394,9 @@ class Widget:
         behaviours: list[Callable[Widget]],
         source: Type[Widget] | None = None,
     ) -> Callable[[Any, ...], Widget]:
+        from .lua import lua_behaviour
+        behaviours.insert(0, lua_behaviour)
+
         if source is not None:
             behaviours = [*source.behaviours, *behaviours]
 
@@ -411,7 +414,7 @@ class Widget:
                     + " to avoid inconsistent behaviour."
                 )
 
-            for setup in behaviours:
+            for setup in set(behaviours):
                 setup(w, w._fields)
 
             for init in w.initializers:
@@ -499,7 +502,6 @@ class Widget:
         self._repeat_scroll_count = 0
         self._repeat_scroll_direction = -1
 
-        self._last_content = None
         self._last_build = None
         self._last_state = None
 
@@ -1259,6 +1261,7 @@ class Widget:
         state = (
             width,
             height,
+            self._fields.lua.copy(),
             self.qs_hint,
             [
                 dep.state_machine()
@@ -1280,7 +1283,12 @@ class Widget:
         self._fields.changes = 0
 
         self._last_state = state
-        self._last_content = content
+
+        for i, line in enumerate(content):
+            for m in re.finditer(r"(?<!\\)\$([a-zA-Z0-9_]+)", line):
+                val = self.lua[m[1]]
+                start, end = m.span()
+                content[i] = (line[:start] + str(val) + line[end:]).replace(r"\$", "$")
 
         lines: list[tuple[Span, ...]] = [
             _apply_style(line, styles["content"]) for line in content
