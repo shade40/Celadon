@@ -204,7 +204,7 @@ class _SwapMethod(Enum):
     AFTER = "AFTER"
     IN = "IN"
 
-def _data_resolver(arg: str, cast_type: type):
+def _data_resolver(arg: str, cast_type: type = str):
     def _resolve(widget) -> str:
         if not arg[0] == arg[-1] == "`":
             return cast_type(arg)
@@ -221,13 +221,16 @@ def _include_resolver(method: _IncludeMethod, arg: str):
         return _data_resolver(arg, dict)
 
     def _resolve(widget) -> Widget:
-        return _data_resolver(arg, partial(widget.app.find, context=widget))(widget)
+        selector = _data_resolver(arg)(widget)
+        return widget.app.find(selector, context=widget)
 
     return _resolve
 
 def _swap_resolver(method: _SwapMethod, arg: str):
     def _resolve(widget, content: Widget) -> None:
-        target = _data_resolver(arg, partial(widget.app.find, context=widget))(widget)
+        selector = _data_resolver(arg)(widget)
+        target = widget.app.find(selector, context=widget)
+
         parent = target.parent
 
         if method is _SwapMethod.TARGET:
