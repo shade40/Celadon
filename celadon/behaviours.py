@@ -165,7 +165,33 @@ def container(direction: Direction, widget: Widget, fields: WidgetFields) -> dic
 
     @widget.bind
     def append(self, el: Widget) -> None:
-        self.children.append(el)
+        fields.children.append(el)
+        self._init_widget(el)
+
+    @widget.bind
+    def remove(self, el: Widget) -> None:
+        fields.children.remove(el)
+
+    @widget.bind
+    def replace(self, original: Widget, replacement: Widget) -> None:
+        idx = fields.children.index(original)
+        self.remove(original)
+        self.insert(idx, replacement)
+
+    @widget.bind
+    def insert(self, idx: int, widget: Widget) -> None:
+        fields.children.insert(idx, widget)
+        self._init_widget(widget)
+
+    @widget.bind
+    def replace_children(self, new: list[Widget]) -> None:
+        fields.children = new
+
+        for child in new:
+            self._init_widget(child)
+
+    @widget.bind
+    def _init_widget(self, el: Widget):
         el.parent = self
 
         # Build once to assign correct shrink sizing
@@ -190,12 +216,6 @@ def container(direction: Direction, widget: Widget, fields: WidgetFields) -> dic
             raise NotImplementedError(f"wtf is {el.quick_select!r}")
 
         fields.qs_offset = offset + 1
-
-    @widget.bind
-    def remove(self, el: Widget) -> None:
-        start = len(fields.children)
-        fields.children.remove(el)
-        # handle_selection((self, "esc"))
 
     @widget.state_machine.on_action.append
     def cascade_selected_state(action: str):
@@ -988,9 +1008,9 @@ def text_field(widget: Widget, fields: WidgetFields):
         )
 
         return [
-            *(f" {line} " for line in lines[:y]),
+            *(f"{line}" for line in lines[:y]),
             styled_cursor_line,
-            *(f" {line} " for line in lines[y + 1 :]),
+            *(f"{line}" for line in lines[y + 1 :]),
         ]
 
 

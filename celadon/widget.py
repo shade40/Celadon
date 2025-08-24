@@ -773,6 +773,21 @@ class Widget:
             max(min(new[1], self._virtual_height - self._framed_height), 0),
         )
 
+    @property
+    def app(self) -> "Application" | None:
+        from .application import Application
+
+        return Application.current
+
+    def find_all(self, target: str) -> Iterable[Widget]:
+        yield from self.app.find_all(target, context=self)
+
+    def find(self, target: str) -> Widget | None:
+        for child in self.find_all(target):
+            return child
+
+        return None
+
     def add_rules(self, *rules: str) -> None:
         _parse_rules(rules, into=self._rule_calls)
 
@@ -800,32 +815,6 @@ class Widget:
 
     def add_behaviour(self, behaviour: Callable[[Widget], dict[str, Any]]) -> None:
         behaviour(self)
-
-    def find(self, type_name: str | None = None, eid: str | None = None) -> Widget | None:
-        if type_name is None and eid is None:
-            raise ValueError("must set either type_name or eid.")
-
-        for child in self.parts:
-            type_matches = type_name is None or type_name == child.type_name
-            eid_matches = eid is None or eid == child.eid
-
-            if type_matches and eid_matches:
-                return child
-
-    def find_ancestor(self, type_name: str | None = None, eid: str | None = None) -> Widget | None:
-        if type_name is None and eid is None:
-            raise ValueError("must set either type_name or eid.")
-
-        parent = self.parent
-
-        while isinstance(parent, Widget):
-            type_matches = type_name is None or type_name == parent.type_name
-            eid_matches = eid is None or eid == parent.eid
-
-            if type_matches and eid_matches:
-                return parent
-
-            parent = parent.parent
 
     def get_styles(self, raw: bool = False) -> dict[str, Callable[[str], str] | str]:
         # if self._cached_styles[raw] is not None:
@@ -994,7 +983,11 @@ class Widget:
 
         if width_diff > 0 and len(line_list) > 0:
             for i, span in enumerate(reversed(line_list)):
-                new = span[:-width_diff]
+                try:
+                    new = span[:-width_diff]
+                except:
+                    raise ValueError(self, width_diff, type(width_diff), start, end, occupied)
+
                 width_diff -= len(span) - len(new)
 
                 if len(new) == 0:
@@ -1278,10 +1271,7 @@ class Widget:
         if not change and state == self._last_state and not self._fields.changes:
             return self._last_build
 
-        styles = self.get_styles()
-
         self._fields.changes = 0
-
         self._last_state = state
 
         for i, line in enumerate(content):
@@ -1289,6 +1279,8 @@ class Widget:
                 val = self.lua[m[1]]
                 start, end = m.span()
                 content[i] = (line[:start] + str(val) + line[end:]).replace(r"\$", "$")
+
+        styles = self.get_styles()
 
         lines: list[tuple[Span, ...]] = [
             _apply_style(line, styles["content"]) for line in content
@@ -1350,14 +1342,20 @@ class Widget:
             self.computed_width,
         )
 
-        if self.max_width != -1:
-            self.computed_width = min(self.computed_width, self.max_width)
+        if self.max_width != -1 and isinstance(self.parent, Widget):
+            parent_width = self.parent.computed_width
+
+            self.computed_width = min(
+                parent_width if self.max_width == 1.0 else self.max_width,
+                self.computed_width,
+            )
 
         shrink_height = (
             self._virtual_height
             + self.frame.height
             + _compute(self.height_offset, available_height)
         )
+
         if self.height == -1:
             self.computed_height = shrink_height + self.has_scrollbar(0)
         else:
@@ -1368,8 +1366,13 @@ class Widget:
             self.computed_height,
         )
 
-        if self.max_height != -1:
-            self.computed_height = min(self.computed_height, self.max_height)
+        if self.max_height != -1 and isinstance(self.parent, Widget):
+            parent_height = self.parent.computed_height
+
+            self.computed_height = min(
+                parent_height if self.max_height == 1.0 else self.max_height,
+                self.computed_height,
+            )
 
     def clip(self, start: tuple[int, int], end: tuple[int, int]) -> None:
         self.viewport_offsets = (start, end)

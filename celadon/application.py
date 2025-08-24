@@ -3,11 +3,14 @@ from __future__ import annotations
 import time
 
 from threading import Thread, Event as ThreadEvent, Lock
+from typing import Iterable
 
 from slate import terminal, getch, getch_timeout, feed, Key
 
-from .widget import Widget
+from . import xml
 from .enums import MouseAction
+from .server import Server
+from .widget import Widget
 
 import os
 
@@ -85,12 +88,12 @@ class Application:
 
     pages: dict[str, Page]
     page: Page | None
+    current: Application | None = None
 
-    def __init__(self, title: str = "", pages: list[Page] | None = None) -> None:
+    def __init__(self, server: Server, title: str = "") -> None:
         self.pages = {}
 
-        for page in pages or []:
-            self.add(page)
+        self.server = server
 
         self._draw_thread = None
         self._is_running = False
@@ -113,7 +116,28 @@ class Application:
 
             self._target.handle_keyboard(inp)
 
+    def find_all(self, selector: str, context: Widget | None = None) -> Iterable[Widget]:
+        if context is None or selector.startswith("#"):
+            context = self.page.root
+
+        selector = selector.lstrip("#^")
+
+        for child in [context, *context.parts]:
+            if child.eid == selector:
+                yield child
+
+    def find(self, selector: str, context: Widget | None = None) -> Widget | None:
+        for child in self.find_all(selector, context):
+            return child
+
+        return None
+
     def run(self) -> None:
+        if Application.current is not None:
+            raise ValueError("another application instance is already running.")
+
+        Application.current = self
+
         target_frametime = 1 / 60
 
         self._is_running = True
@@ -158,6 +182,8 @@ class Application:
             if self._current_render_thread and self._current_render_thread.is_alive():
                 self._render_abort_event.set()
                 self._current_render_thread.join()
+
+        Application.current = None
 
         if self._raised is not None:
             raise self._raised
@@ -239,10 +265,14 @@ class Application:
     def remove(self, page: Page) -> None:
         del self.pages[page.location]
 
-    # Overwrite-able
-    # No-op in default impl because pages must be defined before load,
-    # but celx loads them
-    def load(self, location: str) -> Page: ...
+    def load(self, location: str) -> Page:
+        resp = self.server.request("GET", location, {})
+        
+        if resp.code != 200:
+            raise ValueError("problem")
+
+        page = xml.parse(resp.text)
+        return page
 
     def navigate(self, location: str) -> Page:
         page = None
@@ -252,7 +282,7 @@ class Application:
             page = self.pages.get(location) or None
 
         if page is None:
-            page = self.load(page)
+            page = self.load(location)
 
         if page is None:
             raise ValueError()
