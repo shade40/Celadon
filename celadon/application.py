@@ -9,7 +9,7 @@ from slate import terminal, getch, getch_timeout, feed, Key
 
 from . import xml
 from .enums import MouseAction
-from .server import Server
+from .routers import Router
 from .widget import Widget
 
 import os
@@ -90,10 +90,10 @@ class Application:
     page: Page | None
     current: Application | None = None
 
-    def __init__(self, server: Server, title: str = "") -> None:
+    def __init__(self, router: Router, title: str = "") -> None:
         self.pages = {}
 
-        self.server = server
+        self.router = router
 
         self._draw_thread = None
         self._is_running = False
@@ -266,10 +266,10 @@ class Application:
         del self.pages[page.location]
 
     def load(self, location: str) -> Page:
-        resp = self.server.request("GET", location, {})
+        resp = self.router.request("GET", location, {})
         
         if resp.code != 200:
-            raise ValueError("problem")
+            raise ValueError("problem", resp.code, resp.text)
 
         page = xml.parse(resp.text)
         return page

@@ -43,6 +43,10 @@ Documentation = "https://github.com/shade40/celadon#readme"
 Issues = "https://github.com/shade40/celadon/issues"
 Source = "https://github.com/shade40/celadon"
 
+[project.scripts]
+celadon = "celadon.__main__:main"
+cel = "celadon.__main__:main"
+
 [tool.hatch.version]
 path = "celadon/__about__.py"
 

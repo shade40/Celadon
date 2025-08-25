@@ -271,7 +271,7 @@ class HQLResult:
 
             data.update(result)
 
-        resp = widget.app.server.request(self.method.value, endpoint, data, headers=headers)
+        resp = widget.app.router.request(self.method.value, endpoint, data, headers=headers)
         resp_widget = parse(resp.text)
 
         self.swap(widget, resp_widget)
