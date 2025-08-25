@@ -1,29 +1,44 @@
+import json
 import os
 import re
-import json
-from http.server import HTTPServer, BaseHTTPRequestHandler
-from urllib.parse import parse_qs, urlparse, urljoin
 import requests
+import sqlite3 as py_sqlite3
 
 from dataclasses import dataclass
+from http.server import HTTPServer, BaseHTTPRequestHandler
 from textwrap import dedent
-from typing import Any, Callable, Protocol
+from typing import Any, Callable, Protocol, Iterable
+from urllib.parse import parse_qs, urlparse, urljoin
 
 from lupa import LuaRuntime, lua_type
 
-_runtime = LuaRuntime()
-_runtime.execute("""
-function getLocals(level)
-    local locals = {}
-    local index = 1
-    while true do
-        local name, value = debug.getlocal(level + 1, index)
-        if not name then break end
-        locals[name] = value
-        index = index + 1
-    end
-    return locals
-end""")
+def init_runtime() -> LuaRuntime:
+    _runtime = LuaRuntime()
+
+    _runtime.execute("""
+    function getLocals(level)
+        local locals = {}
+        local index = 1
+        while true do
+            local name, value = debug.getlocal(level + 1, index)
+            if not name then break end
+            locals[name] = value
+            index = index + 1
+        end
+        return locals
+    end""")
+
+    glob = _runtime.globals()
+
+    with open(os.path.join(os.path.dirname(__file__), "builtins.lua"), "r") as f:
+        builtins = _runtime.execute(f.read())
+
+    for key, value in builtins.items():
+        glob[key] = value
+
+    return _runtime
+
+_runtime = init_runtime()
 
 def _inject(func: Callable) -> Callable:
     _runtime.globals()[func.__name__] = func
@@ -40,6 +55,30 @@ def fmt(text) -> str:
     text = text.replace("||>>", "}")
 
     return text
+
+@_inject
+def sqlite3(path: str):
+    conn = py_sqlite3.connect(path)
+    conn.row_factory = py_sqlite3.Row
+
+    cursor = conn.cursor()
+
+    def _exec(sql: str, data: Iterable[Any] | None = None):
+        data = data or []
+
+        cursor.execute(sql, data)
+        conn.commit()
+
+    def _query(sql: str, data: Iterable[Any] | None = None) -> list[dict[str, Any]]:
+        data = data or []
+
+        res = cursor.execute(sql, data)
+        return _runtime.table(*[dict(r) for r in res.fetchall()])
+
+    return {
+        "exec": _exec,
+        "query": _query,
+    }
 
 def _parse_path(path) -> re.Pattern:
     return re.compile('^' + re.sub(r'{([^/]+)}', r'(?P<\1>[^/]+)', path) + '$')
@@ -191,31 +230,22 @@ class HTTPRouter:
         self.url = url
 
     def request(self, method: str, path: str, data: dict[str, Any], headers: dict[str, str] | None = None) -> Response:
-        # Handle absolute paths - detect various forms of absolute URLs
         if path.startswith(('http://', 'https://')):
             url = path
         elif path.startswith('//'):
-            # Protocol-relative URL
             url = path
-        elif '.' in path and '/' not in path.split('.')[0]:
-            # Looks like a domain name (e.g., "www.example.com", "api.github.com")
-            url = f"http://{path}"
         else:
-            # Relative path - join with base URL
             url = urljoin(self.url, path)
         
-        # Prepare request parameters
         request_kwargs = {
             'headers': headers or {},
             'timeout': 30
         }
         
-        # Add data based on method
         if method.upper() in ['GET', 'DELETE']:
             if data:
                 request_kwargs['params'] = data
         else:
-            # For POST, PUT, PATCH, send data as JSON if it's a dict/list, otherwise as form data
             if isinstance(data, (dict, list)):
                 request_kwargs['json'] = data
                 if 'Content-Type' not in request_kwargs['headers']:
@@ -224,13 +254,9 @@ class HTTPRouter:
                 request_kwargs['data'] = data
         
         try:
-            # Send the request
             response = requests.request(method.upper(), url, **request_kwargs)
-            
-            # Convert headers to regular dict (requests returns a case-insensitive dict)
             response_headers = dict(response.headers)
             
-            # Return our Response object
             return Response(
                 code=response.status_code,
                 headers=response_headers,
@@ -238,7 +264,6 @@ class HTTPRouter:
             )
         
         except requests.exceptions.RequestException as e:
-            # Return error response for any request failures
             return Response(
                 code=500,
                 headers={},

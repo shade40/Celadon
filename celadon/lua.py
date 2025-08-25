@@ -1,3 +1,5 @@
+import os
+
 from dataclasses import dataclass
 from functools import partial
 from enum import Enum
@@ -17,17 +19,8 @@ NO_VALUE = object()
 runtime = init_runtime()
 
 def _get_namespace(widget: Widget, getter: Callable, setter: Callable) -> ...:
-    this = runtime.eval("""
-        {
-            self = widget,
-            print = print,
-            table = table,
-            pairs = pairs,
-            ipairs = ipairs,
-            python = python,
-            tostring = tostring,
-        }
-    """)
+    with open(os.path.join(os.path.dirname(__file__), "builtins.lua"), "r") as f:
+        builtins = runtime.execute(f.read())
 
     return runtime.eval("""
         function(this, widget, w_get, w_set)
@@ -160,7 +153,7 @@ def _get_namespace(widget: Widget, getter: Callable, setter: Callable) -> ...:
 
             return meta
         end
-    """)(this, widget, getter, setter)
+    """)(builtins, widget, getter, setter)
 
 @behaviour
 def lua_behaviour(widget: Widget, fields: WidgetFields) -> Widget | None:
