@@ -223,7 +223,7 @@ def container(direction: Direction, widget: Widget, fields: WidgetFields) -> dic
         if action == "UNSELECTED" and fields.selected is not None:
             fields.selected.state_machine.apply_action(action)
 
-        if action == "SELECTED" and len(fields.active_children) == 1:
+        if action == "SELECTED" and len(fields.active_children) == 1 and widget.quick_select == QuickSelect.CONTENTS:
             fields.selected = fields.active_children[0]
 
         if fields.selected is not None:
@@ -1175,6 +1175,7 @@ def root(widget: Widget, fields: WidgetFields):
         position=(0;0),
         alignment=center,
         overflow=auto,
+        quick_select=self,
 
         layer=-1,
         """
@@ -1189,3 +1190,7 @@ def root(widget: Widget, fields: WidgetFields):
         widget.compute_dimensions(*size)
 
     _resize((terminal.width, terminal.height))
+
+    @widget.on_build_start.append
+    def always_select(self):
+        widget.state_machine.apply_action("SELECTED")
