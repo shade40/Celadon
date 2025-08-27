@@ -659,10 +659,6 @@ class Widget:
     def _framed_height(self) -> int:
         return max(self.computed_height - self.frame.height, 0)
 
-    def _parse_markup(self, markup: str) -> tuple[Span, ...]:
-        markup = zml_pre_process(preserve_escapes(markup))
-        return tuple(zml_get_spans(markup))
-
     @property
     def clipped_position(self) -> tuple[int, int]:
         return (
@@ -1215,7 +1211,7 @@ class Widget:
             self.qs_hint = ""
             return
 
-        self.qs_hint = f"[dim]{self.qs_bind}[/dim] "
+        self.qs_hint = str(self.qs_bind)
 
     def build(self, fillchar: str = " ") -> list[str]:
         change = False
@@ -1337,10 +1333,8 @@ class Widget:
         else:
             self.computed_width = _compute(self.width, available_width)
 
-        self.computed_width = max(
-            shrink_width if self.min_width == -1 else self.min_width,
-            self.computed_width,
-        )
+        if self.min_width != -1:
+            self.computed_width = max(self.min_width, self.computed_width)
 
         if self.max_width != -1 and isinstance(self.parent, Widget):
             parent_width = self.parent.computed_width

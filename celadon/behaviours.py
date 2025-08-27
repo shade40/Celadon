@@ -71,8 +71,6 @@ def _find_word_end(line: str, direction: int = 1) -> int:
 @behaviour
 def text(widget: Widget, fields: WidgetFields):
     widget.inert = True
-    widget.height = -1
-    widget.width = -1
 
     for state in widget.style_map.keys():
         if state == "*":
@@ -120,7 +118,7 @@ def button(widget: Widget, fields: WidgetFields):
 
     @widget.bind
     def get_contents(self):
-        return [self.qs_hint + fields.label]
+        return [f"[dim]{self.qs_hint + ' ' if self.qs_hint else ''}[/dim]" + fields.label]
 
     @widget.on_key.append
     def submit(args):
@@ -308,15 +306,14 @@ def container(direction: Direction, widget: Widget, fields: WidgetFields) -> dic
 
         available_width = max(
             self._framed_width, self._virtual_width
-        ) - self.has_scrollbar(1)
+        ) - self.has_scrollbar(1) - self.width_offset
         available_height = max(
             self._framed_height, self._virtual_height
-        ) - self.has_scrollbar(0)
+        ) - self.has_scrollbar(0) - self.height_offset
 
         direction = fields.direction
         is_horizontal = direction == Direction.HORIZONTAL
 
-        # First pass: process content and compute dimensions for non-fill children
         fill_children = []
         non_fill_children = []
 
@@ -354,6 +351,9 @@ def container(direction: Direction, widget: Widget, fields: WidgetFields) -> dic
                 fill_children.append(child)
 
             else:
+                if child.width == -1 or child.height == -1:
+                    child._last_state = None
+                    child.build()
                 child.compute_dimensions(available_width, available_height)
                 non_fill_children.append(child)
 
@@ -372,6 +372,9 @@ def container(direction: Direction, widget: Widget, fields: WidgetFields) -> dic
         if fill_children:
             fill_size, fill_remainder = divmod(remaining_space, len(fill_children))
             for i, child in enumerate(fill_children):
+                if child.width == -1 or child.height == -1:
+                    child._last_state = None
+                    child.build()
                 extra = 1 if i < fill_remainder else 0
                 if is_horizontal:
                     child.compute_dimensions(fill_size + extra, available_height)
@@ -410,14 +413,14 @@ def container(direction: Direction, widget: Widget, fields: WidgetFields) -> dic
 
             if is_horizontal:
                 align_y, align_y_extra = _align(
-                    self.alignment[1], available_height - child.computed_height
+                    self.alignment[1], available_height - child.computed_height + self.height_offset
                 )
 
                 child.position = (current_x, current_y + align_y + align_y_extra)
                 current_x += child.computed_width + gap
             else:
                 align_x, align_x_extra = _align(
-                    self.alignment[0], available_width - child.computed_width
+                    self.alignment[0], available_width - child.computed_width + self.width_offset
                 )
 
                 child.position = (current_x + align_x + align_x_extra, current_y)
@@ -566,6 +569,7 @@ def slider(widget: Widget, fields: WidgetFields):
         """
         ~content=.panel1-2,
         ~frame=.panel1-1,
+        overflow=hide,
 
         /selected/
             ~content=.panel1+1,
@@ -583,6 +587,7 @@ def slider(widget: Widget, fields: WidgetFields):
         vertical: bool = False,
     ) -> None:
         self.value = value
+        self.on_change = Event("on_change")
 
         fields.define_public(
             resolution=resolution,
@@ -610,25 +615,58 @@ def slider(widget: Widget, fields: WidgetFields):
         self, key = args
 
         up, down = [["arrow-left", "arrow-up"], ["arrow-down", "arrow-right"]]
-
-        if key not in [*up, *down]:
-            return False
+        shift_up, shift_down = [["shift-arrow-left", "shift-arrow-up"], ["shift-arrow-down", "shift-arrow-right"]]
 
         if key in up:
             self.value -= fields.resolution
-        else:
+        elif key in down:
             self.value += fields.resolution
+        elif key in shift_up:
+            self.value -= fields.resolution / 10
+        elif key in shift_down:
+            self.value += fields.resolution / 10
+        elif key in [str(r) for r in range(10)]:
+            positions = {v: k for k, v in self._get_hint_positions().items()}
+            step = 1 / self._framed_width
+            self.value = positions[int(str(key))] / max(positions.values())
+        else:
+            return False
 
         original = self.value
         self.value = max(0, self.value)
         self.value = min(self.value, 1)
-        self.value = round(self.value, 1)
-        changed = round(original, 1) == round(self.value, 1)
+        self.value = round(self.value, 3)
+        changed = round(original, 3) == round(self.value, 3)
 
         if changed:
             self.on_change(self)
 
         return changed
+
+    @widget.bind
+    def _get_hint_positions(self):
+        if fields.vertical:
+            size = self._framed_height - fields.thumb_size
+        else:
+            size = self._framed_width - fields.thumb_size
+            
+        total = size + fields.thumb_size
+        available_space = total - 10
+        base_gap = available_space // 9
+        remainder = available_space % 9
+        
+        positions = {}
+        current_pos = 0
+        positions[current_pos] = 0
+        
+        for number in range(1, 10):
+            gap_size = base_gap + (1 if remainder > 0 else 0)
+            if remainder > 0:
+                remainder -= 1
+            current_pos += 1 + gap_size
+            positions[current_pos] = number
+
+        return positions
 
     @widget.bind
     def get_contents(self):
@@ -642,10 +680,25 @@ def slider(widget: Widget, fields: WidgetFields):
         start = int(size * self.value)
         styles = self.get_styles()
 
+        thumb_chars = [thumb_char] * fields.thumb_size
+
+        if self.qs_hint != "":
+            thumb_chars[fields.thumb_size // 2] = f"[invert dim]{self.qs_hint}[/invert /dim]"
+
+        rail = size * fields.rail
+
+        if self.state_machine() == "selected":
+            rail = ""
+            positions = self._get_hint_positions()
+            total = size + fields.thumb_size
+            
+            for i in range(total):
+                rail += str(positions[i]) if i in positions else fields.rail
+
         line = [
-            *[styles["content"](fields.rail) for _ in range(start)],
-            *[styles["frame"](thumb_char) for _ in range(fields.thumb_size)],
-            *[styles["content"](fields.rail) for _ in range(size - start)],
+            *[styles["content"](rail[:start])],
+            *styles["frame"]("".join(thumb_chars)),
+            *[styles["content"](rail[start - size:])],
         ]
 
         if fields.vertical:
