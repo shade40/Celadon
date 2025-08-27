@@ -5,6 +5,7 @@ import requests
 import sqlite3 as py_sqlite3
 
 from dataclasses import dataclass
+from functools import partial
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from textwrap import dedent
 from typing import Any, Callable, Protocol, Iterable
@@ -12,52 +13,26 @@ from urllib.parse import parse_qs, urlparse, urljoin
 
 from lupa import LuaRuntime, lua_type
 
-def init_runtime() -> LuaRuntime:
-    _runtime = LuaRuntime()
-
-    _runtime.execute("""
-    function getLocals(level)
-        local locals = {}
-        local index = 1
-        while true do
-            local name, value = debug.getlocal(level + 1, index)
-            if not name then break end
-            locals[name] = value
-            index = index + 1
-        end
-        return locals
-    end""")
-
-    glob = _runtime.globals()
-
-    with open(os.path.join(os.path.dirname(__file__), "builtins.lua"), "r") as f:
-        builtins = _runtime.execute(f.read())
-
-    for key, value in builtins.items():
-        glob[key] = value
-
-    return _runtime
-
-_runtime = init_runtime()
+INJECTED = {}
 
 def _inject(func: Callable) -> Callable:
-    _runtime.globals()[func.__name__] = func
+    INJECTED[func.__name__] = func
     return func
 
 @_inject
-def fmt(text) -> str:
+def fmt(lua: LuaRuntime, text) -> str:
     text = re.sub(r"(?<!\{)\{(?!\{)", "||<<", text)
     text = re.sub(r"(?<!\})\}(?!\})", "||>>", text)
     text = text.replace("{{", "{").replace("}}", "}")
 
-    text = dedent(text.format(**_runtime.eval("getLocals(2)"))).strip()
+    text = dedent(text.format(**lua.eval("getLocals(2)"))).strip()
     text = text.replace("||<<", "{")
     text = text.replace("||>>", "}")
 
     return text
 
 @_inject
-def sqlite3(path: str):
+def sqlite3(lua: LuaRuntime, path: str):
     conn = py_sqlite3.connect(path)
     conn.row_factory = py_sqlite3.Row
 
@@ -73,12 +48,13 @@ def sqlite3(path: str):
         data = data or []
 
         res = cursor.execute(sql, data)
-        return _runtime.table(*[dict(r) for r in res.fetchall()])
+        return lua.table(*[dict(r) for r in res.fetchall()])
 
     return {
         "exec": _exec,
         "query": _query,
     }
+
 
 def _parse_path(path) -> re.Pattern:
     return re.compile('^' + re.sub(r'{([^/]+)}', r'(?P<\1>[^/]+)', path) + '$')
@@ -110,16 +86,50 @@ class Router(Protocol):
 
 class LocalRouter:
     def __init__(self, router: str) -> None:
-        @_inject
-        def require(path):
-            with open(os.path.join(os.path.dirname(router), path)) as f:
-                return _runtime.execute(f.read())
+        self.file = router
 
-        with open(router, "r") as f:
-            self.routes = _load_routes(_runtime.execute(f.read()))
+    def _get_runtime(self) -> LuaRuntime:
+        lua = LuaRuntime()
+
+        lua.execute("""
+        function getLocals(level)
+            local locals = {}
+            local index = 1
+            while true do
+                local name, value = debug.getlocal(level + 1, index)
+                if not name then break end
+                locals[name] = value
+                index = index + 1
+            end
+            return locals
+        end""")
+
+        @_inject
+        def require(lua: LuaRuntime, path: str):
+            with open(os.path.join(os.path.dirname(self.file), path)) as f:
+                return lua.execute(f.read())
+
+        glob = lua.globals()
+
+        for key, value in INJECTED.items():
+            glob[key] = partial(value, lua)
+
+        with open(os.path.join(os.path.dirname(__file__), "builtins.lua"), "r") as f:
+            builtins = lua.execute(f.read())
+
+        for key, value in builtins.items():
+            glob[key] = value
+
+        return lua
 
     def request(self, method: str, path: str, data: dict[str, Any], headers: dict[str, str] | None = None) -> Response:
-        for pattern, handlers in self.routes.items():
+        lua = self._get_runtime()
+
+        with open(self.file, "r") as f:
+            content = f.read()
+            routes = _load_routes(lua.execute(content))
+
+        for pattern, handlers in routes.items():
             m = pattern.match(path)
 
             if not m:
@@ -129,13 +139,13 @@ class LocalRouter:
                 raise ValueError(f"invalid method for handler: {method} not in {handlers.keys()}")
                 return Response(405, {}, "")
 
-            ctx = _runtime.table(**{
+            ctx = lua.table(**{
                 "path": path,
-                "req": _runtime.table(headers=headers or {}),
-                "resp": _runtime.table(code=200, headers={}),
+                "req": lua.table(headers=headers or {}),
+                "resp": lua.table(code=200, headers={}),
             })
 
-            text = handlers[method](ctx, _runtime.table(**m.groupdict()), _runtime.table(**data))
+            text = handlers[method](ctx, lua.table(**m.groupdict()), lua.table(**data))
             return Response(ctx.resp.code, ctx.resp.headers or {}, text)
 
         else:
@@ -195,6 +205,7 @@ class LocalRouter:
                         self.wfile.write(response.text.encode('utf-8'))
                 
                 except Exception as e:
+                    print(e)
                     self.send_response(500)
                     self.end_headers()
                     self.wfile.write(f"Internal Server Error: {str(e)}".encode('utf-8'))
@@ -238,7 +249,7 @@ class HTTPRouter:
             url = urljoin(self.url, path)
         
         request_kwargs = {
-            'headers': headers or {},
+            'headers': { "CELX_REQUEST": "true", **(headers or {}) },
             'timeout': 30
         }
         
