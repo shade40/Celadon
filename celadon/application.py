@@ -149,7 +149,7 @@ class Application:
             self._start_render(10)
 
         with terminal.no_echo(), terminal.alt_buffer():
-            self._start_render(2)
+            self._start_render()
 
             while self._is_running:
                 inp = getch_timeout(0.5, default=None)

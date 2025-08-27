@@ -582,7 +582,7 @@ def slider(widget: Widget, fields: WidgetFields):
         self,
         value: float = 0.5,
         thumb_size: int = 1,
-        resolution: float = 0.1,
+        resolution: float = None,
         chars: tuple[str, str] = ("─", "█"),
         vertical: bool = False,
     ) -> None:
@@ -615,33 +615,43 @@ def slider(widget: Widget, fields: WidgetFields):
         self, key = args
 
         up, down = [["arrow-left", "arrow-up"], ["arrow-down", "arrow-right"]]
-        shift_up, shift_down = [["shift-arrow-left", "shift-arrow-up"], ["shift-arrow-down", "shift-arrow-right"]]
+        resolution = fields.resolution or 1 / self._framed_width
+        original = self.value
 
         if key in up:
-            self.value -= fields.resolution
+            self.value -= resolution
+
         elif key in down:
-            self.value += fields.resolution
-        elif key in shift_up:
-            self.value -= fields.resolution / 10
-        elif key in shift_down:
-            self.value += fields.resolution / 10
+            self.value += resolution
+
         elif key in [str(r) for r in range(10)]:
-            positions = {v: k for k, v in self._get_hint_positions().items()}
-            step = 1 / self._framed_width
-            self.value = positions[int(str(key))] / max(positions.values())
+            start = 0
+            self.value = 0
+
+            while round(self.value, 3) <= 1.0:
+                self.value += resolution
+                num = str(key)
+                contents = "".join(self.get_contents())
+
+                if num == "0":
+                    if contents.endswith(num):
+                        break
+                    else:
+                        continue
+
+                if num + fields.rail not in contents:
+                    break
+
         else:
             return False
 
-        original = self.value
         self.value = max(0, self.value)
         self.value = min(self.value, 1)
         self.value = round(self.value, 3)
-        changed = round(original, 3) == round(self.value, 3)
 
-        if changed:
-            self.on_change(self)
+        self.on_change(self)
 
-        return changed
+        return True
 
     @widget.bind
     def _get_hint_positions(self):
@@ -657,9 +667,9 @@ def slider(widget: Widget, fields: WidgetFields):
         
         positions = {}
         current_pos = 0
-        positions[current_pos] = 0
+        positions[current_pos] = 1
         
-        for number in range(1, 10):
+        for number in [2, 3, 4, 5, 6, 7, 8, 9, 0]:
             gap_size = base_gap + (1 if remainder > 0 else 0)
             if remainder > 0:
                 remainder -= 1
