@@ -1,29 +1,34 @@
 import os
 
 from dataclasses import dataclass
-from functools import partial
 from enum import Enum
 from typing import Any, Callable
+from threading import Lock
+from io import StringIO
 
 from lupa import LuaRuntime
 
 from .xml import parse
 from .behaviours import behaviour
-from .widget import Widget, WidgetFields
-
-def init_runtime() -> LuaRuntime:
-    return LuaRuntime()
+from .widget import Widget
 
 NO_VALUE = object()
 
-runtime = init_runtime()
+runtime = LuaRuntime()
+
+_print_lock = Lock()
+log_stream = StringIO()
 
 def _get_namespace(widget: Widget, getter: Callable, setter: Callable) -> ...:
     with open(os.path.join(os.path.dirname(__file__), "builtins.lua"), "r") as f:
         builtins = runtime.execute(f.read())
 
+    def log_print(*args, **kwargs) -> None:
+        with _print_lock:
+            print(*args, **kwargs, file=log_stream)
+
     return runtime.eval("""
-        function(this, widget, w_get, w_set)
+        function(this, print, widget, w_get, w_set)
             local setfenv = function(fn, env)
                 if type(fn) ~= "function" then
                     return fn
@@ -52,6 +57,7 @@ def _get_namespace(widget: Widget, getter: Callable, setter: Callable) -> ...:
 
             local meta = setmetatable(
                 {
+                    print = print,
                     copy = function()
                         local copy = {}
 
@@ -153,12 +159,12 @@ def _get_namespace(widget: Widget, getter: Callable, setter: Callable) -> ...:
 
             return meta
         end
-    """)(builtins, widget, getter, setter)
+    """)(builtins, log_print, widget, getter, setter)
 
 @behaviour
-def lua_behaviour(widget: Widget, fields: WidgetFields) -> Widget | None:
-    def _get(key: str) -> Any:
-        parent = widget.parent
+class Lua:
+    def _get(self, key: str) -> Any:
+        parent = self.target.parent
 
         i = 0
         while isinstance(parent, Widget):
@@ -173,12 +179,12 @@ def lua_behaviour(widget: Widget, fields: WidgetFields) -> Widget | None:
 
         return runtime.table(None, None)
 
-    def _set(owner: Widget, key: str, value: Any) -> Widget | None:
+    def _set(self, owner: Widget, key: str, value: Any) -> Widget | None:
         owner.lua[key] = value
 
-    @widget.add_initializer
-    def initialize(self):
-        fields.define_readonly(lua=_get_namespace(widget, _get, _set))
+    def setup(self):
+        self.fields.define_readonly(lua=_get_namespace(self.target, self._get, self._set))
+
 
 class _HTTPMethod(Enum):
     GET = "GET"
@@ -248,7 +254,8 @@ class HQLResult:
     includes: list[tuple[_IncludeMethod, Callable[[], Widget | dict[str, str]]]]
     swap: tuple[_SwapMethod, Callable[[], Widget]]
 
-    def __call__(self, widget: Widget) -> None:
+    def __call__(self, behaviour: type) -> None:
+        widget, _ = behaviour
         endpoint = self.endpoint(widget)
         if endpoint is None:
             raise RuntimeError("why is endpoint none?")
@@ -274,7 +281,6 @@ class HQLResult:
         statements = []
 
         statement = []
-        args = []
         token = ""
 
         in_code = False
@@ -341,7 +347,6 @@ class HQLResult:
                     default = _IncludeMethod.WIDGET
                     resolver = _include_resolver
 
-                parts = []
 
                 i = 0
                 length = len(data)

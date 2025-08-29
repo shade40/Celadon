@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Tuple, Type, Self
+from typing import Tuple, Type, Self
 
 __all__ = [
     "Frame",
@@ -101,7 +101,6 @@ class Frame:  # pylint: disable=too-many-instance-attributes
 
         frame = cls()
 
-        last = None
 
         for i, side in enumerate(sides):
             s_frame = side()
@@ -116,7 +115,6 @@ class Frame:  # pylint: disable=too-many-instance-attributes
             else:
                 corners.append("")
 
-            last = side
 
         frame.borders = tuple(borders)  # type: ignore
         frame.corners = tuple(corners)

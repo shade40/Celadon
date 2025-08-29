@@ -2,7 +2,7 @@ import re
 
 from copy import deepcopy
 from functools import partial
-from lxml.etree import Element, fromstring, tostring
+from lxml.etree import Element, fromstring
 from typing import Callable, Any
 
 from .application import Page
@@ -55,7 +55,7 @@ def parse(text: str) -> Page | Widget | None:
 CUSTOM_WIDGETS = {}
  
 def _parse_page(root: Element) -> Page:
-    if not "location" in root.attrib:
+    if "location" not in root.attrib:
         raise ValueError("no location passed for page.")
 
     root_widget = None
@@ -106,7 +106,7 @@ def _parse_widget(root: Element) -> Widget:
 
         if slot is not None:
             parent = slot.getparent()
-            slot_idx = [*parent].index(slot)
+            [*parent].index(slot)
             parent.remove(slot)
 
             for i, child in enumerate(root.getchildren()):

@@ -2,10 +2,9 @@ from __future__ import annotations
 
 import re
 import uuid
-from copy import deepcopy
 from functools import lru_cache
-from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable, Type
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any, Callable, Literal, Iterable, TypeVar
 
 from slate import Event, Span, Key, terminal
 from slate.span import EMPTY_SPAN
@@ -22,6 +21,7 @@ __all__ = ["Animation", "Widget", "WidgetFields"]
 
 WIDGET_TYPES = {}
 
+WidgetConstructor = TypeVar("WidgetConstructor")
 
 def _fill_palette(palette: str, style: str) -> str:
     words = []
@@ -93,7 +93,6 @@ def _get_rule_applicator(
             selector = ""
 
             if ":" in state:
-                marked = True
                 selector, state = state.split(":")
 
                 if selector == "parent":
@@ -379,23 +378,24 @@ class Widget:
     computed_width: int
     computed_height: int
     layer: int
-    parent: "Container" | None
+    parent: Widget | None
     app: "Application"
     state_machine: StateMachine
     parts: list[Widget]
     palette: str
     inert: bool
     animations: list[Animation]
+    behaviours: list[type]
 
     @classmethod
     def create_type(
         cls,
         name: str,
-        behaviours: list[Callable[Widget]],
-        source: Type[Widget] | None = None,
-    ) -> Callable[[Any, ...], Widget]:
-        from .lua import lua_behaviour
-        behaviours.insert(0, lua_behaviour)
+        behaviours: list[type],
+        source: type | None = None,
+    ) -> WidgetConstructor:
+        from .lua import Lua
+        behaviours.append(Lua)
 
         if source is not None:
             behaviours = [*source.behaviours, *behaviours]
@@ -408,26 +408,27 @@ class Widget:
                 binds=kwargs.get("binds"),
             )
 
-            if len(args) and len(w.initializers):
-                raise ValueError(
-                    "please only use keyword arguments in multi-initializer widget construction"
-                    + " to avoid inconsistent behaviour."
-                )
+            if "rules" in kwargs:
+                del kwargs["rules"]
+            if "binds" in kwargs:
+                del kwargs["binds"]
 
-            for setup in set(behaviours):
-                setup(w, w._fields)
+            for item in sorted(list(set(behaviours)), key=lambda item: behaviours.index(item)):
+                defaults = {}
+                if isinstance(item, tuple):
+                    item, defaults = item
 
-            for init in w.initializers:
-                code = init.__code__
-                arg_names = [
-                    arg for arg in code.co_varnames[: code.co_argcount] if arg != "self"
-                ]
+                beh = item(w, w._fields)
 
-                if len(args):
-                    for k, v in zip(arg_names, args):
-                        kwargs[k] = v
+                if hasattr(beh, "setup"):
+                    if len(defaults):
+                        beh.setup(**defaults)
+                    else:
+                        beh.setup(*args, **kwargs)
+                        args = tuple()
+                        kwargs = {}
 
-                init(**{k: v for k, v in kwargs.items() if k in arg_names})
+                w.behaviours.append(beh)
 
             w.on_init(w)
             return w
@@ -438,17 +439,6 @@ class Widget:
         WIDGET_TYPES[name] = _construct
 
         return _construct
-
-    @classmethod
-    def from_behaviour(
-        cls, base: Type[Widget] | None = None, include: list[Callable[[Widget], None]] | None = None
-    ) -> Callable[[Any, ...], Widget]:
-        def _wrap(behaviour: Callable[[Widget], None]) -> Callable[[Any, ...], Widget]:
-            return cls.create_type(
-                behaviour.__name__, behaviours=[behaviour, *(include or [])], source=base
-            )
-
-        return _wrap
 
     def __init__(
         self,
@@ -462,6 +452,7 @@ class Widget:
         self.eid = eid or str(uuid.uuid4())
         self.type_name = type_name
 
+        self.behaviours = []
         self.position = (0, 0)
         self.width = -1
         self.min_width = -1
@@ -488,6 +479,7 @@ class Widget:
         self.qs_hint = ""
 
         self._rule_calls, self._rule_dependencies = _parse_rules(rules or [])
+        self._default_rule_calls = {}
         # TODO: Remove when selectors are returned
         self._rule_dependencies.add(self)
 
@@ -511,8 +503,6 @@ class Widget:
         self.offset = (0, 0)
 
         self.palette = "main"
-
-        self.initializers = []
 
         self.state_machine = StateMachine(
             states=("idle", "hover", "selected", "active", "disabled"),
@@ -592,9 +582,6 @@ class Widget:
         self.on_build: Event[Widget] = Event("post build")
 
         self.on_key: Event[Widget, Key] = Event("on key pressed")
-        self.on_mouse: Event[Widget, MouseAction, tuple[int, int]] = Event(
-            "on mouse action"
-        )
 
         self.state_machine.on_change += lambda *_: self.set_dirty()
 
@@ -609,11 +596,22 @@ class Widget:
 
         self._fields = WidgetFields(self)
 
+        self.on_init(self)
+
     def __str__(self) -> str:
         return self.type_name
 
     def __repr__(self) -> str:
         return f"{self.type_name}"
+
+    def __getattribute__(self, name: str) -> Any:
+        behaviours = object.__getattribute__(self, "behaviours")
+
+        for item in behaviours:
+            if hasattr(item, name):
+                return getattr(item, name)
+
+        return object.__getattribute__(self, name)
 
     def __getattr__(self, name: str) -> Any:
         try:
@@ -625,6 +623,7 @@ class Widget:
                     raise AttributeError(f"'{self.type_name}' object has no attribute '{name}' (private field)")
                 else:
                     return fields._data[name]
+
         except AttributeError:
             pass
         
@@ -759,10 +758,7 @@ class Widget:
 
     @scroll.setter
     def scroll(self, new: tuple[int, int]) -> None:
-        x_bar = self._framed_width < self._virtual_width
-        y_bar = self._framed_height < self._virtual_height
 
-        old = self._scroll
 
         self._scroll = (
             max(min(new[0], self._virtual_width - self._framed_width), 0),
@@ -787,6 +783,9 @@ class Widget:
     def add_rules(self, *rules: str) -> None:
         _parse_rules(rules, into=self._rule_calls)
 
+    def add_default_rules(self, *rules: str) -> None:
+        _parse_rules(rules, into=self._default_rule_calls)
+
     def remove_rules(self, *rules: str) -> None:
         rules, deps = _parse_rules(rules)
         for key in rules.keys():
@@ -803,11 +802,6 @@ class Widget:
         setattr(self, function.__name__, bound)
 
         return bound
-
-    def add_initializer(self, function: Callable) -> Callable:
-        self.initializers.append(self.bind(function))
-
-        return function
 
     def add_behaviour(self, behaviour: Callable[[Widget], dict[str, Any]]) -> None:
         behaviour(self)
@@ -979,10 +973,7 @@ class Widget:
 
         if width_diff > 0 and len(line_list) > 0:
             for i, span in enumerate(reversed(line_list)):
-                try:
-                    new = span[:-width_diff]
-                except:
-                    raise ValueError(self, width_diff, type(width_diff), start, end, occupied)
+                new = span[:-width_diff]
 
                 width_diff -= len(span) - len(new)
 
@@ -1089,29 +1080,22 @@ class Widget:
         frame_right = self.frame.right != ""
         frame_bottom = self.frame.bottom != ""
 
-        if self.anchor is Anchor.SCREEN:
-            start_x, start_y = self.position
-            end_x, end_y = terminal.width - 1, terminal.height - 1
-            clip_start = (0, 0)
-            clip_end = (0, 0)
+        clip_start = list(self._clip_start)
+        clip_end = list(self._clip_end)
 
-        else:
-            clip_start = list(self._clip_start)
-            clip_end = list(self._clip_end)
+        [start_x, start_y], [end_x, end_y] = self.outer_rect
 
-            [start_x, start_y], [end_x, end_y] = self.outer_rect
+        clip_start[0] = max(0, clip_start[0] - frame_left)
+        clip_start[1] = max(0, clip_start[1] - frame_top)
 
-            clip_start[0] = max(0, clip_start[0] - frame_left)
-            clip_start[1] = max(0, clip_start[1] - frame_top)
+        start_x += self.frame.left != ""
+        start_y += self.frame.top != ""
 
-            start_x += self.frame.left != ""
-            start_y += self.frame.top != ""
+        clip_end[0] = max(0, clip_end[0] - frame_right)
+        clip_end[1] = max(0, clip_end[1] - frame_bottom)
 
-            clip_end[0] = max(0, clip_end[0] - frame_right)
-            clip_end[1] = max(0, clip_end[1] - frame_bottom)
-
-            end_x -= frame_right + 1
-            end_y -= frame_bottom + 1
+        end_x -= frame_right + 1
+        end_y -= frame_bottom + 1
 
         x.position = (start_x, end_y)
         x.clip((clip_start[0], max(0, clip_start[1] - height)), clip_end)
@@ -1183,9 +1167,6 @@ class Widget:
         self._repeat_scroll_count = 1
         return self.on_key((self, key))
 
-    def handle_mouse(self, action: MouseAction, position: tuple[int, int]) -> bool:
-        self.on_mouse((self, action, position))
-
     def get_contents(self) -> list[str]:
         return []
 
@@ -1215,7 +1196,7 @@ class Widget:
 
     def build(self, fillchar: str = " ") -> list[str]:
         change = False
-        for callback in self._rule_calls.values():
+        for callback in [*self._default_rule_calls.values(), *self._rule_calls.values()]:
             change |= callback(self)
 
         self.parts = []

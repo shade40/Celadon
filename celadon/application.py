@@ -5,35 +5,15 @@ import time
 from threading import Thread, Event as ThreadEvent, Lock
 from typing import Iterable
 
-from slate import terminal, getch, getch_timeout, feed, Key
+from slate import terminal, getch_timeout, feed, Key
 
 from . import xml
-from .enums import MouseAction
 from .routers import Router
-from .widget import Widget
+from .widget import Widget, WidgetFields
 
 import os
 
 DEBUG = os.getenv("DEBUG", None)
-
-
-def _parse_mouse_input(key: Key) -> tuple[MouseAction, tuple[int, int]] | None:
-    inp = str(key)
-
-    if not inp.startswith("mouse:"):
-        return None
-
-    # TODO: This ignores stacked events and only handles the last one. Shouldn't be an
-    # issue, but look out.
-    inp = inp.rsplit("mouse:", maxsplit=1)[-1]
-
-    action, position = inp.split("@")
-    parts = position.split(";")
-
-    if len(parts) != 2:
-        return None
-
-    return MouseAction(action), (int(parts[0]), int(parts[1]))
 
 
 class Page:
@@ -108,13 +88,10 @@ class Application:
         self._last_lines = []
 
     def process_input(self, inp: Key) -> None:
-        mouse_event = _parse_mouse_input(inp)
+        if self._target is None:
+            return
 
-        if mouse_event is None:
-            if self._target is None:
-                return
-
-            self._target.handle_keyboard(inp)
+        self._target.handle_keyboard(inp)
 
     def find_all(self, selector: str, context: Widget | None = None) -> Iterable[Widget]:
         if context is None or selector.startswith("#"):
@@ -138,7 +115,6 @@ class Application:
 
         Application.current = self
 
-        target_frametime = 1 / 60
 
         self._is_running = True
         self._last_input = 0
@@ -251,7 +227,7 @@ class Application:
                     time.sleep(sleep)
 
         with self._render_lock:
-            thread_start = time.time()
+            time.time()
             self._current_render_thread = Thread(target=_run)
             self._current_render_thread.start()
 

@@ -13,6 +13,12 @@ from urllib.parse import parse_qs, urlparse, urljoin
 
 from lupa import LuaRuntime, lua_type
 
+__all__ = [
+    "Router",
+    "LocalRouter",
+    "HTTPRouter",
+]
+
 INJECTED = {}
 
 def _inject(func: Callable) -> Callable:
@@ -185,14 +191,10 @@ class LocalRouter:
                                     data = json.loads(body)
                                 except json.JSONDecodeError:
                                     data = {}
-                            elif 'application/x-www-form-urlencoded' in content_type:
-                                data = _parse_formdata(query)
+
+                            # Default to form data parsing
                             else:
-                                # Default to form data parsing
-                                try:
-                                    data = _parse_formdata(query)
-                                except:
-                                    data = {'body': body}
+                                data = _parse_formdata(query)
                     
                     response = self.router.request(method, path, data, dict(self.headers))
                     self.send_response(response.code)
