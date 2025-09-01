@@ -142,7 +142,12 @@ class Application:
 
                 if inp == "ctrl-l":
                     terminal.clear()
-                    self._start_render()
+                    self._start_render(2)
+                    continue
+
+                if inp == "ctrl-p":
+                    with open("screenshot.svg", "w") as f:
+                        f.write(terminal.export_svg())
                     continue
 
                 try:

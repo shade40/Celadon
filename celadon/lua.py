@@ -1,3 +1,4 @@
+import json
 import os
 
 from dataclasses import dataclass
@@ -57,6 +58,7 @@ def _get_namespace(widget: Widget, getter: Callable, setter: Callable) -> ...:
 
             local meta = setmetatable(
                 {
+                    self = widget,
                     print = print,
                     copy = function()
                         local copy = {}
@@ -159,7 +161,7 @@ def _get_namespace(widget: Widget, getter: Callable, setter: Callable) -> ...:
 
             return meta
         end
-    """)(builtins, log_print, widget, getter, setter)
+    """)(builtins, print, widget, getter, setter)
 
 @behaviour
 class Lua:
@@ -206,11 +208,15 @@ class _SwapMethod(Enum):
 def _data_resolver(arg: str, cast_type: type = str):
     def _resolve(widget) -> str:
         if not arg[0] == arg[-1] == "`":
+            if cast_type is False:
+                return arg
             return cast_type(arg)
 
         func = runtime.eval(f"function() return {arg.strip('`')} end")
         result = widget.lua.eval_in_scope(func)
 
+        if cast_type is False:
+            return result
         return cast_type(result)
 
     return _resolve
@@ -220,8 +226,15 @@ def _include_resolver(method: _IncludeMethod, arg: str):
         return _data_resolver(arg, dict)
 
     def _resolve(widget) -> Widget:
-        selector = _data_resolver(arg)(widget)
-        return widget.app.find(selector, context=widget)
+        result = _data_resolver(arg, cast_type=False)(widget)
+
+        if isinstance(result, Widget):
+            return result
+
+        if (result := widget.app.find(result, context=widget)):
+            return result
+
+        raise ValueError(f"couldn't resolve {arg!r}: {result!r}: {type(result)!r}")
 
     return _resolve
 
@@ -270,6 +283,8 @@ class HQLResult:
                 result = result.serialize()
 
             data.update(result)
+
+        data = json.loads(json.dumps(data))
 
         resp = widget.app.router.request(self.method.value, endpoint, data, headers=headers)
         resp_widget = parse(resp.text)

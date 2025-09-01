@@ -320,7 +320,6 @@ class Container:
         target, fields = self
 
         fields.active_children = [child for child in fields.children if not child.inert]
-        target.inert = all(child.inert for child in fields.children)
 
         def _align(alignment, available):
             available = max(available, 0)
@@ -825,6 +824,7 @@ class TextField:
     fields: WidgetFields
 
     def setup(self, value: str = "", placeholder: str = "", multiline: bool = False):
+        self.target.value = value
         self.target.add_default_rules(
             """
             width=1.0,
@@ -837,15 +837,13 @@ class TextField:
             """
         )
 
-        self.value = value
-
         self.fields.define_public(
             placeholder=placeholder,
             multiline=multiline,
         )
 
         self.fields.define_readonly(
-            cursor=(0, 0),
+            cursor=(len(value), 0),
             cursor_line=("", "", ""),
         )
 
@@ -1099,7 +1097,7 @@ class TextField:
 
         if not value:
             return [
-                target.qs_hint
+                (f"[dim]{target.qs_hint}[/dim] " if target.qs_hint else "")
                 + content_style("")
                 + cursor_style(" ")
                 + "[/]"
@@ -1120,7 +1118,7 @@ class TextField:
         y = fields.cursor[1]
 
         styled_cursor_line = (
-            target.qs_hint
+            (f"[dim]{target.qs_hint}[/dim] " if target.qs_hint else "")
             + content_style(left)
             + cursor_style(cursor)
             + "[/]"

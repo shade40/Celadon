@@ -404,10 +404,13 @@ class Widget:
             w = Widget(
                 eid=eid,
                 type_name=name,
+                name=kwargs.get("name"),
                 rules=kwargs.get("rules"),
                 binds=kwargs.get("binds"),
             )
 
+            if "name" in kwargs:
+                del kwargs["name"]
             if "rules" in kwargs:
                 del kwargs["rules"]
             if "binds" in kwargs:
@@ -430,7 +433,6 @@ class Widget:
 
                 w.behaviours.append(beh)
 
-            w.on_init(w)
             return w
 
         _construct.behaviours = behaviours
@@ -445,10 +447,12 @@ class Widget:
         *,
         rules: list[str] | None = None,
         eid: str | None = None,
+        name: str = "",
         type_name: str = "Widget",
         binds: dict | None = None,
     ) -> None:
         self.value = NO_VALUE
+        self.name = name
         self.eid = eid or str(uuid.uuid4())
         self.type_name = type_name
 
@@ -574,6 +578,7 @@ class Widget:
             "*": {},
         }
 
+        self._had_init = False
         self.on_init: Event[Widget] = Event("on init")
 
         self.on_content_start: Event[Widget] = Event("pre content")
@@ -595,8 +600,6 @@ class Widget:
             self._virtual_height = 0
 
         self._fields = WidgetFields(self)
-
-        self.on_init(self)
 
     def __str__(self) -> str:
         return self.type_name
@@ -739,13 +742,9 @@ class Widget:
         if not self._scrollbars:
             from .behaviours import slider
 
-            x = slider(value=0.5, chars=(" ", "▅"))
-            x.frame = Frameless()
-            x.style_map["idle"]["frame"] = ".panel1-1"
+            x = slider(value=0.5, chars=(" ", "▅"), rules=["frame=frameless"])
             x.parent = self
-            y = slider(value=0.5, chars=(" ", "█"), vertical=True)
-            y.style_map["idle"]["frame"] = ".panel1-1"
-            y.frame = Frameless()
+            y = slider(value=0.5, chars=(" ", "█"), vertical=True, rules=["frame=frameless"])
             y.parent = self
 
             self._scrollbars = (x, y)
@@ -1196,6 +1195,12 @@ class Widget:
 
     def build(self, fillchar: str = " ") -> list[str]:
         change = False
+
+        if not self._had_init:
+            self.on_init(self)
+            self._had_init = True
+            change = True
+
         for callback in [*self._default_rule_calls.values(), *self._rule_calls.values()]:
             change |= callback(self)
 
@@ -1360,3 +1365,9 @@ class Widget:
             max(0, min(end[0], self.computed_width)),
             max(0, min(end[1], self.computed_height)),
         )
+
+    def serialize(self) -> dict[str, Any]:
+        if self.name == "" or self.value is NO_VALUE:
+            return {}
+
+        return {self.name: self.value}
