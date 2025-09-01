@@ -6,7 +6,7 @@ from typing import Any, Callable, Iterator
 from slate import Event, Span, terminal
 from zenith import zml_escape
 
-from .enums import Alignment, Direction, Anchor, QuickSelect
+from .enums import Alignment, Direction, Anchor, QuickSelect, Overflow
 from .widget import Widget, _compute, WidgetFields
 
 PRINTABLE_LIST = [*string.printable]
@@ -17,6 +17,7 @@ __all__ = [
     "Root",
     "Row",
     "Slider",
+    "Stack",
     "Text",
     "TextField",
     "Tower",
@@ -40,7 +41,7 @@ BEHAVIOURS = {}
 
 
 def behaviour(cls: type) -> type:
-    BEHAVIOURS[cls.__name__] = cls
+    BEHAVIOURS[cls.__name__.lower()] = cls
 
     binds = {}
     subscribers = {}
@@ -161,29 +162,16 @@ button = Widget.create_type("button", behaviours=[Button])
 class Container:
     target: Widget
     fields: WidgetFields
+
     direction = Direction.VERTICAL
 
     def setup(self, children: list[Widget] | None = None) -> None:
         target, fields = self
-        self.target.add_default_rules("""
-            width=-1,
-            height=-1,
-            quick_select=contents,
-        """)
-
-        for state in target.style_map.keys():
-            if state == "*":
-                continue
-
-            target.style_map[state]["content"] = ""
-
-        fields.define_public(gap=1)
-
+        
         fields.define_readonly(
             children=[],
             active_children=[],
             selected=None,
-            direction=self.direction,
         )
 
         fields.define_private(
@@ -194,6 +182,10 @@ class Container:
 
         for child in children or []:
             self.append(child)
+
+        @self.target.on_key.append
+        def _resolve_handler(args) -> bool:
+            return self.target._container_update_selection(args)
 
         @self.target.state_machine.on_action.append
         def cascade_selected_state(action: str):
@@ -289,8 +281,7 @@ class Container:
         for child in new:
             self._init_widget(child)
 
-    @subscribe("on_key")
-    def handle_selection(self, args) -> bool:
+    def _container_update_selection(self, args) -> bool:
         target, fields = self
         self, key = args
 
@@ -312,14 +303,131 @@ class Container:
             fields.selected = bound
             bound.state_machine.apply_action("SELECTED")
             target.state_machine.apply_action("SELECTED")
+            self.autoscroll()
             return True
 
         return False
 
-    def arrange(self):
+    @bind
+    def autoscroll(self):
         target, fields = self
 
+        if fields.selected is None:
+            return
+
+        sel = fields.selected
+        _w, _h = sel.computed_width, sel.computed_height
+        clips = sel.viewport_offsets
+        csx, csy = clips[0]
+        cex, cey = clips[1]
+
+        sx, sy = target.scroll
+        if cey > csy:
+            target.scroll = (sx + cex, sy + cey)
+        elif csy > cey:
+            target.scroll = (sx - csx, sy - csy)
+
+    @bind
+    def serialize(self) -> dict[str, Any]:
+        target, fields = self
+        output = {}
+
+        for w in fields.children:
+            if not hasattr(w, "serialize"):
+                continue
+
+            output = {**output, **w.serialize()}
+
+        return output
+
+    @bind
+    def build(self, fillchar: str = " "):
+        target, fields = self
+
+        lines = Widget.build(target, fillchar)
+
         fields.active_children = [child for child in fields.children if not child.inert]
+        target.arrange()
+
+        if not len(lines):
+            return lines
+
+        qs_content = None
+
+        if not target.inert and target.qs_bind is not None:
+            show = False
+            parent = target.parent
+
+            while isinstance(parent, Widget):
+                if parent.quick_select is QuickSelect.SELF:
+                    show = (
+                        parent.state_machine() == "selected" and parent.selected is None
+                    )
+                    break
+
+                if parent.is_root():
+                    show = parent.selected is None
+                    break
+
+                parent = parent.parent
+
+            fields.qs_shown = show
+
+            if show:
+                qs_content = f"{target.qs_bind}"
+                sp = Span(qs_content, dim=True)
+
+                first_line = lines[0]
+
+                truncated = []
+                goal = len(qs_content)
+                current = 0
+
+                for i, span in enumerate(first_line):
+                    new = current + len(span)
+
+                    if new > goal:
+                        cut = span[len(span) - (new - goal) :]
+                        if len(cut):
+                            truncated.append(cut)
+                        break
+
+                    current = new
+
+                lines[0] = (sp, *truncated, *first_line[i + 1 :])
+
+        return lines
+
+    @bind
+    def get_contents(self) -> list[str]:
+        target, fields = self
+        return [target._virtual_width * " "] * target._virtual_height
+
+
+@behaviour
+class Stack:
+    target: Widget
+    fields: WidgetFields
+
+    def setup(self, children: list[Widget] | None = None) -> None:
+        target, fields = self
+        self.target.add_default_rules("""
+            width=-1,
+            height=-1,
+            quick_select=contents,
+        """)
+
+        for state in target.style_map.keys():
+            if state == "*":
+                continue
+
+            target.style_map[state]["content"] = ""
+
+        fields.define_public(gap=1)
+        fields.define_readonly(direction=self.direction)
+
+    def arrange(self):
+        target, fields = self
 
         def _align(alignment, available):
             available = max(available, 0)
@@ -539,114 +647,146 @@ class Container:
             target._virtual_width = max_width
             target._virtual_height = total_height
 
-    @bind
-    def build(self, fillchar: str = " "):
-        target, fields = self
-
-        lines = Widget.build(target, fillchar)
-        target.arrange()
-
-        if not len(lines):
-            return lines
-
-        qs_content = None
-
-        if not target.inert and target.qs_bind is not None:
-            show = False
-            parent = target.parent
-
-            while isinstance(parent, Widget):
-                if parent.quick_select is QuickSelect.SELF:
-                    show = (
-                        parent.state_machine() == "selected" and parent.selected is None
-                    )
-                    break
-
-                if parent.is_root():
-                    show = parent.selected is None
-                    break
-
-                parent = parent.parent
-
-            fields.qs_shown = show
-
-            if show:
-                qs_content = f"{target.qs_bind}"
-                sp = Span(qs_content, dim=True)
-
-                first_line = lines[0]
-
-                truncated = []
-                goal = len(qs_content)
-                current = 0
-
-                for i, span in enumerate(first_line):
-                    new = current + len(span)
-
-                    if new > goal:
-                        cut = span[len(span) - (new - goal) :]
-                        if len(cut):
-                            truncated.append(cut)
-                        break
-
-                    current = new
-
-                lines[0] = (sp, *truncated, *first_line[i + 1 :])
-
-        return lines
-
-    @bind
-    def get_contents(self) -> list[str]:
-        target, fields = self
-        return [target._virtual_width * " "] * target._virtual_height
-
-    @bind
-    def autoscroll(self):
-        target, fields = self
-
-        if fields.selected is None:
-            return
-
-        sel = fields.selected
-        _w, _h = sel.computed_width, sel.computed_height
-        clips = sel.viewport_offsets
-        csx, csy = clips[0]
-        cex, cey = clips[1]
-
-        sx, sy = target.scroll
-        if cey > csy:
-            target.scroll = (sx + cex, sy + cey)
-        elif csy > cey:
-            target.scroll = (sx - csx, sy - csy)
-
-    @bind
-    def serialize(self) -> dict[str, Any]:
-        target, fields = self
-        output = {}
-
-        for w in fields.children:
-            if not hasattr(w, "serialize"):
-                continue
-
-            output = {**output, **w.serialize()}
-
-        return output
-
 
 @behaviour
-class Tower(Container):
+class Tower(Stack):
     direction = Direction.VERTICAL
 
 
-tower = Widget.create_type("tower", behaviours=[Tower])
+tower = Widget.create_type("tower", behaviours=[Tower, Container])
 
 
 @behaviour
-class Row(Container):
+class Row(Stack):
     direction = Direction.HORIZONTAL
 
 
-row = Widget.create_type("row", behaviours=[Row])
+row = Widget.create_type("row", behaviours=[Row, Container])
+
+
+@behaviour
+class Table:
+    columns: list[int | float | None] = []
+
+    def setup(self) -> None:
+        self.target.add_default_rules("width=1.0, height=1.0")
+        self.fields.define_public(columns=[], gap=0)
+
+    def arrange(self) -> None:
+        target, fields = self
+
+        base_x = target.position[0] + (target.frame.left != "")
+        base_y = target.position[1] + (target.frame.top != "")
+        y = 0
+
+        cols = fields.columns
+        children = []
+        computed_cols = [0] * len(cols)
+
+        for row_idx, row in enumerate(fields.children):
+            if row_idx == 0:
+                row.inert = True
+
+            row.width = 1.0
+            row.gap = fields.gap
+            row.compute_dimensions(target._framed_width, target._framed_height)
+
+            for i, col in enumerate(row.children):
+                col.width = cols[i]
+                col.overflow = (Overflow.HIDE, Overflow.HIDE)
+                col.compute_dimensions(cols[i], 1)
+                computed_cols[i] = max(col.computed_width, computed_cols[i])
+
+            row.position = (base_x, base_y + y)
+            children.extend([row, *row.parts])
+
+            y += row.computed_height
+
+        static = [width for i, width in enumerate(computed_cols) if isinstance(cols[i], int)]
+        static_width = sum(static)
+
+        fractional = [width for i, width in enumerate(computed_cols) if not isinstance(cols[i], float)]
+        fractional_width = sum(fractional)
+
+        available = (target._framed_width - static_width - fields.gap * (len(cols) - 1))
+
+        for row_idx, row in enumerate(fields.children):
+            for i, col in enumerate(row.children):
+                if isinstance(cols[i], int):
+                    col.width = computed_cols[i]
+                else:
+                    col.width = int(available * cols[i])
+
+        target.parts = [*children]
+        target._virtual_width = target._framed_width
+        target._virtual_height = y
+
+
+table = Widget.create_type("table", behaviours=[Table, Container])
+
+
+@behaviour
+class List:
+    def setup(self) -> None:
+        target, fields = self
+
+        target.add_default_rules("disable_qs_hints=true")
+        target.add_rules("quick_select=self")
+
+        fields.define_private(sel_index=0)
+
+        @target.state_machine.on_change.append
+        def _select_current(state) -> None:
+            if state != "selected":
+                return
+
+            fields.selected = fields.active_children[fields.sel_index]
+            fields.selected.state_machine.apply_action("SELECTED")
+            target.state_machine.apply_action("SELECTED")
+            target.autoscroll()
+
+    @bind
+    def _container_update_selection(self, args) -> bool:
+        target, fields = self
+        self, key = args
+
+        if fields.selected is not None and fields.selected.handle_keyboard(key):
+            return True
+
+        if key == "escape":
+            if fields.selected is not None:
+                fields.selected.state_machine.apply_action("UNSELECTED")
+                fields.selected = None
+
+            return False
+
+        idx = fields.sel_index
+
+        if self.target.direction is Direction.VERTICAL:
+            if key == "arrow-up":
+                idx -= 1
+            elif key == "arrow-down":
+                idx += 1
+            else:
+                return
+        else:
+            if key == "arrow-left":
+                idx -= 1
+            elif key == "arrow-right":
+                idx += 1
+            else:
+                return
+
+        fields.sel_index = max(min(idx, len(fields.active_children) - 1), 0)
+
+        if fields.selected is not None:
+            fields.selected.state_machine.apply_action("UNSELECTED")
+
+        fields.selected = fields.active_children[fields.sel_index]
+        fields.selected.state_machine.apply_action("SELECTED")
+        target.state_machine.apply_action("SELECTED")
+        self.autoscroll()
+        return True
 
 
 @behaviour
@@ -1170,4 +1310,4 @@ class Root:
         target.state_machine.apply_action("SELECTED")
 
 
-root = Widget.create_type("root", behaviours=[Tower, Root])
+root = Widget.create_type("root", behaviours=[Tower, Container, Root])

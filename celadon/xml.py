@@ -137,6 +137,16 @@ def _parse_widget(root: Element) -> Widget:
             event_handlers[key] = lua.runtime.eval(f"function(self) {value} end")
             continue
 
+        if key == "include":
+            value = [
+                beh for beh in
+                [
+                    BEHAVIOURS.get(name.strip())
+                    for name in value.split(",")
+                ]
+                if beh is not None
+            ]
+
         parsed_attrib[key] = value
 
     if root.text is None or root.text.strip() == "":

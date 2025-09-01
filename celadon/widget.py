@@ -400,7 +400,7 @@ class Widget:
         if source is not None:
             behaviours = [*source.behaviours, *behaviours]
 
-        def _construct(*args, eid: str | None = None, **kwargs) -> Widget:
+        def _construct(*args, include: list[Behaviour] | None = None, eid: str | None = None, **kwargs) -> Widget:
             w = Widget(
                 eid=eid,
                 type_name=name,
@@ -416,7 +416,12 @@ class Widget:
             if "binds" in kwargs:
                 del kwargs["binds"]
 
-            for item in sorted(list(set(behaviours)), key=lambda item: behaviours.index(item)):
+            all_behaviours = behaviours
+
+            if include is not None:
+                all_behaviours = [*include, *behaviours]
+
+            for item in sorted(list(set(all_behaviours)), key=lambda item: all_behaviours.index(item)):
                 defaults = {}
                 if isinstance(item, tuple):
                     item, defaults = item
@@ -481,6 +486,7 @@ class Widget:
         self.overflow = (Overflow.AUTO, Overflow.AUTO)
         self.qs_binds = {}
         self.qs_hint = ""
+        self.disable_qs_hints = False
 
         self._rule_calls, self._rule_dependencies = _parse_rules(rules or [])
         self._default_rule_calls = {}
@@ -550,7 +556,7 @@ class Widget:
             "selected": {
                 "background": "",
                 "frame": ".panel1+2",
-                "content": ".text bold",
+                "content": ".text",
                 "scrollbar_x": "@.panel1-2",
                 "scrollbar_y": "@.panel1-2",
             },
@@ -1174,6 +1180,10 @@ class Widget:
 
     def update_qs_hint(self):
         if self.inert or self.qs_bind is None:
+            self.qs_hint = ""
+            return
+
+        if self.disable_qs_hints or self.parent.disable_qs_hints:
             self.qs_hint = ""
             return
 
