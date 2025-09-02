@@ -58,6 +58,7 @@ include = [
   "celadon/widgets/*.py",
   "celadon/py.typed",
   "/tests",
+  "celadon/builtins.lua",
 ]
 
 [tool.hatch.envs.default]
