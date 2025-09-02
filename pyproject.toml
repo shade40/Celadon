@@ -36,6 +36,7 @@ dependencies = [
     "sh40-zenith",
     "lupa",
     "lxml",
+    "requests",
 ]
 dynamic = ["version"]
 
