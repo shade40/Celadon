@@ -153,6 +153,9 @@ class Button:
 
         if key in [" ", "return"]:
             self.fields.on_submit(self)
+            return True
+
+        return False
 
 
 button = Widget.create_type("button", behaviours=[Button])
@@ -292,7 +295,7 @@ class Container:
             fields.selected.state_machine.apply_action("UNSELECTED")
             fields.selected = None
 
-            return True
+            return False
 
         key_str = str(key)
 
@@ -983,7 +986,7 @@ class TextField:
         )
 
         self.fields.define_readonly(
-            cursor=(len(value), 0),
+            cursor=(len(value) if not multiline else 0, 0),
             cursor_line=("", "", ""),
         )
 
@@ -1075,6 +1078,23 @@ class TextField:
 
         fields.cursor = (x, y)
         self._eval_lines()
+
+        scroll = list(target.scroll)
+        scrolled = (x - scroll[0], y - scroll[1])
+
+        if 0 > scrolled[0]:
+            scroll[0] += scrolled[0]
+
+        elif scrolled[0] >= target._framed_width:
+            scroll[0] += target._framed_width - scrolled[0] + 1 + target.has_scrollbar(1)
+
+        if 0 > scrolled[1]:
+            scroll[1] += scrolled[1]
+
+        elif scrolled[1] >= target._framed_height:
+            scroll[1] += target._framed_height - scrolled[1] + 1 + target.has_scrollbar(0)
+
+        target.scroll = tuple(scroll)
 
         return fields.cursor != (cx, cy)
 

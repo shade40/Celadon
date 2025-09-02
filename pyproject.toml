@@ -34,7 +34,7 @@ classifiers = [
 dependencies = [
     "sh40-slate",
     "sh40-zenith",
-    "PyYAML",
+    "lupa",
 ]
 dynamic = ["version"]
 
